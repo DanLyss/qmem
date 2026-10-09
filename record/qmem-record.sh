@@ -342,6 +342,10 @@ if $stopped; then
 	[ -f "$out/damon.data" ] || die "damo did not write $out/damon.data"
 	damo_rc=0
 fi
+if [ "$damo_rc" -ne 0 ] && [ ! -f "$out/damon.data" ] && [ $stop_reason = exited ]; then
+	# damo crashes this way when the target is gone before the first snapshot
+	die "the application exited before damo saved a record; it ran too briefly to record"
+fi
 [ "$damo_rc" -eq 0 ] || die "damo record failed (exit $damo_rc)"
 
 normalize "$out"
