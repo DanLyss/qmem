@@ -4,7 +4,7 @@
 
 - [docs/spec.md](docs/spec.md) — что такое Qmem и зачем
 - [docs/architecture.md](docs/architecture.md) — архитектура и общий план
-- [docs/modules/record.md](docs/modules/record.md) — qmem-record, итерация 1
+- [docs/modules/record.md](docs/modules/record.md) — qmem-record, итерация 1 ([что сделано](record/README.md))
 - [docs/modules/replay.md](docs/modules/replay.md) — qmem-replay, итерация 1
 
 ## Итерация 1: qmem-record
