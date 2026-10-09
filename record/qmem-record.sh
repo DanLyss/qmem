@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # qmem-record: record an application's memory load (iteration 1).
 #
-# The DAMON access pattern is recorded by `damo record`; smaps and meminfo
-# snapshots and allocation tracing (tracefs) are done by this script.
+# The DAMON access pattern is recorded by `damo record`; smaps and system
+# memory snapshots and allocation tracing (tracefs) are done by this script.
 # See docs/modules/record.md.
 set -euo pipefail
 
@@ -12,7 +12,8 @@ usage() {
 	       qmem-record.sh --normalize <dir>
 
 	  -o <dir>        output directory (must be empty or absent)
-	  -i <ms>         smaps/meminfo snapshot period (default 1000)
+	  -i <ms>         smaps/system.csv snapshot period (default 1000)
+	  -D "<options>"  extra options for damo record
 	  --no-syscalls   do not trace mmap/munmap/brk/mremap/madvise
 	  --normalize     rebuild <dir>/access.csv from <dir>/damon.data
 	EOF
@@ -58,6 +59,32 @@ normalize() {
 			NF == 5 { print start "," end "," $1 "," $2 "," $3 "," $4 "," $5 }'
 	} > "$dir/access.csv.tmp" || die "damo report failed"
 	mv "$dir/access.csv.tmp" "$dir/access.csv"
+}
+
+PSI=/proc/pressure/memory
+[ -r "$PSI" ] || PSI=/dev/null
+
+# Append one system.csv row: meminfo (kB), memory PSI avg10, vmstat counters.
+system_row() {
+	awk -v ts="$1" '
+		FILENAME == "/proc/meminfo" && $1 == "MemFree:"      { mf = $2 }
+		FILENAME == "/proc/meminfo" && $1 == "MemAvailable:" { ma = $2 }
+		FILENAME == "/proc/meminfo" && $1 == "Cached:"       { ca = $2 }
+		FILENAME == "/proc/meminfo" && $1 == "SwapFree:"     { sf = $2 }
+		FILENAME == "/proc/vmstat" && $1 == "pgfault"        { pf = $2 }
+		FILENAME == "/proc/vmstat" && $1 == "pgmajfault"     { pm = $2 }
+		FILENAME == "/proc/vmstat" && $1 == "pswpin"         { si = $2 }
+		FILENAME == "/proc/vmstat" && $1 == "pswpout"        { so = $2 }
+		$1 == "some" || $1 == "full" {
+			split($2, kv, "=")
+			psi[$1] = kv[2]
+		}
+		END {
+			print ts "," mf "," ma "," ca "," sf "," \
+				(psi["some"] == "" ? 0 : psi["some"]) "," \
+				(psi["full"] == "" ? 0 : psi["full"]) "," \
+				pf + 0 "," pm + 0 "," si + 0 "," so + 0
+		}' /proc/meminfo "$PSI" /proc/vmstat
 }
 
 # Trace the application's allocation syscalls into $out/syscalls.txt through
@@ -108,10 +135,12 @@ fi
 out=
 interval=1000
 want_syscalls=true
+damo_options=
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
+	-D) [ $# -ge 2 ] || usage; damo_options=$2; shift 2 ;;
 	--no-syscalls) want_syscalls=false; shift ;;
 	--) shift; break ;;
 	*) usage ;;
@@ -131,7 +160,9 @@ start_time=$(date +%s.%N)
 start_ms=$(now_ms)
 start_uptime=$(cut -d' ' -f1 /proc/uptime)
 
-"${DAMO[@]}" record --do_record access -o "$out/damon.data" "$command" &
+read -ra damo_opts <<< "$damo_options"
+"${DAMO[@]}" record --do_record access "${damo_opts[@]}" \
+	-o "$out/damon.data" "$command" &
 damo_pid=$!
 
 interrupted=false
@@ -163,7 +194,8 @@ if $want_syscalls && [ -n "$app_pid" ]; then
 	fi
 fi
 
-echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree" > "$out/meminfo.csv"
+echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout" \
+	> "$out/system.csv"
 sleep_s=$(awk -v ms="$interval" 'BEGIN { print ms / 1000 }')
 
 while [ -n "$app_pid" ] && ! $interrupted && kill -0 "$app_pid" 2>/dev/null; do
@@ -175,12 +207,7 @@ while [ -n "$app_pid" ] && ! $interrupted && kill -0 "$app_pid" 2>/dev/null; do
 		rm -f "$snap"
 		break
 	fi
-	awk -v ts="$ts" '
-		/^MemFree:/      { f = $2 }
-		/^MemAvailable:/ { a = $2 }
-		/^Cached:/       { c = $2 }
-		/^SwapFree:/     { s = $2 }
-		END { print ts "," f "," a "," c "," s }' /proc/meminfo >> "$out/meminfo.csv"
+	system_row "$ts" >> "$out/system.csv"
 	# sleep in the background so a signal is handled right away
 	sleep "$sleep_s" &
 	wait $! || true
@@ -210,6 +237,7 @@ cat > "$out/meta.json" <<EOF
 {
   "command": $(json_str "$command"),
   "damo_version": $(json_str "$("${DAMO[@]}" version)"),
+  "damo_options": $(json_str "$damo_options"),
   "kernel": $(json_str "$(uname -r)"),
   "start_time": $start_time,
   "start_uptime": $start_uptime,
