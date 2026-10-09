@@ -6,6 +6,7 @@
 - [docs/architecture.md](docs/architecture.md) — архитектура и общий план
 - [docs/modules/record.md](docs/modules/record.md) — qmem-record, итерация 1 ([что сделано](record/README.md))
 - [docs/modules/replay.md](docs/modules/replay.md) — qmem-replay, итерация 1
+- [examples/python_phases](examples/python_phases/README.md) — пример настоящей записи
 
 ## Итерация 1: qmem-record
 
