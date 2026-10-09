@@ -2,17 +2,19 @@
 # qmem-record: record an application's memory load (iteration 1).
 #
 # The DAMON access pattern is recorded by `damo record`; smaps and meminfo
-# snapshots are taken by this script. See docs/modules/record.md.
+# snapshots and allocation tracing (tracefs) are done by this script.
+# See docs/modules/record.md.
 set -euo pipefail
 
 usage() {
 	cat >&2 <<-EOF
-	usage: qmem-record.sh -o <dir> [-i <ms>] -- <command> [args...]
+	usage: qmem-record.sh -o <dir> [options] -- <command> [args...]
 	       qmem-record.sh --normalize <dir>
 
-	  -o <dir>      output directory (must be empty or absent)
-	  -i <ms>       smaps/meminfo snapshot period (default 1000)
-	  --normalize   rebuild <dir>/access.csv from <dir>/damon.data
+	  -o <dir>        output directory (must be empty or absent)
+	  -i <ms>         smaps/meminfo snapshot period (default 1000)
+	  --no-syscalls   do not trace mmap/munmap/brk/mremap/madvise
+	  --normalize     rebuild <dir>/access.csv from <dir>/damon.data
 	EOF
 	exit 2
 }
@@ -22,8 +24,10 @@ die() {
 	exit 1
 }
 
-# damo command; tests point this at a fake
+# damo command and tracefs mount; tests point these elsewhere
 read -ra DAMO <<< "${QMEM_DAMO:-damo}"
+TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
+SYSCALLS="mmap munmap brk mremap madvise"
 
 now_ms() { date +%s%3N; }
 
@@ -56,6 +60,45 @@ normalize() {
 	mv "$dir/access.csv.tmp" "$dir/access.csv"
 }
 
+# Trace the application's allocation syscalls into $out/syscalls.txt through
+# a private tracefs instance. Returns non-zero if tracefs cannot be set up.
+inst=
+reader_pid=
+overrun=0
+start_tracing() {
+	local sc
+
+	mkdir "$TRACEFS/instances/qmem-record-$$" 2>/dev/null || return 1
+	inst="$TRACEFS/instances/qmem-record-$$"
+	echo boot > "$inst/trace_clock" || return 1
+	echo 8192 > "$inst/buffer_size_kb" || return 1
+	for sc in $SYSCALLS; do
+		echo 1 > "$inst/events/syscalls/sys_enter_$sc/enable" || return 1
+		echo 1 > "$inst/events/syscalls/sys_exit_$sc/enable" || return 1
+	done
+	# follow threads and children; older kernels lack the option
+	echo 1 > "$inst/options/event-fork" 2>/dev/null || true
+	echo "$app_pid" > "$inst/set_event_pid" || return 1
+	cat "$inst/trace_pipe" > "$out/syscalls.txt" &
+	reader_pid=$!
+	echo 1 > "$inst/tracing_on" || return 1
+}
+
+stop_tracing() {
+	[ -n "$inst" ] || return 0
+	echo 0 > "$inst/tracing_on" 2>/dev/null || true
+	overrun=$(cat "$inst"/per_cpu/cpu*/stats 2>/dev/null |
+		awk '/^overrun:/ { s += $2 } END { print s + 0 }')
+	if [ -n "$reader_pid" ]; then
+		sleep 0.2	# let the reader drain the buffer
+		kill "$reader_pid" 2>/dev/null || true
+		wait "$reader_pid" 2>/dev/null || true
+		reader_pid=
+	fi
+	rmdir "$inst" 2>/dev/null || true
+	inst=
+}
+
 if [ "${1-}" = --normalize ]; then
 	[ $# -eq 2 ] || usage
 	normalize "$2"
@@ -64,10 +107,12 @@ fi
 
 out=
 interval=1000
+want_syscalls=true
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
+	--no-syscalls) want_syscalls=false; shift ;;
 	--) shift; break ;;
 	*) usage ;;
 	esac
@@ -84,6 +129,7 @@ command=$(printf '%q ' "$@")
 command=${command% }
 start_time=$(date +%s.%N)
 start_ms=$(now_ms)
+start_uptime=$(cut -d' ' -f1 /proc/uptime)
 
 "${DAMO[@]}" record --do_record access -o "$out/damon.data" "$command" &
 damo_pid=$!
@@ -94,6 +140,7 @@ on_signal() {
 	kill -INT "$damo_pid" 2>/dev/null || true
 }
 trap on_signal INT TERM
+trap stop_tracing EXIT
 
 # damo starts the command itself; the application is its first child
 app_pid=
@@ -103,6 +150,18 @@ for _ in $(seq 100); do
 	kill -0 "$damo_pid" 2>/dev/null || break
 	sleep 0.05
 done
+
+syscalls=false
+if $want_syscalls && [ -n "$app_pid" ]; then
+	if start_tracing; then
+		syscalls=true
+	else
+		stop_tracing
+		rm -f "$out/syscalls.txt"
+		echo "qmem-record: syscall tracing unavailable (cannot set up $TRACEFS)," \
+			"continuing without it" >&2
+	fi
+fi
 
 echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree" > "$out/meminfo.csv"
 sleep_s=$(awk -v ms="$interval" 'BEGIN { print ms / 1000 }')
@@ -137,6 +196,7 @@ while kill -0 "$damo_pid" 2>/dev/null; do
 	wait "$damo_pid" || damo_rc=$?
 done
 end_time=$(date +%s.%N)
+stop_tracing
 
 if $interrupted; then
 	[ -f "$out/damon.data" ] || die "damo did not write $out/damon.data"
@@ -152,8 +212,11 @@ cat > "$out/meta.json" <<EOF
   "damo_version": $(json_str "$("${DAMO[@]}" version)"),
   "kernel": $(json_str "$(uname -r)"),
   "start_time": $start_time,
+  "start_uptime": $start_uptime,
   "end_time": $end_time,
   "interval_ms": $interval,
-  "interrupted": $interrupted
+  "interrupted": $interrupted,
+  "syscalls": $syscalls,
+  "syscall_overrun": $overrun
 }
 EOF
