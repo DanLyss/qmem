@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from conftest import HOT_REGION, RW_SPLIT
+from conftest import FIXED_WORK, HOT_REGION, RW_SPLIT
 
 
 def test_hot_region_prints_ranges_and_exits():
@@ -42,3 +42,13 @@ def test_rw_split_prints_regions():
     b0, b1 = (int(x, 16) for x in b.groups())
     assert a1 - a0 == 4 << 20 and b1 - b0 == 2 << 20
     assert a1 <= b0 or b1 <= a0
+
+
+def test_fixed_work_runs_and_rejects_bad_args():
+    p = subprocess.run([str(FIXED_WORK), '8', '2'], capture_output=True,
+                       timeout=10)
+    assert p.returncode == 0
+    for args in ([], ['0', '1'], ['8', '0']):
+        p = subprocess.run([str(FIXED_WORK)] + args, capture_output=True,
+                           timeout=10)
+        assert p.returncode == 2

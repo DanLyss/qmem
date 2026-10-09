@@ -132,6 +132,15 @@ stop_tracing() {
 	inst=
 }
 
+# True while <pid> exists and is not a zombie (damo reaps its child late).
+alive() {
+	local stat
+
+	stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+	stat=${stat##*) }
+	[ "${stat%% *}" != Z ]
+}
+
 # Sample written pages of the application into $out/writes.csv.
 sd_pid=
 start_softdirty() {
@@ -262,29 +271,29 @@ fi
 echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout" \
 	> "$out/system.csv"
 
-while [ -n "$app_pid" ] && ! $stopped && kill -0 "$app_pid" 2>/dev/null; do
+# Check often whether the application is still there (so recording ends
+# right after it does), take snapshots every $interval ms.
+poll_s=$(awk -v ms="$interval" 'BEGIN { print (ms < 100 ? ms : 100) / 1000 }')
+next_snap_ms=$start_ms
+while [ -n "$app_pid" ] && ! $stopped && alive "$app_pid"; do
 	now=$(now_ms)
 	if [ -n "$deadline_ms" ] && [ "$now" -ge "$deadline_ms" ]; then
 		stop_damo duration
 		break
 	fi
-	ts=$(( now - start_ms ))
-	snap="$out/smaps/$ts.txt"
-	cat "/proc/$app_pid/smaps" > "$snap" 2>/dev/null || true
-	if [ ! -s "$snap" ]; then
-		# the application exited (or is a zombie waiting for damo)
-		rm -f "$snap"
-		break
+	if [ "$now" -ge "$next_snap_ms" ]; then
+		next_snap_ms=$(( now + interval ))
+		ts=$(( now - start_ms ))
+		snap="$out/smaps/$ts.txt"
+		cat "/proc/$app_pid/smaps" > "$snap" 2>/dev/null || true
+		if [ ! -s "$snap" ]; then
+			rm -f "$snap"	# the application has just exited
+			break
+		fi
+		system_row "$ts" >> "$out/system.csv"
 	fi
-	system_row "$ts" >> "$out/system.csv"
-	# sleep until the next snapshot or the deadline, whichever is first,
-	# in the background so a signal is handled right away
-	wait_ms=$interval
-	if [ -n "$deadline_ms" ]; then
-		left=$(( deadline_ms - $(now_ms) ))
-		[ "$left" -ge "$wait_ms" ] || wait_ms=$(( left > 1 ? left : 1 ))
-	fi
-	sleep "$(awk -v ms="$wait_ms" 'BEGIN { print ms / 1000 }')" &
+	# sleep in the background so a signal is handled right away
+	sleep "$poll_s" &
 	wait $! || true
 done
 

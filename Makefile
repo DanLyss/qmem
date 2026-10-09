@@ -1,7 +1,7 @@
 CC ?= gcc
 CFLAGS ?= -O2 -Wall -Wextra
 
-WORKLOADS := workloads/hot_region workloads/rw_split
+WORKLOADS := workloads/hot_region workloads/rw_split workloads/fixed_work
 TOOLS := $(if $(wildcard record/softdirty.c),record/qmem-softdirty)
 
 all: $(WORKLOADS) $(TOOLS)

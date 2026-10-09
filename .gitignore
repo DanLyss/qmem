@@ -1,5 +1,6 @@
 /workloads/hot_region
 /workloads/rw_split
+/workloads/fixed_work
 /record/qmem-softdirty
 __pycache__/
 .pytest_cache/
