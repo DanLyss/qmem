@@ -9,10 +9,13 @@ set -euo pipefail
 usage() {
 	cat >&2 <<-EOF
 	usage: qmem-record.sh -o <dir> [options] -- <command> [args...]
+	       qmem-record.sh -o <dir> [options] -p <pid>
 	       qmem-record.sh --normalize <dir>
 
 	  -o <dir>        output directory (must be empty or absent)
 	  -i <ms>         smaps/system.csv snapshot period (default 1000)
+	  -p <pid>        attach to a running process instead of starting one
+	  -d <s>          stop after <s> seconds
 	  -D "<options>"  extra options for damo record
 	  --no-syscalls   do not trace mmap/munmap/brk/mremap/madvise
 	  --normalize     rebuild <dir>/access.csv from <dir>/damon.data
@@ -136,51 +139,85 @@ out=
 interval=1000
 want_syscalls=true
 damo_options=
+attach_pid=
+duration=
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
+	-p) [ $# -ge 2 ] || usage; attach_pid=$2; shift 2 ;;
+	-d) [ $# -ge 2 ] || usage; duration=$2; shift 2 ;;
 	-D) [ $# -ge 2 ] || usage; damo_options=$2; shift 2 ;;
 	--no-syscalls) want_syscalls=false; shift ;;
 	--) shift; break ;;
 	*) usage ;;
 	esac
 done
-[ -n "$out" ] && [ $# -gt 0 ] || usage
+[ -n "$out" ] || usage
+if [ -n "$attach_pid" ]; then
+	[ $# -eq 0 ] && [[ $attach_pid =~ ^[1-9][0-9]*$ ]] || usage
+	mode=attach
+else
+	[ $# -gt 0 ] || usage
+	mode=launch
+fi
 [[ $interval =~ ^[1-9][0-9]*$ ]] || usage
+deadline_ms=
+if [ -n "$duration" ]; then
+	[[ $duration =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage
+	duration_ms=$(awk -v s="$duration" 'BEGIN { printf "%d", s * 1000 }')
+	[ "$duration_ms" -gt 0 ] || usage
+fi
 
 if [ -e "$out" ] && [ -n "$(ls -A "$out")" ]; then
 	die "$out is not empty"
 fi
-mkdir -p "$out/smaps"
 
-command=$(printf '%q ' "$@")
-command=${command% }
+if [ $mode = attach ]; then
+	[ -d "/proc/$attach_pid" ] || die "no such process $attach_pid"
+	command=$(tr '\0' ' ' < "/proc/$attach_pid/cmdline")
+	command=${command% }
+	target=$attach_pid
+else
+	command=$(printf '%q ' "$@")
+	command=${command% }
+	target=$command
+fi
+
+mkdir -p "$out/smaps"
 start_time=$(date +%s.%N)
 start_ms=$(now_ms)
 start_uptime=$(cut -d' ' -f1 /proc/uptime)
+[ -z "$duration" ] || deadline_ms=$(( start_ms + duration_ms ))
 
 read -ra damo_opts <<< "$damo_options"
 "${DAMO[@]}" record --do_record access "${damo_opts[@]}" \
-	-o "$out/damon.data" "$command" &
+	-o "$out/damon.data" "$target" &
 damo_pid=$!
 
-interrupted=false
-on_signal() {
-	interrupted=true
+# why recording stopped: exited, interrupted or duration
+stop_reason=exited
+stopped=false
+stop_damo() {
+	stop_reason=$1
+	stopped=true
 	kill -INT "$damo_pid" 2>/dev/null || true
 }
-trap on_signal INT TERM
+trap 'stop_damo interrupted' INT TERM
 trap stop_tracing EXIT
 
-# damo starts the command itself; the application is its first child
-app_pid=
-for _ in $(seq 100); do
-	app_pid=$(pgrep -o -P "$damo_pid" || true)
-	[ -n "$app_pid" ] && break
-	kill -0 "$damo_pid" 2>/dev/null || break
-	sleep 0.05
-done
+if [ $mode = attach ]; then
+	app_pid=$attach_pid
+else
+	# damo starts the command itself; the application is its first child
+	app_pid=
+	for _ in $(seq 100); do
+		app_pid=$(pgrep -o -P "$damo_pid" || true)
+		[ -n "$app_pid" ] && break
+		kill -0 "$damo_pid" 2>/dev/null || break
+		sleep 0.05
+	done
+fi
 
 syscalls=false
 if $want_syscalls && [ -n "$app_pid" ]; then
@@ -196,10 +233,14 @@ fi
 
 echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout" \
 	> "$out/system.csv"
-sleep_s=$(awk -v ms="$interval" 'BEGIN { print ms / 1000 }')
 
-while [ -n "$app_pid" ] && ! $interrupted && kill -0 "$app_pid" 2>/dev/null; do
-	ts=$(( $(now_ms) - start_ms ))
+while [ -n "$app_pid" ] && ! $stopped && kill -0 "$app_pid" 2>/dev/null; do
+	now=$(now_ms)
+	if [ -n "$deadline_ms" ] && [ "$now" -ge "$deadline_ms" ]; then
+		stop_damo duration
+		break
+	fi
+	ts=$(( now - start_ms ))
 	snap="$out/smaps/$ts.txt"
 	cat "/proc/$app_pid/smaps" > "$snap" 2>/dev/null || true
 	if [ ! -s "$snap" ]; then
@@ -208,13 +249,20 @@ while [ -n "$app_pid" ] && ! $interrupted && kill -0 "$app_pid" 2>/dev/null; do
 		break
 	fi
 	system_row "$ts" >> "$out/system.csv"
-	# sleep in the background so a signal is handled right away
-	sleep "$sleep_s" &
+	# sleep until the next snapshot or the deadline, whichever is first,
+	# in the background so a signal is handled right away
+	wait_ms=$interval
+	if [ -n "$deadline_ms" ]; then
+		left=$(( deadline_ms - $(now_ms) ))
+		[ "$left" -ge "$wait_ms" ] || wait_ms=$(( left > 1 ? left : 1 ))
+	fi
+	sleep "$(awk -v ms="$wait_ms" 'BEGIN { print ms / 1000 }')" &
 	wait $! || true
 done
 
-# damo leaves the target alone when it is interrupted
-if $interrupted && [ -n "$app_pid" ]; then
+# damo leaves the target alone when it is stopped; an application we started
+# is ours to stop, an attached one is not
+if $stopped && [ $mode = launch ] && [ -n "$app_pid" ]; then
 	kill -TERM "$app_pid" 2>/dev/null || true
 fi
 
@@ -225,7 +273,8 @@ done
 end_time=$(date +%s.%N)
 stop_tracing
 
-if $interrupted; then
+if $stopped; then
+	# damo exits with the signal number after saving the record
 	[ -f "$out/damon.data" ] || die "damo did not write $out/damon.data"
 	damo_rc=0
 fi
@@ -233,9 +282,14 @@ fi
 
 normalize "$out"
 
+interrupted=false
+[ $stop_reason != interrupted ] || interrupted=true
+
 cat > "$out/meta.json" <<EOF
 {
+  "mode": "$mode",
   "command": $(json_str "$command"),
+  "pid": ${app_pid:-null},
   "damo_version": $(json_str "$("${DAMO[@]}" version)"),
   "damo_options": $(json_str "$damo_options"),
   "kernel": $(json_str "$(uname -r)"),
@@ -243,6 +297,8 @@ cat > "$out/meta.json" <<EOF
   "start_uptime": $start_uptime,
   "end_time": $end_time,
   "interval_ms": $interval,
+  "duration_s": ${duration:-null},
+  "stop_reason": "$stop_reason",
   "interrupted": $interrupted,
   "syscalls": $syscalls,
   "syscall_overrun": $overrun
