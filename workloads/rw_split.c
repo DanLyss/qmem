@@ -1,8 +1,9 @@
 /*
  * rw_split: test workload that writes one region and only reads another.
  *
- * Maps region A (<a_mb>) and region B (<b_mb>) separately, writes every page
- * of both once, then for <seconds> keeps writing A and only reading B.
+ * Maps region A (<a_mb>) and region B (<b_mb>) with a PROT_NONE guard page
+ * between them, so they stay separate mappings, writes every page of both
+ * once, then for <seconds> keeps writing A and only reading B.
  *
  * usage: rw_split <a_mb> <b_mb> <seconds>
  */
@@ -20,17 +21,6 @@ static double now(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_sec + ts.tv_nsec / 1e9;
-}
-
-static volatile uint8_t *map(size_t size)
-{
-	volatile uint8_t *p = mmap(NULL, size, PROT_READ | PROT_WRITE,
-				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-	if (p == MAP_FAILED) {
-		perror("mmap");
-		exit(1);
-	}
-	return p;
 }
 
 int main(int argc, char **argv)
@@ -53,8 +43,19 @@ int main(int argc, char **argv)
 	/* let non-parent tools (qmem-softdirty) read our pagemap under Yama */
 	prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
 
-	volatile uint8_t *a = map(a_size);
-	volatile uint8_t *b = map(b_size);
+	/* A, one guard page, B: adjacent anonymous mappings would be merged */
+	volatile uint8_t *a = mmap(NULL, a_size + page + b_size,
+				   PROT_READ | PROT_WRITE,
+				   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	if (a == MAP_FAILED) {
+		perror("mmap");
+		return 1;
+	}
+	if (mprotect((void *)(a + a_size), page, PROT_NONE)) {
+		perror("mprotect");
+		return 1;
+	}
+	volatile uint8_t *b = a + a_size + page;
 
 	printf("a 0x%lx 0x%lx\n", (unsigned long)a, (unsigned long)(a + a_size));
 	printf("b 0x%lx 0x%lx\n", (unsigned long)b, (unsigned long)(b + b_size));

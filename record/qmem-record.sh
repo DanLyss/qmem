@@ -2,7 +2,8 @@
 # qmem-record: record an application's memory load (iteration 1).
 #
 # The DAMON access pattern is recorded by `damo record`; smaps and system
-# memory snapshots and allocation tracing (tracefs) are done by this script.
+# memory snapshots, allocation tracing (tracefs) and write sampling
+# (qmem-softdirty) are done by this script.
 # See docs/modules/record.md.
 set -euo pipefail
 
@@ -14,6 +15,7 @@ usage() {
 
 	  -o <dir>        output directory (must be empty or absent)
 	  -i <ms>         smaps/system.csv snapshot period (default 1000)
+	  -w <ms>         sample written pages (soft-dirty) every <ms> (default off)
 	  -p <pid>        attach to a running process instead of starting one
 	  -d <s>          stop after <s> seconds
 	  -D "<options>"  extra options for damo record
@@ -31,6 +33,7 @@ die() {
 # damo command and tracefs mount; tests point these elsewhere
 read -ra DAMO <<< "${QMEM_DAMO:-damo}"
 TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
+SOFTDIRTY=${QMEM_SOFTDIRTY:-$(dirname "$0")/qmem-softdirty}
 SYSCALLS="mmap munmap brk mremap madvise"
 
 now_ms() { date +%s%3N; }
@@ -129,6 +132,21 @@ stop_tracing() {
 	inst=
 }
 
+# Sample written pages of the application into $out/writes.csv.
+sd_pid=
+start_softdirty() {
+	echo "ts_ms,start,end,present_pages,dirty_pages" > "$out/writes.csv"
+	"$SOFTDIRTY" "$app_pid" "$writes_ms" "$start_ms" >> "$out/writes.csv" &
+	sd_pid=$!
+}
+
+stop_softdirty() {
+	[ -n "$sd_pid" ] || return 0
+	kill -TERM "$sd_pid" 2>/dev/null || true
+	wait "$sd_pid" 2>/dev/null || true
+	sd_pid=
+}
+
 if [ "${1-}" = --normalize ]; then
 	[ $# -eq 2 ] || usage
 	normalize "$2"
@@ -141,10 +159,12 @@ want_syscalls=true
 damo_options=
 attach_pid=
 duration=
+writes_ms=0
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
+	-w) [ $# -ge 2 ] || usage; writes_ms=$2; shift 2 ;;
 	-p) [ $# -ge 2 ] || usage; attach_pid=$2; shift 2 ;;
 	-d) [ $# -ge 2 ] || usage; duration=$2; shift 2 ;;
 	-D) [ $# -ge 2 ] || usage; damo_options=$2; shift 2 ;;
@@ -162,6 +182,10 @@ else
 	mode=launch
 fi
 [[ $interval =~ ^[1-9][0-9]*$ ]] || usage
+[[ $writes_ms =~ ^[0-9]+$ ]] || usage
+if [ "$writes_ms" -gt 0 ] && [ ! -x "$SOFTDIRTY" ]; then
+	die "$SOFTDIRTY not found (run make)"
+fi
 deadline_ms=
 if [ -n "$duration" ]; then
 	[[ $duration =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage
@@ -204,7 +228,7 @@ stop_damo() {
 	kill -INT "$damo_pid" 2>/dev/null || true
 }
 trap 'stop_damo interrupted' INT TERM
-trap stop_tracing EXIT
+trap 'stop_softdirty; stop_tracing' EXIT
 
 if [ $mode = attach ]; then
 	app_pid=$attach_pid
@@ -229,6 +253,10 @@ if $want_syscalls && [ -n "$app_pid" ]; then
 		echo "qmem-record: syscall tracing unavailable (cannot set up $TRACEFS)," \
 			"continuing without it" >&2
 	fi
+fi
+
+if [ "$writes_ms" -gt 0 ] && [ -n "$app_pid" ]; then
+	start_softdirty
 fi
 
 echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout" \
@@ -259,6 +287,8 @@ while [ -n "$app_pid" ] && ! $stopped && kill -0 "$app_pid" 2>/dev/null; do
 	sleep "$(awk -v ms="$wait_ms" 'BEGIN { print ms / 1000 }')" &
 	wait $! || true
 done
+
+stop_softdirty
 
 # damo leaves the target alone when it is stopped; an application we started
 # is ours to stop, an attached one is not
@@ -298,6 +328,7 @@ cat > "$out/meta.json" <<EOF
   "end_time": $end_time,
   "interval_ms": $interval,
   "duration_s": ${duration:-null},
+  "softdirty_ms": $writes_ms,
   "stop_reason": "$stop_reason",
   "interrupted": $interrupted,
   "syscalls": $syscalls,
