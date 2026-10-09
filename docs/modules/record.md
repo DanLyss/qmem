@@ -47,14 +47,16 @@ flowchart LR
 ```sh
 damo report access -i "$dir/damon.data" --raw_number \
     --format set record_head   "" \
-             set snapshot_head "snapshot <start time> <end time>" \
-             set region        "<start address> <end address> <access rate> <age>" \
-             set snapshot_tail "" \
-             set record_tail   "" \
+    --format set snapshot_head "snapshot <start time> <end time>" \
+    --format set region        "<start address> <end address> <access rate> <access hz> <age>" \
+    --format set snapshot_tail "" \
+    --format set record_tail   "" \
   | awk '...' > "$dir/access.csv"   # подставляет время снимка в строки регионов
 ```
 
-Точный набор ключевых слов проверяется на первом прогоне (`damo help access_format_options region_format_keywords`).
+`--format` повторяется для каждой части отчёта. Время снимка отсчитывается от начала записи, `age` — в микросекундах, `access_rate` — в процентах от максимума, `access_hz` — частота обращений в герцах.
+
+`qmem-record.sh --normalize <dir>` пересобирает `access.csv` из уже записанного `damon.data`.
 
 ## Результат
 
@@ -62,7 +64,7 @@ damo report access -i "$dir/damon.data" --raw_number \
 record/
   meta.json        # команда, версия damo, ядро, время старта и конца, интервал снимков
   damon.data       # запись damo (внутренний формат, напрямую не читаем)
-  access.csv       # snapshot_start_ns, snapshot_end_ns, start, end, access_rate, age
+  access.csv       # snapshot_start_ns, snapshot_end_ns, start, end, access_rate, access_hz, age
   smaps/<ts>.txt   # снимки /proc/<pid>/smaps
   meminfo.csv      # ts_ms, MemFree, MemAvailable, Cached, SwapFree (кБ)
 ```

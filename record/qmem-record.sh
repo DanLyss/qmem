@@ -8,9 +8,11 @@ set -euo pipefail
 usage() {
 	cat >&2 <<-EOF
 	usage: qmem-record.sh -o <dir> [-i <ms>] -- <command> [args...]
+	       qmem-record.sh --normalize <dir>
 
-	  -o <dir>   output directory (must be empty or absent)
-	  -i <ms>    smaps/meminfo snapshot period (default 1000)
+	  -o <dir>      output directory (must be empty or absent)
+	  -i <ms>       smaps/meminfo snapshot period (default 1000)
+	  --normalize   rebuild <dir>/access.csv from <dir>/damon.data
 	EOF
 	exit 2
 }
@@ -32,6 +34,33 @@ json_str() {
 	s=${s//$'\n'/\\n}
 	printf '"%s"' "$s"
 }
+
+# Write <dir>/access.csv from <dir>/damon.data via `damo report`, so nothing
+# else depends on damo's record file format.
+normalize() {
+	local dir=$1
+
+	[ -f "$dir/damon.data" ] || die "no $dir/damon.data to normalize"
+	{
+		echo "snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age"
+		"${DAMO[@]}" report access -i "$dir/damon.data" --raw_number \
+			--format set record_head "" \
+			--format set snapshot_head "snapshot <start time> <end time>" \
+			--format set region "<start address> <end address> <access rate> <access hz> <age>" \
+			--format set snapshot_tail "" \
+			--format set record_tail "" |
+		awk '
+			$1 == "snapshot" { start = $2; end = $3; next }
+			NF == 5 { print start "," end "," $1 "," $2 "," $3 "," $4 "," $5 }'
+	} > "$dir/access.csv.tmp" || die "damo report failed"
+	mv "$dir/access.csv.tmp" "$dir/access.csv"
+}
+
+if [ "${1-}" = --normalize ]; then
+	[ $# -eq 2 ] || usage
+	normalize "$2"
+	exit 0
+fi
 
 out=
 interval=1000
@@ -114,6 +143,8 @@ if $interrupted; then
 	damo_rc=0
 fi
 [ "$damo_rc" -eq 0 ] || die "damo record failed (exit $damo_rc)"
+
+normalize "$out"
 
 cat > "$out/meta.json" <<EOF
 {
