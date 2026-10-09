@@ -3,7 +3,7 @@
 
 Supports what qmem-record.sh uses:
   damo version
-  damo record --do_record access -o <file> <command>
+  damo record --do_record access [options] -o <file> <command | pid>
   damo report access -i <file> ... (prints a canned report)
 
 Every call is appended to $FAKE_DAMO_LOG as one JSON line with argv.
@@ -13,6 +13,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 # Output in the shape of real `damo report access --raw_number` for the --format
 # strings that qmem-record.sh passes (shape checked against damo 3.3.0).
@@ -34,10 +35,19 @@ def log(argv):
             f.write(json.dumps(argv) + '\n')
 
 
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    # a zombie still answers kill(0)
+    with open('/proc/%d/stat' % pid) as f:
+        return f.read().rsplit(')', 1)[1].split()[0] != 'Z'
+
+
 def record(args):
     out = args[args.index('-o') + 1]
-    command = args[-1]
-    child = subprocess.Popen(command, shell=True, executable='/bin/bash')
+    target = args[-1]
 
     def finish(code):
         with open(out, 'w') as f:
@@ -51,7 +61,16 @@ def record(args):
 
     signal.signal(signal.SIGINT, on_signal)
     signal.signal(signal.SIGTERM, on_signal)
-    child.wait()
+    if target.isdigit():
+        pid = int(target)
+        if not pid_alive(pid):
+            print('fake damo: no such process %d' % pid, file=sys.stderr)
+            sys.exit(1)
+        while pid_alive(pid):
+            time.sleep(0.05)
+    else:
+        child = subprocess.Popen(target, shell=True, executable='/bin/bash')
+        child.wait()
     finish(0)
 
 

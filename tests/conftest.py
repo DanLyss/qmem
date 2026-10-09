@@ -12,15 +12,24 @@ RECORD = ROOT / 'record' / 'qmem-record.sh'
 HOT_REGION = ROOT / 'workloads' / 'hot_region'
 FAKE_DAMO = ROOT / 'tests' / 'fake_damo.py'
 MKDAMON = ROOT / 'tests' / 'fixtures' / 'mkdamon.py'
+RW_SPLIT = ROOT / 'workloads' / 'rw_split'
+SOFTDIRTY = ROOT / 'record' / 'qmem-softdirty'
+OVERHEAD = ROOT / 'tools' / 'measure-overhead.sh'
 
 ACCESS_HEADER = 'snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age'
-MEMINFO_HEADER = 'ts_ms,MemFree,MemAvailable,Cached,SwapFree'
+SYSTEM_HEADER = ('ts_ms,MemFree,MemAvailable,Cached,SwapFree,'
+                 'psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout')
+WRITES_HEADER = 'ts_ms,start,end,present_pages,dirty_pages'
 
 
 def has_real_damon():
     return (os.geteuid() == 0
             and Path('/sys/kernel/mm/damon/admin').is_dir()
             and shutil.which('damo') is not None)
+
+
+def has_tracefs():
+    return os.geteuid() == 0 and Path('/sys/kernel/tracing/instances').is_dir()
 
 
 def has_damo():
@@ -39,6 +48,8 @@ def fake_env(tmp_path):
     env = dict(os.environ)
     env['QMEM_DAMO'] = '%s %s' % (sys.executable, FAKE_DAMO)
     env['FAKE_DAMO_LOG'] = str(tmp_path / 'damo.log')
+    # no tracefs unless a test asks for it, so results do not depend on root
+    env['QMEM_TRACEFS'] = str(tmp_path / 'no-tracefs')
     return env
 
 
@@ -72,7 +83,8 @@ def kill_matching(pattern):
     subprocess.run(['pkill', '-KILL', '-f', pattern])
 
 
-__all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'ACCESS_HEADER',
-           'MEMINFO_HEADER', 'has_real_damon', 'has_damo', 'run_record',
+__all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'SOFTDIRTY',
+           'OVERHEAD', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER',
+           'has_real_damon', 'has_tracefs', 'has_damo', 'run_record',
            'start_record', 'damo_calls', 'process_running', 'kill_matching',
            'signal']

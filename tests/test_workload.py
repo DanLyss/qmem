@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from conftest import HOT_REGION
+from conftest import HOT_REGION, RW_SPLIT
 
 
 def test_hot_region_prints_ranges_and_exits():
@@ -19,7 +19,26 @@ def test_hot_region_prints_ranges_and_exits():
 
 
 def test_hot_region_rejects_bad_args():
-    for args in ([], ['8', '16', '1'], ['0', '0', '1']):
+    for args in ([], ['8', '16', '1'], ['0', '0', '1'], ['8', '2', '1', '-1']):
         p = subprocess.run([str(HOT_REGION)] + args, capture_output=True,
                            timeout=10)
         assert p.returncode == 2
+
+
+def test_hot_region_delay():
+    p = subprocess.run([str(HOT_REGION), '8', '2', '0', '0.3'],
+                       capture_output=True, text=True, timeout=10)
+    assert p.returncode == 0
+
+
+def test_rw_split_prints_regions():
+    p = subprocess.run([str(RW_SPLIT), '4', '2', '0.2'],
+                       capture_output=True, text=True, timeout=10)
+    assert p.returncode == 0, p.stderr
+    a = re.search(r'^a 0x([0-9a-f]+) 0x([0-9a-f]+)$', p.stdout, re.M)
+    b = re.search(r'^b 0x([0-9a-f]+) 0x([0-9a-f]+)$', p.stdout, re.M)
+    assert a and b
+    a0, a1 = (int(x, 16) for x in a.groups())
+    b0, b1 = (int(x, 16) for x in b.groups())
+    assert a1 - a0 == 4 << 20 and b1 - b0 == 2 << 20
+    assert a1 <= b0 or b1 <= a0

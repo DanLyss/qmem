@@ -1,4 +1,4 @@
-"""R1: qmem-record.sh runs damo record and snapshots smaps and meminfo.
+"""R1: qmem-record.sh runs damo record and snapshots smaps.
 
 These tests use tests/fake_damo.py instead of damo, so they need neither root
 nor DAMON.
@@ -10,8 +10,8 @@ import time
 
 import pytest
 
-from conftest import (HOT_REGION, MEMINFO_HEADER, damo_calls, kill_matching,
-                      process_running, run_record, signal, start_record)
+from conftest import (HOT_REGION, damo_calls, kill_matching, process_running,
+                      run_record, signal, start_record)
 
 
 @pytest.fixture
@@ -79,19 +79,6 @@ def test_smaps_snapshots(recorded):
     sizes = [int(line.split()[1]) for t in texts for line in t.splitlines()
              if line.startswith('Size:')]
     assert max(sizes) >= 32 * 1024
-
-
-def test_meminfo_csv(recorded):
-    p, out, _ = recorded
-    assert p.returncode == 0, p.stderr
-    lines = (out / 'meminfo.csv').read_text().splitlines()
-    assert lines[0] == MEMINFO_HEADER
-    rows = [[int(x) for x in line.split(',')] for line in lines[1:]]
-    assert len(rows) >= 5
-    assert all(len(r) == 5 for r in rows)
-    stamps = [r[0] for r in rows]
-    assert stamps == sorted(stamps)
-    assert all(r[1] > 0 and r[2] > 0 for r in rows)
 
 
 def test_meta_json(recorded):
