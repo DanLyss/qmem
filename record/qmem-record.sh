@@ -98,6 +98,30 @@ system_row() {
 inst=
 reader_pid=
 overrun=0
+kernel_pid=
+
+# The pid tracefs knows the application by. Inside a pid namespace (WSL,
+# containers) it differs from ours: send the application a harmless SIGCONT
+# and read the target pid from the signal_generate event.
+find_kernel_pid() {
+	local ev="$inst/events/signal/signal_generate" comm pid
+
+	kernel_pid=$app_pid
+	[ -d "$ev" ] || return 0
+	comm=$(cat "/proc/$app_pid/comm" 2>/dev/null) || return 0
+	echo 'sig == 18' > "$ev/filter" || return 0
+	echo 1 > "$ev/enable" || return 0
+	echo 1 > "$inst/tracing_on"
+	kill -CONT "$app_pid" 2>/dev/null || true
+	pid=$(grep -F "comm=$comm pid=" "$inst/trace" |
+		sed -n '1s/.* comm=.* pid=\([0-9]*\) .*/\1/p')
+	echo 0 > "$inst/tracing_on"
+	echo 0 > "$ev/enable"
+	echo 0 > "$ev/filter"
+	echo > "$inst/trace"
+	[ -z "$pid" ] || kernel_pid=$pid
+}
+
 start_tracing() {
 	local sc
 
@@ -105,13 +129,14 @@ start_tracing() {
 	inst="$TRACEFS/instances/qmem-record-$$"
 	echo boot > "$inst/trace_clock" || return 1
 	echo 8192 > "$inst/buffer_size_kb" || return 1
+	find_kernel_pid
 	for sc in $SYSCALLS; do
 		echo 1 > "$inst/events/syscalls/sys_enter_$sc/enable" || return 1
 		echo 1 > "$inst/events/syscalls/sys_exit_$sc/enable" || return 1
 	done
 	# follow threads and children; older kernels lack the option
 	echo 1 > "$inst/options/event-fork" 2>/dev/null || true
-	echo "$app_pid" > "$inst/set_event_pid" || return 1
+	echo "$kernel_pid" > "$inst/set_event_pid" || return 1
 	cat "$inst/trace_pipe" > "$out/syscalls.txt" &
 	reader_pid=$!
 	echo 1 > "$inst/tracing_on" || return 1
@@ -329,6 +354,7 @@ cat > "$out/meta.json" <<EOF
   "mode": "$mode",
   "command": $(json_str "$command"),
   "pid": ${app_pid:-null},
+  "kernel_pid": ${kernel_pid:-null},
   "damo_version": $(json_str "$("${DAMO[@]}" version)"),
   "damo_options": $(json_str "$damo_options"),
   "kernel": $(json_str "$(uname -r)"),
