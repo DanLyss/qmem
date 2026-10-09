@@ -10,10 +10,14 @@
 ## Итерация 1: qmem-record
 
 ```sh
-make                      # собрать тестовые нагрузки
+make                                                    # нагрузки и qmem-softdirty
 sudo record/qmem-record.sh -o out -- ./workloads/hot_region 256 16 10
-record/qmem-record.sh --normalize out   # пересобрать access.csv из out/damon.data
+sudo record/qmem-record.sh -o out2 -p <pid> -d 30 -w 5000  # подключиться на 30 с, с долей записи
+record/qmem-record.sh --normalize out                   # пересобрать access.csv из damon.data
+tools/measure-overhead.sh -n 5 -- ./workloads/fixed_work 512 600
 ```
+
+Опции и формат результата — в [docs/modules/record.md](docs/modules/record.md).
 
 Нужны Linux с DAMON (`CONFIG_DAMON_VADDR`, `CONFIG_DAMON_SYSFS`), [damo](https://github.com/damonitor/damo) и root.
 
