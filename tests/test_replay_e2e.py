@@ -35,6 +35,17 @@ def test_cycle_passes_verify(tmp_path, workload):
     assert v['maps']['hot_recall'] >= 0.9
 
 
+def test_cycle_with_baseline(tmp_path):
+    out = tmp_path / 'run'
+    p = run_cycle(out, '-i', '250', '-w', '2000', '--baseline', '--',
+                  HOT_REGION, '128', '16', '5')
+    print(p.stdout)
+    assert p.returncode == 0, p.stdout + p.stderr
+    b = json.loads((out / 'baseline.json').read_text())
+    assert b['baseline'] is True and b['maps']['corr'] > 0.9
+    assert 'noise of the original' in p.stdout
+
+
 def test_cycle_usage(tmp_path):
     p = subprocess.run(['bash', str(CYCLE)], capture_output=True, text=True)
     assert p.returncode == 2

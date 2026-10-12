@@ -3,6 +3,8 @@
 
 usage: qmem-verify.py <original record> <replay record>
                       [--profile <profile.txt> --layout <layout.txt>]
+                      [--noise <baseline.json>] [--noise-k 2]
+       qmem-verify.py --baseline <original record> <second original record>
                       [--time-bin-ms 500] [--offset-bins 64] [--maps 3]
                       [--json] [--check] [--tolerance 0.2]
 
@@ -11,6 +13,10 @@ mapped to region + offset + profile time (the original's region bases come
 from the profile, the replay's from qmem-replay --layout) and turned into
 heatmaps, compared cell by cell. On top: totals (peak RSS, accessed memory,
 application faults, dirty share) and RSS / faults over time.
+
+--baseline compares two records of the original (regions matched by order
+and size) to measure run-to-run noise; --noise relaxes the --check limits to
+k times that noise, never below the defaults.
 See docs/modules/verify.md.
 """
 import argparse
@@ -22,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
-from mkprofile import VMA, is_anon, read_access, read_smaps, unpause  # noqa: E402
+from mkprofile import VMA, build, is_anon, read_access, read_smaps, unpause  # noqa: E402
 
 MB = 1 << 20
 PAGE = 4096
@@ -59,6 +65,47 @@ def read_layout(path):
     if start is None:
         sys.exit('qmem-verify: %s is not a qmem-replay layout' % path)
     return start, regions
+
+
+def match_regions(d1, d2):
+    """Regions of two records of the original, paired: by order when both
+    have as many of similar sizes (within 10 %), else by closest size."""
+    ra = build(Path(d1), 100)[0]
+    rb = build(Path(d2), 100)[0]
+    close = lambda a, b: abs((a[1] - a[0]) - (b[1] - b[0])) <= 0.1 * (a[1] - a[0])
+    if len(ra) == len(rb) and all(close(a, b) for a, b in zip(ra, rb)):
+        pairs = list(zip(ra, rb))
+    else:
+        pairs, free = [], list(rb)
+        for a in sorted(ra, key=lambda a: a[0] - a[1]):
+            best = min(free, key=lambda b: abs((b[1] - b[0]) - (a[1] - a[0])), default=None)
+            if best and close(a, best):
+                pairs.append((a, best))
+                free.remove(best)
+        pairs.sort()
+    first = {i: (a[0], a[1] - a[0]) for i, (a, _) in enumerate(pairs)}
+    second = {i: (b[0], b[1] - b[0]) for i, (_, b) in enumerate(pairs)}
+    return first, second
+
+
+def limits_from_noise(noise, k, tolerance):
+    """--check limits: the defaults, relaxed to k times the noise of two
+    runs of the original, never tightened."""
+    maps = (noise or {}).get('maps') or {}
+    out = {}
+    for name, (op, limit) in LIMITS.items():
+        v = maps.get(name)
+        if v is not None:
+            limit = max(limit, k * v) if op == '<=' else min(limit, 1 - k * (1 - v))
+        out[name] = (op, limit)
+    tol = {}
+    for name, m in ((noise or {}).get('metrics') or {}).items():
+        if m.get('diff') is not None:
+            tol[name] = max(tolerance, k * abs(m['diff']))
+    for name, v in ((noise or {}).get('series') or {}).items():
+        if v is not None:
+            tol[name] = max(tolerance, k * v)
+    return out, tol
 
 
 def meta(d):
@@ -374,6 +421,10 @@ def main():
     ap.add_argument('--time-bin-ms', type=int, default=500)
     ap.add_argument('--offset-bins', type=int, default=64)
     ap.add_argument('--maps', type=int, default=3, help='regions to print as text maps')
+    ap.add_argument('--baseline', action='store_true',
+                    help='both records are of the original: measure noise')
+    ap.add_argument('--noise', help='baseline JSON from --baseline --json')
+    ap.add_argument('--noise-k', type=float, default=2.0)
     ap.add_argument('--json', action='store_true')
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--tolerance', type=float, default=0.2)
@@ -387,10 +438,15 @@ def main():
 
     maps = regions_out = None
     text = []
-    if args.profile and args.layout:
-        o_regions = read_profile_regions(args.profile)
-        start_ns, r_regions = read_layout(args.layout)
-        shift_ms = start_ns / 1e6 - meta(rep_d).get('start_uptime', 0) * 1000
+    if args.baseline or (args.profile and args.layout):
+        if args.baseline:
+            # two records of the original: each starts at its own record start
+            o_regions, r_regions = match_regions(orig_d, rep_d)
+            shift_ms = 0
+        else:
+            o_regions = read_profile_regions(args.profile)
+            start_ns, r_regions = read_layout(args.layout)
+            shift_ms = start_ns / 1e6 - meta(rep_d).get('start_uptime', 0) * 1000
         common = sorted(set(o_regions) & set(r_regions))
         o_regions = {r: o_regions[r] for r in common}
         r_regions = {r: r_regions[r] for r in common}
@@ -441,22 +497,26 @@ def main():
               'replay_ms': sum(int(r['pause_ms']) for r in pause_rows(rep_d))}
 
     # verdict
+    noise = json.loads(Path(args.noise).read_text()) if args.noise else None
+    limits, tol = limits_from_noise(noise, args.noise_k, args.tolerance)
     faults = next(n for n in ('app_minflt_net', 'app_minflt', 'pgfault')
                   if metrics[n]['diff'] is not None or n == 'pgfault')
     # accessed memory is checked above 50 %: with any rate > 0 it follows
     # DAMON's short-lived low-rate regions (+20 % on hot_region replays,
     # where memory above 50 % agrees within 2 %)
     failed = [n for n in ('rss_peak_mb', 'hot50_mb_mean', faults)
-              if metrics[n]['diff'] is not None and abs(metrics[n]['diff']) > args.tolerance]
+              if metrics[n]['diff'] is not None
+              and abs(metrics[n]['diff']) > tol.get(n, args.tolerance)]
     failed += [n for n in ('rss_mean_dev', 'minflt_mean_dev')
-               if ser[n] is not None and ser[n] > args.tolerance]
-    for name, (op, limit) in LIMITS.items():
+               if ser[n] is not None and ser[n] > tol.get(n, args.tolerance)]
+    for name, (op, limit) in limits.items():
         v = maps.get(name) if maps else None
         if v is not None and (v > limit if op == '<=' else v < limit):
             failed.append(name)
 
     if args.json:
-        print(json.dumps({'shift_ms': shift_ms, 'metrics': metrics, 'maps': maps,
+        print(json.dumps({'baseline': args.baseline,
+                          'shift_ms': shift_ms, 'metrics': metrics, 'maps': maps,
                           'regions': regions_out, 'series': ser, 'gaps': gaps,
                           'pauses': pauses,
                           'failed': failed}, indent=2))
@@ -465,9 +525,12 @@ def main():
         mark = lambda n: '  FAIL' if n in failed else ''
         if maps:
             print('access frequency by place (region + offset + time):')
-            for name, (op, limit) in list(LIMITS.items())[:4]:
-                print('  %-14s %8s   (%s %s)%s' % (name, fmt(maps[name]), op, limit,
-                                                   mark(name)))
+            for name, (op, limit) in limits.items():
+                print('  %-14s %8s   (%s %s)%s' % (name, fmt(maps[name]), op,
+                                                   fmt(limit), mark(name)))
+            if noise:
+                print('  (limits relaxed to %g x the noise of the original, '
+                      'never below the defaults)' % args.noise_k)
             for r in regions_out:
                 print('  region %-3d %8.1f MB  mae %5.1f pp  corr %s  recall %s  '
                       'precision %s' % (r['region'], r['size'] / MB, r['mae_pp'],

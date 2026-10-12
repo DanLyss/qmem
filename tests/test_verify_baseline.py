@@ -30,13 +30,13 @@ def test_baseline_usage(tmp_path):
 
 
 def test_noise_relaxes_thresholds(tmp_path):
-    orig, again, profile, layout = case(tmp_path / 'c', replay_rate=50)
+    orig, again, profile, layout = case(tmp_path / 'c', replay_rate=60)
     args = [orig, again, '--profile', profile, '--layout', layout, '--check']
-    assert run_verify(*args).returncode == 1           # mae 50 > 10
+    assert run_verify(*args).returncode == 1           # mae 40 > 10
     noise = tmp_path / 'noise.json'
-    noise.write_text(json.dumps(baseline(tmp_path / 'b', rate2=70)))  # mae 30
+    noise.write_text(json.dumps(baseline(tmp_path / 'b', rate2=75)))  # mae 25
     p = run_verify(*args, '--noise', noise)
-    assert p.returncode == 0, p.stdout                  # limit 2 x 30 = 60
+    assert p.returncode == 0, p.stdout                  # limit 2 x 25 = 50
     assert 'noise' in p.stdout
 
 

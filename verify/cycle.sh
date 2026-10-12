@@ -7,6 +7,8 @@
 #   <dir>/again        record of the replay
 #   <dir>/layout.txt   where replay put its regions, when it started
 #   <dir>/verify.txt   verify's report; verify.json the same as JSON
+#   <dir>/orig2, baseline.json   with --baseline: a second record of the
+#                      original and the noise between the two
 #
 # Exit status: 0 if verify --check passes, 1 if not, 2 on usage errors.
 # See docs/modules/verify.md.
@@ -14,11 +16,12 @@ set -euo pipefail
 
 usage() {
 	cat >&2 <<-EOF
-	usage: cycle.sh -o <dir> [-i <ms>] [-w <ms>] [-V "<verify options>"] -- <command> [args...]
+	usage: cycle.sh -o <dir> [-i <ms>] [-w <ms>] [--baseline] [-V "<verify options>"] -- <command> [args...]
 
 	  -o <dir>   output directory (must be empty or absent)
 	  -i <ms>    record snapshot period (default 500)
 	  -w <ms>    record soft-dirty period (default off)
+	  --baseline record the original twice; verify against its noise
 	  -V <opts>  extra qmem-verify options
 	EOF
 	exit 2
@@ -31,12 +34,14 @@ out=
 interval=500
 writes=
 verify_opts=
+baseline=false
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
 	-w) [ $# -ge 2 ] || usage; writes=$2; shift 2 ;;
 	-V) [ $# -ge 2 ] || usage; verify_opts=$2; shift 2 ;;
+	--baseline) baseline=true; shift ;;
 	--) shift; break ;;
 	*) usage ;;
 	esac
@@ -54,6 +59,14 @@ read -ra extra <<< "$verify_opts"
 
 echo "cycle: recording the original" >&2
 bash "$root/record/qmem-record.sh" -o "$out/orig" "${record_opts[@]}" -- "$@"
+
+if $baseline; then
+	echo "cycle: recording the original again (baseline)" >&2
+	bash "$root/record/qmem-record.sh" -o "$out/orig2" "${record_opts[@]}" -- "$@"
+	python3 "$root/verify/qmem-verify.py" --baseline "$out/orig" "$out/orig2" --json \
+		> "$out/baseline.json"
+	extra+=(--noise "$out/baseline.json")
+fi
 
 echo "cycle: building the profile" >&2
 python3 "$root/tools/mkprofile.py" "$out/orig" -o "$out/profile.txt"
