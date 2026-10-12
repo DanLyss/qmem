@@ -184,11 +184,14 @@ def test_faults_net_of_soft_dirty(tmp_path):
     access = [(t * 10**6, (t + 100) * 10**6, [(base, base + SIZE, 10.0)])
               for t in range(0, 3000, 100)]
     pages = SIZE // 4096
+    # a: one sample, rewrites only before it; b: rewrites all the time
     a = write_record(tmp_path / 'a', smaps, access,
-                     proc=[(0, 1000, 0, 1024), (3000, 1000 + pages + 4096, 0, 65536)],
+                     proc=[(t, 1000 + pages + min(4096, 4096 * t // 1000), 0, 65536)
+                           for t in range(0, 3001, 250)],
                      writes=[(1000, base, base + SIZE, pages, 4096, 4096)])
     b = write_record(tmp_path / 'b', smaps, access,
-                     proc=[(0, 1000, 0, 1024), (3000, 1000 + pages + 3 * 4096, 0, 65536)],
+                     proc=[(t, 1000 + pages + 4096 * t // 1000, 0, 65536)
+                           for t in range(0, 3001, 250)],
                      writes=[(1000, base, base + SIZE, pages, 4096, 4096),
                              (2000, base, base + SIZE, pages, 4096, 4096),
                              (3000, base, base + SIZE, pages, 4096, 4096)])

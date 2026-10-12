@@ -319,7 +319,10 @@ static void prepare(void)
 
 		g->mapped = calloc(bytes, 1);
 		g->touched = calloc(bytes, 1);
-		g->base = mmap(NULL, g->npages * page, PROT_NONE,
+		/* one more page than needed stays PROT_NONE forever: regions are
+		 * separate mappings in the original, and two reservations side
+		 * by side would let the kernel merge their mapped parts */
+		g->base = mmap(NULL, (g->npages + 1) * page, PROT_NONE,
 			       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 		if (!g->mapped || !g->touched || g->base == MAP_FAILED) {
 			perror("prepare");

@@ -102,21 +102,19 @@ def totals(d):
     def delta(col):
         return int(system[-1][col]) - int(system[0][col]) if system else None
 
-    app_minflt = app_majflt = net = None
+    app_minflt = app_majflt = None
     if (d / 'proc.csv').exists():
         rows = list(csv.DictReader(open(d / 'proc.csv')))
         if rows:
             app_minflt = int(rows[-1]['minflt'])
             app_majflt = int(rows[-1]['majflt'])
-            # faults net of the ones soft-dirty sampling itself caused
-            net = app_minflt - rewritten_pages(d)
 
     return t0, {
         'rss_peak_mb': peak / MB,
         'hot_mb_mean': sum(hot) / len(hot) if hot else 0.0,
         'hot50_mb_mean': sum(hot50) / len(hot50) if hot50 else 0.0,
         'app_minflt': app_minflt,
-        'app_minflt_net': net,
+        'app_minflt_net': None,     # filled in by main(): needs both records
         'app_majflt': app_majflt,
         'pgfault': delta('pgfault'),
         'pgmajfault': delta('pgmajfault'),
@@ -125,11 +123,25 @@ def totals(d):
     }
 
 
-def rewritten_pages(d):
+def writes_rows(d):
     path = d / 'writes.csv'
-    if not path.exists():
-        return 0
-    return sum(int(r.get('rewritten_pages') or 0) for r in csv.DictReader(open(path)))
+    return list(csv.DictReader(open(path))) if path.exists() else []
+
+
+def minflt_net(d, shift_ms, cutoff_ms):
+    """The application's minor faults net of the ones soft-dirty sampling
+    caused (rewritten pages), at profile time cutoff_ms (or at the end).
+    Rewrites after the last sample are never counted, so records are
+    compared up to the last sample both have."""
+    path = d / 'proc.csv'
+    rows = list(csv.DictReader(open(path))) if path.exists() else []
+    if not rows:
+        return None
+    if cutoff_ms is not None:
+        rows = [r for r in rows if int(r['ts_ms']) - shift_ms <= cutoff_ms] or rows[:1]
+    rewritten = sum(int(w.get('rewritten_pages') or 0) for w in writes_rows(d)
+                    if cutoff_ms is None or int(w['ts_ms']) - shift_ms <= cutoff_ms)
+    return int(rows[-1]['minflt']) - rewritten
 
 
 def damon_gaps_ms(d, shift_ms=0):
@@ -360,6 +372,14 @@ def main():
         print('qmem-verify: no --profile/--layout, comparing totals only '
               '(time aligned by RSS growth)', file=sys.stderr)
         shift_ms, o_shift = t0_rep - t0_orig, 0
+
+    # faults net of soft-dirty, up to the last soft-dirty sample both have
+    last = [max((int(w['ts_ms']) for w in writes_rows(d)), default=None) for d in (orig_d, rep_d)]
+    cutoff = (min(last[0] - o_shift, last[1] - shift_ms)
+              if None not in last else None)
+    net_o = minflt_net(orig_d, o_shift, cutoff)
+    net_r = minflt_net(rep_d, shift_ms, cutoff)
+    metrics['app_minflt_net'] = {'orig': net_o, 'replay': net_r, 'diff': diff(net_o, net_r)}
 
     so = series(orig_d, o_shift, args.time_bin_ms)
     sr = series(rep_d, shift_ms, args.time_bin_ms)
