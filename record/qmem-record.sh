@@ -356,9 +356,13 @@ if $stopped && [ $mode = launch ] && [ -n "$app_pid" ]; then
 	kill -TERM "$app_pid" 2>/dev/null || true
 fi
 
-damo_rc=0
-while kill -0 "$damo_pid" 2>/dev/null; do
+# wait for damo at least once: if it is already gone, kill -0 fails but
+# wait still returns its status; a trapped signal interrupts wait while
+# damo is still running
+while :; do
+	damo_rc=0
 	wait "$damo_pid" || damo_rc=$?
+	kill -0 "$damo_pid" 2>/dev/null || break
 done
 end_time=$(date +%s.%N)
 stop_tracing
