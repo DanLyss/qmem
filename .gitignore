@@ -2,6 +2,7 @@
 /workloads/rw_split
 /workloads/fixed_work
 /record/qmem-softdirty
+/replay/qmem-replay
 __pycache__/
 .pytest_cache/
 *.o
