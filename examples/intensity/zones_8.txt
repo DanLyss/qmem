@@ -1,0 +1,7 @@
+total 0x79191a600000 0x791920a00000
+seed 8 zones 4 scale 0.190
+zone 0 pages 0-8483 bursts 2433.1 Hz/page writes 30% period 2.05 s duty 56%
+zone 1 pages 8483-9627 hotset 8.1 Hz/page writes 100% 48 hot pages
+zone 2 pages 9627-11662 bursts 1208.5 Hz/page writes 30% period 2.42 s duty 49%
+zone 3 pages 11662-25600 zipf 495.1 Hz/page writes 100%
+Press Ctrl+C to stop

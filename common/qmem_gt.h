@@ -9,11 +9,14 @@
  *   QMEM_GT_WINDOW_MS=<ms>    window length (default 100)
  *
  * File format (little endian):
- *   "QGT1", u32 window_ms, u64 start_boottime_ns, u32 nranges, u32 0,
+ *   "QGT2", u32 window_ms, u64 start_boottime_ns, u32 nranges,
+ *   u32 chunk_pages,
  *   nranges x { u64 start, u64 npages },
  *   then until EOF, for each window and range with touches:
  *   u32 window, u32 range, u64 touches, u64 writes,
- *   touched bitmap (ceil(npages / 8) bytes), written bitmap (same size).
+ *   touched bitmap (ceil(npages / 8) bytes), written bitmap (same size),
+ *   touch counts per chunk of chunk_pages pages (ceil(npages / chunk_pages)
+ *   x u32).
  *
  * Window w covers [w * window_ms, (w + 1) * window_ms) after
  * start_boottime_ns (CLOCK_BOOTTIME).
@@ -28,9 +31,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#define GT_CHUNK_PAGES	16		/* touch counts per 64 KB */
+
 struct gt_range {
 	uint64_t start, npages;
 	uint8_t *touched, *written;	/* bitmaps of the current window */
+	uint32_t *counts;		/* touches per chunk, current window */
 	uint64_t touches, writes;
 };
 
@@ -38,6 +44,7 @@ struct gt_saved {			/* one finished window of one range */
 	uint32_t window, range;
 	uint64_t touches, writes;
 	uint8_t *touched, *written;
+	uint32_t *counts;
 };
 
 static struct {
@@ -88,8 +95,9 @@ static inline uint32_t gt_range(const volatile void *start, uint64_t len)
 	bytes = (g->npages + 7) / 8;
 	g->touched = calloc(bytes, 1);
 	g->written = calloc(bytes, 1);
+	g->counts = calloc((g->npages + GT_CHUNK_PAGES - 1) / GT_CHUNK_PAGES, 4);
 	g->touches = g->writes = 0;
-	if (!gt.r || !g->touched || !g->written) {
+	if (!gt.r || !g->touched || !g->written || !g->counts) {
 		perror("qmem_gt");
 		exit(1);
 	}
@@ -102,6 +110,7 @@ static inline void gt_flush(void)
 	for (uint32_t i = 0; i < gt.n; i++) {
 		struct gt_range *g = &gt.r[i];
 		size_t bytes = (g->npages + 7) / 8;
+		size_t cbytes = (g->npages + GT_CHUNK_PAGES - 1) / GT_CHUNK_PAGES * 4;
 		struct gt_saved *s;
 
 		if (!g->touches)
@@ -117,14 +126,17 @@ static inline void gt_flush(void)
 		s->writes = g->writes;
 		s->touched = malloc(bytes);
 		s->written = malloc(bytes);
-		if (!gt.saved || !s->touched || !s->written) {
+		s->counts = malloc(cbytes);
+		if (!gt.saved || !s->touched || !s->written || !s->counts) {
 			perror("qmem_gt");
 			exit(1);
 		}
 		memcpy(s->touched, g->touched, bytes);
 		memcpy(s->written, g->written, bytes);
+		memcpy(s->counts, g->counts, cbytes);
 		memset(g->touched, 0, bytes);
 		memset(g->written, 0, bytes);
+		memset(g->counts, 0, cbytes);
 		g->touches = g->writes = 0;
 	}
 }
@@ -155,6 +167,7 @@ static inline void gt_mark(uint32_t r, uint64_t i, int write)
 		return;
 	g = &gt.r[r];
 	g->touched[i / 8] |= 1 << (i % 8);
+	g->counts[i / GT_CHUNK_PAGES]++;
 	g->touches++;
 	if (write) {
 		g->written[i / 8] |= 1 << (i % 8);
@@ -179,7 +192,7 @@ static inline void gt_touch(const volatile void *addr, int write)
 static inline void gt_finish(void)
 {
 	FILE *f;
-	uint32_t zero = 0;
+	uint32_t chunk = GT_CHUNK_PAGES;
 
 	if (!gt.on)
 		return;
@@ -189,11 +202,11 @@ static inline void gt_finish(void)
 		perror(gt.path);
 		return;
 	}
-	fwrite("QGT1", 4, 1, f);
+	fwrite("QGT2", 4, 1, f);
 	fwrite(&gt.window_ms, 4, 1, f);
 	fwrite(&gt.start_boot_ns, 8, 1, f);
 	fwrite(&gt.n, 4, 1, f);
-	fwrite(&zero, 4, 1, f);
+	fwrite(&chunk, 4, 1, f);
 	for (uint32_t i = 0; i < gt.n; i++) {
 		fwrite(&gt.r[i].start, 8, 1, f);
 		fwrite(&gt.r[i].npages, 8, 1, f);
@@ -208,6 +221,8 @@ static inline void gt_finish(void)
 		fwrite(&s->writes, 8, 1, f);
 		fwrite(s->touched, bytes, 1, f);
 		fwrite(s->written, bytes, 1, f);
+		fwrite(s->counts, (gt.r[s->range].npages + GT_CHUNK_PAGES - 1) /
+		       GT_CHUNK_PAGES * 4, 1, f);
 	}
 	fclose(f);
 }

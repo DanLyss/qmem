@@ -1,0 +1,10 @@
+total 0x77ca09e00000 0x77ca10200000
+seed 5 zones 7 scale 1.000
+zone 0 pages 0-14203 zipf 2.7 Hz/page writes 30%
+zone 1 pages 14203-15770 bursts 710.5 Hz/page writes 0% period 0.77 s duty 23%
+zone 2 pages 15770-17899 bursts 180.1 Hz/page writes 30% period 1.31 s duty 56%
+zone 3 pages 17899-21170 bursts 1.2 Hz/page writes 0% period 0.85 s duty 20%
+zone 4 pages 21170-22157 bursts 11750.2 Hz/page writes 30% period 2.04 s duty 26%
+zone 5 pages 22157-22895 stride 2107.1 Hz/page writes 100% every 11
+zone 6 pages 22895-25600 zipf 102.4 Hz/page writes 0%
+Press Ctrl+C to stop

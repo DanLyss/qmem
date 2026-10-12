@@ -1,0 +1,10 @@
+total 0x7c5635400000 0x7c563b800000
+seed 7 zones 7 scale 1.000
+zone 0 pages 0-6199 zipf 1.5 Hz/page writes 0%
+zone 1 pages 6199-10460 uniform 2500.6 Hz/page writes 100%
+zone 2 pages 10460-11132 hotset 66.7 Hz/page writes 30% 9 hot pages
+zone 3 pages 11132-11332 zipf 5922.8 Hz/page writes 30%
+zone 4 pages 11332-13098 window 851.0 Hz/page writes 30% window 184 pages
+zone 5 pages 13098-16994 hotset 14.7 Hz/page writes 30% 135 hot pages
+zone 6 pages 16994-25600 uniform 18.8 Hz/page writes 100%
+Press Ctrl+C to stop

@@ -8,6 +8,7 @@
 - [docs/modules/replay.md](docs/modules/replay.md) — qmem-replay, итерация 1 ([что сделано](replay/README.md))
 - [examples/python_phases](examples/python_phases/README.md) — пример настоящей записи
 - [examples/cycle_demo](examples/cycle_demo/README.md) — полный цикл record → replay → verify и как читать каждый файл
+- [docs/proposals/intensity.md](docs/proposals/intensity.md) — предложение: воспроизводить интенсивность обращений (на ревью)
 - [examples/mixed](examples/mixed/README.md) — смесь пяти паттернов на 100 МБ, ~10 Гц на страницу: точные страницы по зонам
 - [examples/gt](examples/gt/README.md) — точность по точным страницам (ground truth) на четырёх синтетических нагрузках
 - [examples/moving_window](examples/moving_window/README.md) — скользящее горячее окно: карта оригинала и replay рядом

@@ -18,18 +18,20 @@ PAGE = 4096
 
 
 def read_gt(path):
-    """{'window_ms', 'start_boot_ns', 'ranges': [(start, npages)],
-    'records': [(window, range, touches, writes, touched_int, written_int)]}"""
+    """{'window_ms', 'start_boot_ns', 'chunk_pages', 'ranges': [(start, npages)],
+    'records': [(window, range, touches, writes, touched_int, written_int)],
+    'counts': {(window, range): [touches per chunk]} (QGT2 only)}"""
     data = Path(path).read_bytes()
-    if data[:4] != b'QGT1':
+    if data[:4] not in (b'QGT1', b'QGT2'):
         raise ValueError('%s is not a qmem ground-truth file' % path)
-    window_ms, start_boot_ns, n, _ = struct.unpack_from('<IQII', data, 4)
+    v2 = data[:4] == b'QGT2'
+    window_ms, start_boot_ns, n, chunk = struct.unpack_from('<IQII', data, 4)
     off = 24
     ranges = []
     for _ in range(n):
         ranges.append(struct.unpack_from('<QQ', data, off))
         off += 16
-    records = []
+    records, counts = [], {}
     while off < len(data):
         w, r, touches, writes = struct.unpack_from('<IIQQ', data, off)
         off += 24
@@ -37,9 +39,14 @@ def read_gt(path):
         touched = int.from_bytes(data[off:off + size], 'little')
         written = int.from_bytes(data[off + size:off + 2 * size], 'little')
         off += 2 * size
+        if v2:
+            nch = -(-ranges[r][1] // chunk)
+            counts[(w, r)] = list(struct.unpack_from('<%dI' % nch, data, off))
+            off += 4 * nch
         records.append((w, r, touches, writes, touched, written))
     return {'window_ms': window_ms, 'start_boot_ns': start_boot_ns,
-            'ranges': ranges, 'records': records}
+            'chunk_pages': chunk if v2 else None, 'ranges': ranges,
+            'records': records, 'counts': counts}
 
 
 def page_sets(gt, regions, shift_ms, window_ms):
