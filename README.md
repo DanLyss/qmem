@@ -7,6 +7,7 @@
 - [docs/modules/record.md](docs/modules/record.md) — qmem-record, итерация 1 ([что сделано](record/README.md))
 - [docs/modules/replay.md](docs/modules/replay.md) — qmem-replay, итерация 1 ([что сделано](replay/README.md))
 - [examples/python_phases](examples/python_phases/README.md) — пример настоящей записи
+- [examples/cycle_demo](examples/cycle_demo/README.md) — полный цикл record → replay → verify и как читать каждый файл
 
 ## Итерация 1: qmem-record
 

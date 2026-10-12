@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "/mnt/c/Users/Dan/qmem/replay/qmem-replay examples/cycle_demo/profile.txt --layout examples/cycle_demo/layout.txt",
+  "pid": 213835,
+  "kernel_pid": 22030,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791802131.405398981,
+  "start_uptime": 34057.16,
+  "end_time": 1791802140.961637045,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 0,
+  "syscalls": true,
+  "syscall_overrun": 0
+}

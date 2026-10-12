@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "python3 examples/python_phases/demo_app.py",
+  "pid": 213324,
+  "kernel_pid": 21516,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791802120.400834182,
+  "start_uptime": 34046.16,
+  "end_time": 1791802130.041731077,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 0,
+  "syscalls": true,
+  "syscall_overrun": 0
+}
