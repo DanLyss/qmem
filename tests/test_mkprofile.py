@@ -138,7 +138,8 @@ def test_access_rate_and_write_ratio(profile):
     for t in range(1000, 2000, 100):
         assert prof['epochs'][t] == [
             (a, 0, 16 * MB, round(1.0 * 16 * MB / PAGE / SAMPLE_S), 0.5)]
-    # 2000-3000: 8 MB at 50 %; no writes sample covers it -> 1.0
+    # 2000-3000: 8 MB at 50 %; no writes sample covers it, the nearest one
+    # (8 MB written) gives 8 / 8 = 1.0
     for t in range(2000, 3000, 100):
         assert prof['epochs'][t] == [
             (a, 40 * MB, 8 * MB, round(0.5 * 8 * MB / PAGE / SAMPLE_S), 1.0)]
@@ -147,10 +148,11 @@ def test_access_rate_and_write_ratio(profile):
 def test_access_clipped_to_mapped_part(profile):
     prof, _ = profile
     a = region_of(prof, 64 * MB)
-    # DAMON says [0, 48 MB) at 20 %, but the first 32 MB are unmapped by then
+    # DAMON says [0, 48 MB) at 20 %, but the first 32 MB are unmapped by then;
+    # the nearest writes sample (8 MB written) gives 8 / 16 = 0.5
     for t in range(3000, 3500, 100):
         assert prof['epochs'][t] == [
-            (a, 32 * MB, 16 * MB, round(0.2 * 16 * MB / PAGE / SAMPLE_S), 1.0)]
+            (a, 32 * MB, 16 * MB, round(0.2 * 16 * MB / PAGE / SAMPLE_S), 0.5)]
 
 
 def test_quiet_epochs_are_left_out(profile):
@@ -205,3 +207,22 @@ def test_damon_gap_holds_last_pattern(tmp_path):
     assert sorted(prof['epochs']) == list(range(0, 3000, 100))
     assert prof['epochs'][1500] == prof['epochs'][500]
     assert 'gap' in p.stderr
+
+
+def test_write_ratio_after_the_last_sample(tmp_path):
+    """The original exited before its next soft-dirty sample: the epochs
+    after the last sample take the nearest sample, so a read-only mapping
+    stays read-only (it used to fall back to 1.0)."""
+    a, b = 0x7f0000000000, 0x7f0010000000
+    smaps = {0: [(a, a + 8 * MB, '', 8192), (b, b + 8 * MB, '', 8192)],
+             3000: [(a, a + 8 * MB, '', 8192), (b, b + 8 * MB, '', 8192)]}
+    regs = [(a, a + 8 * MB, 100.0), (b, b + 8 * MB, 100.0)]
+    writes = [(1000, a, a + 8 * MB, 2048, 2048), (1000, b, b + 8 * MB, 2048, 0)]
+    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 3000, regs),
+                       writes=writes, softdirty_ms=1000)
+    out = tmp_path / 'p.txt'
+    assert run_mkprofile(rec, '-o', out).returncode == 0
+    prof = parse(out)
+    for t in (500, 2500):
+        ratios = sorted(acc[4] for acc in prof['epochs'][t])
+        assert ratios == [0.0, 1.0], (t, prof['epochs'][t])
