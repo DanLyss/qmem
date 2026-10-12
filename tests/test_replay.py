@@ -295,3 +295,24 @@ def test_region_base_must_be_hex(tmp_path):
     prof.write_text('qmem-profile 1\nepoch_ms 100\nregion 0 4096 zz\n')
     p = run_replay(prof)
     assert p.returncode == 2 and 'profile:3:' in p.stderr
+
+
+def test_regions_stay_separate_mappings(tmp_path):
+    """Regions are separate mappings in the original; adjacent reservations
+    must not let the kernel merge them into one VMA."""
+    body = ['region %d %d' % (i, 8 * MB) for i in range(3)] + \
+        ['map 0 %d 0 %d' % (i, 8 * MB) for i in range(3)] + \
+        ['populate 0 %d 0 %d' % (i, 8 * MB) for i in range(3)] + \
+        epochs(0, 1000, 100, ['%d 0 %d 1000 1.0' % (i, 8 * MB) for i in range(3)])
+    proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
+                            stderr=subprocess.PIPE, text=True)
+    try:
+        time.sleep(0.5)
+        maps = open('/proc/%d/maps' % proc.pid).read().splitlines()
+    finally:
+        proc.communicate(timeout=30)
+    rw = [l for l in maps if ' rw-p ' in l and l.split()[-1] == '0'
+          or (' rw-p ' in l and len(l.split()) == 5)]
+    sizes = sorted(int(l.split()[0].split('-')[1], 16) - int(l.split()[0].split('-')[0], 16)
+                   for l in rw)
+    assert sizes.count(8 * MB) == 3, sizes

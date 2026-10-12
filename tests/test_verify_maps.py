@@ -209,3 +209,27 @@ def test_gaps_are_reported(tmp_path):
     out = verify_json(orig, again, profile, layout)
     assert out['gaps']['orig_ms'] == pytest.approx(1000, abs=150)
     assert out['gaps']['replay_ms'] == 0
+
+
+def test_faults_net_up_to_the_last_common_sample(tmp_path):
+    """The original exited before its last soft-dirty sample, the replay
+    did not: faults are compared up to the last sample both have."""
+    base = A
+    smaps = {0: [(base, base + SIZE, '', 65536)], 3000: [(base, base + SIZE, '', 65536)]}
+    access = [(t * 10**6, (t + 100) * 10**6, [(base, base + SIZE, 10.0)])
+              for t in range(0, 3000, 100)]
+    pages = SIZE // 4096
+    # 1000 faults at start + `pages` first touches, then 4096 rewrites a
+    # second, all the time (also after the last sample)
+    proc = lambda end: [(t, 1000 + pages + 4096 * t // 1000, 0, 65536)
+                        for t in range(0, end + 1, 250)]
+    a = write_record(tmp_path / 'a', smaps, access, proc=proc(2900),
+                     writes=[(1000, base, base + SIZE, pages, 4096, 4096),
+                             (2000, base, base + SIZE, pages, 4096, 4096)])
+    b = write_record(tmp_path / 'b', smaps, access, proc=proc(3000),
+                     writes=[(1000, base, base + SIZE, pages, 4096, 4096),
+                             (2000, base, base + SIZE, pages, 4096, 4096),
+                             (3000, base, base + SIZE, pages, 4096, 4096)])
+    m = json.loads(run_verify(a, b, '--json').stdout)['metrics']
+    assert m['app_minflt_net']['orig'] == 1000 + pages
+    assert m['app_minflt_net']['diff'] == pytest.approx(0)
