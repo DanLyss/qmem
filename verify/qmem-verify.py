@@ -102,24 +102,46 @@ def totals(d):
     def delta(col):
         return int(system[-1][col]) - int(system[0][col]) if system else None
 
-    app_minflt = app_majflt = None
+    app_minflt = app_majflt = net = None
     if (d / 'proc.csv').exists():
         rows = list(csv.DictReader(open(d / 'proc.csv')))
         if rows:
             app_minflt = int(rows[-1]['minflt'])
             app_majflt = int(rows[-1]['majflt'])
+            # faults net of the ones soft-dirty sampling itself caused
+            net = app_minflt - rewritten_pages(d)
 
     return t0, {
         'rss_peak_mb': peak / MB,
         'hot_mb_mean': sum(hot) / len(hot) if hot else 0.0,
         'hot50_mb_mean': sum(hot50) / len(hot50) if hot50 else 0.0,
         'app_minflt': app_minflt,
+        'app_minflt_net': net,
         'app_majflt': app_majflt,
         'pgfault': delta('pgfault'),
         'pgmajfault': delta('pgmajfault'),
         'pswpout': delta('pswpout'),
         'dirty_share': dirty_share(d),
     }
+
+
+def rewritten_pages(d):
+    path = d / 'writes.csv'
+    if not path.exists():
+        return 0
+    return sum(int(r.get('rewritten_pages') or 0) for r in csv.DictReader(open(path)))
+
+
+def damon_gaps_ms(d, shift_ms=0):
+    """Total time between DAMON snapshots longer than three typical
+    snapshots (the system or the recorder stalled)."""
+    snaps = [(s, e) for s, e, _ in read_access(d)]
+    if len(snaps) < 3:
+        return 0
+    lengths = sorted(e - s for s, e in snaps)
+    typical = lengths[len(lengths) // 2]
+    return sum(b[0] - a[1] for a, b in zip(snaps, snaps[1:])
+               if b[0] - a[1] > 3 * typical)
 
 
 def dirty_share(d):
@@ -347,8 +369,11 @@ def main():
         ser.update({name + '_corr': corr, name + '_mean_dev': mean_dev,
                     name + '_max_dev': max_dev})
 
+    gaps = {'orig_ms': damon_gaps_ms(orig_d), 'replay_ms': damon_gaps_ms(rep_d)}
+
     # verdict
-    faults = 'app_minflt' if metrics['app_minflt']['diff'] is not None else 'pgfault'
+    faults = next(n for n in ('app_minflt_net', 'app_minflt', 'pgfault')
+                  if metrics[n]['diff'] is not None or n == 'pgfault')
     failed = [n for n in ('rss_peak_mb', 'hot_mb_mean', faults)
               if metrics[n]['diff'] is not None and abs(metrics[n]['diff']) > args.tolerance]
     failed += [n for n in ('rss_mean_dev', 'minflt_mean_dev')
@@ -360,8 +385,8 @@ def main():
 
     if args.json:
         print(json.dumps({'shift_ms': shift_ms, 'metrics': metrics, 'maps': maps,
-                          'regions': regions_out, 'series': ser, 'failed': failed},
-                         indent=2))
+                          'regions': regions_out, 'series': ser, 'gaps': gaps,
+                          'failed': failed}, indent=2))
     else:
         fmt = lambda v: '-' if v is None else ('%.3f' % v if abs(v) < 10 else '%.1f' % v)
         mark = lambda n: '  FAIL' if n in failed else ''
@@ -386,6 +411,10 @@ def main():
                 name, fmt(m['orig']), fmt(m['replay']),
                 '-' if m['diff'] is None else '%+.1f%%' % (m['diff'] * 100), mark(name)))
         print('replay starts %+d ms later than the original' % shift_ms)
+        for side in ('orig', 'replay'):
+            if gaps[side + '_ms']:
+                print('WARNING: the %s record has %d ms without DAMON snapshots '
+                      '(the system or the recorder stalled)' % (side, gaps[side + '_ms']))
         if text:
             print()
             print('\n'.join(text))

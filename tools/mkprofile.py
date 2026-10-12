@@ -208,9 +208,20 @@ def build(d, epoch_ms):
     if damon:
         starts = [s for s, _, _ in damon]
 
+        held = [0.0]
+
         def snapshot_at(t):
             i = bisect.bisect_right(starts, t) - 1
             return damon[i][2] if i >= 0 and t < damon[i][1] else None
+
+        def held_snapshot(t):
+            # no snapshot covers t (DAMON missed some: the system stalled):
+            # keep the last known pattern rather than going idle
+            i = bisect.bisect_right(starts, t) - 1
+            if i < 0:
+                return None
+            held[0] += epoch_ms
+            return damon[i][2]
 
         t = int(damon[0][0] // epoch_ms * epoch_ms)
         while t < damon[-1][1]:
@@ -218,12 +229,17 @@ def build(d, epoch_ms):
             regs = snapshot_at(mid)
             if regs is None:
                 regs = snapshot_at(t)
+            if regs is None:
+                regs = held_snapshot(mid)
             if regs:
                 acc = epoch_accesses(regs, mapped_at(mid), regions, region_of, sample_s)
                 if acc:
                     set_write_ratios(acc, writes, mid, regions)
                     epochs.append((t, acc))
             t += epoch_ms
+        if held[0]:
+            print('mkprofile: %d ms without DAMON snapshots (gap); the last '
+                  'pattern is held there' % held[0], file=sys.stderr)
     return regions, events, epochs, n_files
 
 
