@@ -28,10 +28,10 @@ MB = 1 << 20
 PAGE = 4096
 HOT, WARM = 50.0, 25.0          # access rate (%) of hot and of "warm enough"
 
-# --check thresholds; totals use --tolerance
+# --check thresholds of the maps; totals and the mean deviation of the
+# series use --tolerance
 LIMITS = {'mae_pp': ('<=', 10.0), 'corr': ('>=', 0.8), 'hot_recall': ('>=', 0.8),
-          'hot_precision': ('>=', 0.8), 'rss_corr': ('>=', 0.8),
-          'minflt_corr': ('>=', 0.8)}
+          'hot_precision': ('>=', 0.8)}
 
 
 # ------------------------------------------------------------------ inputs
@@ -266,10 +266,12 @@ def series(d, shift_ms, time_bin):
 
 
 def series_metrics(o, r):
-    """Correlation and largest deviation (relative to the original's peak)
-    over the common time span, carrying the last value over empty bins."""
+    """Correlation, mean and largest deviation (relative to the original's
+    peak) over the common time span, carrying the last value over empty
+    bins. Correlation says little about a flat series, so the check uses
+    the mean deviation."""
     if not o or not r:
-        return None, None
+        return None, None, None
     end = min(max(o), max(r))
     fo, fr, pairs = None, None, []
     for tb in range(0, end + 1):
@@ -278,12 +280,12 @@ def series_metrics(o, r):
         if fo is not None and fr is not None:
             pairs.append((fo, fr))
     if not pairs:
-        return None, None
+        return None, None, None
     peak = max(abs(p[0]) for p in pairs) or 1
-    dev = max(abs(a - b) for a, b in pairs) / peak
+    devs = [abs(a - b) / peak for a, b in pairs]
     scale = peak / 100
     corr = pearson([(a / scale, b / scale) for a, b in pairs], [1] * len(pairs))
-    return corr, dev
+    return corr, sum(devs) / len(devs), max(devs)
 
 
 # ------------------------------------------------------------------ main
@@ -339,20 +341,20 @@ def main():
 
     so = series(orig_d, o_shift, args.time_bin_ms)
     sr = series(rep_d, shift_ms, args.time_bin_ms)
-    rss_corr, rss_dev = series_metrics(so['rss'], sr['rss'])
-    minflt_corr, minflt_dev = series_metrics(so['minflt'], sr['minflt'])
-    ser = {'rss_corr': rss_corr, 'rss_max_dev': rss_dev,
-           'minflt_corr': minflt_corr, 'minflt_max_dev': minflt_dev}
+    ser = {}
+    for name in ('rss', 'minflt'):
+        corr, mean_dev, max_dev = series_metrics(so[name], sr[name])
+        ser.update({name + '_corr': corr, name + '_mean_dev': mean_dev,
+                    name + '_max_dev': max_dev})
 
     # verdict
     faults = 'app_minflt' if metrics['app_minflt']['diff'] is not None else 'pgfault'
     failed = [n for n in ('rss_peak_mb', 'hot_mb_mean', faults)
               if metrics[n]['diff'] is not None and abs(metrics[n]['diff']) > args.tolerance]
-    checked = dict(ser)
-    if maps:
-        checked.update(maps)
+    failed += [n for n in ('rss_mean_dev', 'minflt_mean_dev')
+               if ser[n] is not None and ser[n] > args.tolerance]
     for name, (op, limit) in LIMITS.items():
-        v = checked.get(name)
+        v = maps.get(name) if maps else None
         if v is not None and (v > limit if op == '<=' else v < limit):
             failed.append(name)
 
@@ -375,7 +377,7 @@ def main():
                                         fmt(r['hot_precision'])))
             print()
         print('over time:')
-        for name in ('rss_corr', 'rss_max_dev', 'minflt_corr', 'minflt_max_dev'):
+        for name in ser:
             print('  %-14s %8s%s' % (name, fmt(ser[name]), mark(name)))
         print()
         print('%-15s %12s %12s %9s' % ('totals', 'original', 'replay', 'diff'))

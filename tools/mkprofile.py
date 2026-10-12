@@ -178,15 +178,20 @@ def build(d, epoch_ms):
     # map/unmap events from the differences between snapshots, populate
     # events from the growth of resident memory
     events, prev, populated = [], [], []
+    prev_ts = None
     for ts, anon, rss in smaps:
+        # what the first snapshot shows existed from the start; a change
+        # between two snapshots happened somewhere between them
+        when = 0 if prev_ts is None else (prev_ts + ts) // 2
+        prev_ts = ts
         for kind, parts in (('unmap', subtract(prev, anon)), ('map', subtract(anon, prev))):
             for s, e in parts:
                 r = region_of(s)
-                events.append((ts, kind, r, s - regions[r][0], e - s))
+                events.append((when, kind, r, s - regions[r][0], e - s))
         populated = intersect(populated, anon)
         for s, e in populate_ranges(rss, populated):
             r = region_of(s)
-            events.append((ts, 'populate', r, s - regions[r][0], e - s))
+            events.append((when, 'populate', r, s - regions[r][0], e - s))
             populated = merge(populated + [(s, e)])
         prev = anon
 
