@@ -5,10 +5,12 @@ usage: compare.py <original record> <replay record> [--json] [--check]
                   [--tolerance 0.2]
 
 Compares what does not depend on addresses: peak anonymous RSS, the amount
-of memory DAMON saw accessed, page faults and swap, the share of written
-pages. Time is aligned by the first growth of anonymous RSS (to 10 % of
-its peak). --check exits with 1 if peak RSS, accessed memory or page faults
-differ by more than the tolerance.
+of memory DAMON saw accessed, the application's page faults (proc.csv;
+system-wide ones as a fallback), swap, the share of written pages (without
+the first soft-dirty sample, which holds start-up writes). Time is aligned by
+the first growth of anonymous RSS (to 10 % of its peak). --check exits with 1
+if peak RSS, accessed memory or page faults differ by more than the
+tolerance.
 """
 import argparse
 import csv
@@ -19,7 +21,7 @@ from pathlib import Path
 from mkprofile import read_access, read_smaps
 
 MB = 1 << 20
-CHECKED = ('rss_peak_mb', 'hot_mb_mean', 'pgfault')
+CHECKED = ('rss_peak_mb', 'hot_mb_mean')
 
 
 def measure(d):
@@ -40,9 +42,18 @@ def measure(d):
     def delta(col):
         return int(system[-1][col]) - int(system[0][col]) if system else None
 
+    app_minflt = app_majflt = None
+    if (d / 'proc.csv').exists():
+        rows = list(csv.DictReader(open(d / 'proc.csv')))
+        if rows:
+            app_minflt = int(rows[-1]['minflt'])
+            app_majflt = int(rows[-1]['majflt'])
+
     dirty = None
     if (d / 'writes.csv').exists():
         rows = list(csv.DictReader(open(d / 'writes.csv')))
+        first = min((int(r['ts_ms']) for r in rows), default=None)
+        rows = [r for r in rows if int(r['ts_ms']) != first]
         present = sum(int(r['present_pages']) for r in rows)
         if present:
             dirty = sum(int(r['dirty_pages']) for r in rows) / present
@@ -51,6 +62,8 @@ def measure(d):
         'rss_peak_mb': peak / MB,
         'hot_mb_mean': sum(hot) / len(hot) if hot else 0.0,
         'hot50_mb_mean': sum(hot50) / len(hot50) if hot50 else 0.0,
+        'app_minflt': app_minflt,
+        'app_majflt': app_majflt,
         'pgfault': delta('pgfault'),
         'pgmajfault': delta('pgmajfault'),
         'pswpout': delta('pswpout'),
@@ -79,7 +92,9 @@ def main():
     t0_rep, rep = measure(Path(args.replay))
     metrics = {name: {'orig': orig[name], 'replay': rep[name],
                       'diff': diff(orig[name], rep[name])} for name in orig}
-    failed = [n for n in CHECKED if metrics[n]['diff'] is not None
+    # the application's own faults when both records have them
+    faults = 'app_minflt' if metrics['app_minflt']['diff'] is not None else 'pgfault'
+    failed = [n for n in CHECKED + (faults,) if metrics[n]['diff'] is not None
               and abs(metrics[n]['diff']) > args.tolerance]
 
     if args.json:
