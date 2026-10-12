@@ -2,6 +2,7 @@
 /workloads/rw_split
 /workloads/fixed_work
 /workloads/random_access
+/workloads/moving_window
 /record/qmem-softdirty
 /replay/qmem-replay
 __pycache__/

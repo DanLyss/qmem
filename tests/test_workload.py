@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from conftest import FIXED_WORK, HOT_REGION, RANDOM_ACCESS, RW_SPLIT
+from conftest import FIXED_WORK, HOT_REGION, RANDOM_ACCESS, ROOT, RW_SPLIT
 
 
 def test_hot_region_prints_ranges_and_exits():
@@ -66,3 +66,14 @@ def test_random_access_prints_core_and_rejects_bad_args():
     for args in ([], ['8', '16', '1', '1'], ['8', '2', '1', '-5']):
         assert subprocess.run([str(RANDOM_ACCESS)] + args,
                               capture_output=True, timeout=10).returncode == 2
+
+
+def test_moving_window_runs_and_rejects_bad_args():
+    mw = ROOT / 'workloads' / 'moving_window'
+    p = subprocess.run([str(mw), '8', '2', '0.2'], capture_output=True, text=True,
+                       timeout=10)
+    assert p.returncode == 0, p.stderr
+    assert re.search(r'^total 0x[0-9a-f]+ 0x[0-9a-f]+$', p.stdout, re.M)
+    for args in ([], ['8', '16', '1'], ['8', '2', '0']):
+        assert subprocess.run([str(mw)] + args, capture_output=True,
+                              timeout=10).returncode == 2
