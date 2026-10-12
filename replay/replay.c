@@ -3,7 +3,7 @@
  *
  * Reads a text profile (docs/modules/replay.md), maps, unmaps and populates
  * parts of anonymous regions on its timeline and touches their pages at the given
- * rates (walking each range round robin) in 10 ms ticks on absolute deadlines. Work that does not fit into
+ * rates (walking each range round robin) in 1 ms ticks on absolute deadlines. Work that does not fit into
  * its tick is dropped, not queued, so the replay never drifts.
  *
  * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>]
@@ -411,8 +411,11 @@ static int run_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
 
 static void replay(uint64_t *wall_ns)
 {
-	/* ticks of 10 ms spread an epoch's touches over the epoch */
-	uint64_t tick_ms = epoch_ms % 10 ? epoch_ms : 10;
+	/* 1 ms ticks spread an epoch's touches over the epoch. They must be
+	 * shorter than DAMON's sampling interval (5 ms by default): with
+	 * 10 ms ticks the touches came in a burst and half of DAMON's samples
+	 * fell into the pause, so replay looked half as hot. */
+	uint64_t tick_ms = 1;
 	uint64_t end_ms = 0, start;
 	uint32_t ei = 0, pi = 0;
 	int cur = -1;
