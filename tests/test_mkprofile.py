@@ -20,7 +20,8 @@ def run_mkprofile(*args):
 
 def parse(path):
     """Profile -> dict with regions, maps, unmaps and {epoch_t: [access]}."""
-    prof = {'regions': {}, 'map': [], 'unmap': [], 'populate': [], 'epochs': {}}
+    prof = {'regions': {}, 'bases': {}, 'map': [], 'unmap': [], 'populate': [],
+            'epochs': {}}
     current = None
     for line in path.read_text().splitlines():
         f = line.split('#')[0].split()
@@ -28,6 +29,8 @@ def parse(path):
             continue
         if f[0] == 'region':
             prof['regions'][int(f[1])] = int(f[2])
+            if len(f) > 3:
+                prof['bases'][int(f[1])] = int(f[3], 16)
         elif f[0] in ('map', 'unmap', 'populate'):
             prof[f[0]].append(tuple(int(x) for x in f[1:]))
         elif f[0] == 'epoch':
@@ -96,6 +99,13 @@ def test_regions_and_lifetime(profile):
     assert (0, heap, 0, MB) in prof['map']
     assert (1000, a, 0, 64 * MB) in prof['map']
     assert prof['unmap'] == [(3000, a, 0, 32 * MB)]
+
+
+def test_region_bases_of_the_original(profile):
+    # verify maps the original's DAMON addresses to regions through these
+    prof, _ = profile
+    assert prof['bases'][region_of(prof, 64 * MB)] == A
+    assert prof['bases'][region_of(prof, MB)] == HEAP
 
 
 def test_populate_resident_memory(profile):

@@ -265,3 +265,33 @@ def test_every_page_hit_at_the_planned_rate(tmp_path):
     assert len(big) >= 2, rows
     for r in big:
         assert r[4] / r[3] >= 0.97, r
+
+
+# ---------------------------------------------------------------- layout (verify V2)
+
+
+def test_layout_file(tmp_path):
+    body = ['region 0 %d 0x7f0000000000' % (4 * MB), 'region 1 %d' % (2 * MB),
+            'map 0 0 0 %d' % (4 * MB), 'map 0 1 0 %d' % (2 * MB)] + \
+        epochs(0, 300, 100, ['0 0 %d 1000 1.0' % (4 * MB)])
+    layout = tmp_path / 'layout.txt'
+    before = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
+    after = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+    assert p.returncode == 0, p.stderr
+    lines = layout.read_text().splitlines()
+    assert lines[0] == 'qmem-replay-layout 1'
+    start = int(lines[1].split()[1])
+    assert lines[1].startswith('start_boottime_ns ') and before <= start <= after
+    regions = [l.split() for l in lines[2:]]
+    assert [(r[0], r[1], r[3]) for r in regions] == [
+        ('region', '0', str(4 * MB)), ('region', '1', str(2 * MB))]
+    bases = [int(r[2], 16) for r in regions]
+    assert all(b % PAGE == 0 for b in bases) and bases[0] != bases[1]
+
+
+def test_region_base_must_be_hex(tmp_path):
+    prof = tmp_path / 'p.txt'
+    prof.write_text('qmem-profile 1\nepoch_ms 100\nregion 0 4096 zz\n')
+    p = run_replay(prof)
+    assert p.returncode == 2 and 'profile:3:' in p.stderr

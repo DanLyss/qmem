@@ -6,7 +6,7 @@ import sys
 
 import pytest
 
-from conftest import (COMPARE, HOT_REGION, MKPROFILE, REPLAY, has_real_damon,
+from conftest import (VERIFY, HOT_REGION, MKPROFILE, REPLAY, has_real_damon,
                       run_record)
 
 pytestmark = pytest.mark.skipif(not has_real_damon(),
@@ -27,10 +27,10 @@ def test_hot_region_cycle(tmp_path):
                     REPLAY, profile], timeout=120)
     assert p.returncode == 0, p.stderr
 
-    p = subprocess.run([sys.executable, str(COMPARE), str(orig), str(again)],
+    p = subprocess.run([sys.executable, str(VERIFY), str(orig), str(again)],
                        capture_output=True, text=True, timeout=60)
     print(p.stdout)
-    p = subprocess.run([sys.executable, str(COMPARE), str(orig), str(again),
+    p = subprocess.run([sys.executable, str(VERIFY), str(orig), str(again),
                         '--json'], capture_output=True, text=True, timeout=60)
     m = json.loads(p.stdout)['metrics']
     for name in ('rss_peak_mb', 'hot_mb_mean', 'hot50_mb_mean', 'app_minflt'):

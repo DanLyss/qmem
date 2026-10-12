@@ -1,12 +1,12 @@
-"""P5: tools/compare.py compares the record of the original with the record of
-the replay by what does not depend on addresses."""
+"""V1: verify/qmem-verify.py compares the record of the original with the
+record of the replay by totals that do not depend on addresses."""
 import json
 import subprocess
 import sys
 
 import pytest
 
-from conftest import COMPARE, EXAMPLE
+from conftest import EXAMPLE, VERIFY
 from fixtures.mkrecord import MB, write_record
 
 A = 0x7f0000000000
@@ -14,7 +14,7 @@ B = 0x7e0000000000
 
 
 def run_compare(*args):
-    return subprocess.run([sys.executable, str(COMPARE)] + [str(a) for a in args],
+    return subprocess.run([sys.executable, str(VERIFY)] + [str(a) for a in args],
                           capture_output=True, text=True, timeout=60)
 
 

@@ -6,10 +6,11 @@ PAGE = 4096
 
 
 def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0, proc=None):
+                 softdirty_ms=0, proc=None, start_uptime=100.0):
     """Write a record directory.
 
-    smaps:  {ts_ms: [(start, end, name, rss_kb), ...]}; name '' is anonymous
+    smaps:  {ts_ms: [(start, end, name, rss_kb[, vmflags]), ...]}; name '' is
+            anonymous; vmflags defaults to 'rd wr mr mw me ac'
     access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...]
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
     writes: [(ts_ms, start, end, present_pages, dirty_pages), ...]
@@ -19,7 +20,9 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
     (d / 'smaps').mkdir(exist_ok=True)
     for ts, vmas in smaps.items():
         lines = []
-        for start, end, name, rss in vmas:
+        for vma in vmas:
+            start, end, name, rss = vma[:4]
+            flags = vma[4] if len(vma) > 4 else 'rd wr mr mw me ac'
             lines.append('%x-%x rw-p 00000000 %s %s' % (
                 start, end, '08:01 1234' if name and not name.startswith('[')
                 else '00:00 0', name))
@@ -27,7 +30,7 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
                       'Rss: %d kB' % rss,
                       'Anonymous: %d kB' % (0 if name and not name.startswith('[')
                                             else rss),
-                      'VmFlags: rd wr mr mw me ac']
+                      'VmFlags: ' + flags]
         (d / 'smaps' / ('%d.txt' % ts)).write_text('\n'.join(lines) + '\n')
 
     rows = ['snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age']
@@ -57,7 +60,7 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
                                       'aggr_us': '100 ms'}}]}]))
     (d / 'meta.json').write_text(json.dumps({
         'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1,
-        'start_time': 1.0, 'end_time': 5.0, 'start_uptime': 100.0,
+        'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
         'interval_ms': 1000, 'softdirty_ms': softdirty_ms,
         'stop_reason': 'exited'}))
     return d
