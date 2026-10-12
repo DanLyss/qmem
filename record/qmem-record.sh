@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # qmem-record: record an application's memory load (iteration 1).
 #
-# The DAMON access pattern is recorded by `damo record`; smaps and system
-# memory snapshots, allocation tracing (tracefs) and write sampling
+# The DAMON access pattern is recorded by `damo record`; smaps, process and
+# system memory snapshots, allocation tracing (tracefs) and write sampling
 # (qmem-softdirty) are done by this script.
 # See docs/modules/record.md.
 set -euo pipefail
@@ -166,6 +166,20 @@ alive() {
 	[ "${stat%% *}" != Z ]
 }
 
+PAGE_KB=$(( $(getconf PAGESIZE) / 1024 ))
+
+# Append one proc.csv row: the application's own fault counters since it
+# started (so faults before the first snapshot count too) and its RSS.
+proc_row() {
+	local stat
+
+	stat=$(cat "/proc/$app_pid/stat" 2>/dev/null) || return 0
+	set -- ${stat##*) }
+	# after the comm: $1 = state (field 3), minflt = field 10,
+	# majflt = field 12, rss in pages = field 24
+	echo "$ts,${8},${10},$(( ${22} * PAGE_KB ))"
+}
+
 # Sample written pages of the application into $out/writes.csv.
 sd_pid=
 start_softdirty() {
@@ -303,6 +317,7 @@ fi
 
 echo "ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout" \
 	> "$out/system.csv"
+echo "ts_ms,minflt,majflt,rss_kb" > "$out/proc.csv"
 
 # Check often whether the application is still there (so recording ends
 # right after it does), take snapshots every $interval ms.
@@ -324,6 +339,7 @@ while [ -n "$app_pid" ] && ! $stopped && alive "$app_pid"; do
 			break
 		fi
 		system_row "$ts" >> "$out/system.csv"
+		proc_row >> "$out/proc.csv"
 	fi
 	# sleep in the background so a signal is handled right away
 	sleep "$poll_s" &

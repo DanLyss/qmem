@@ -57,6 +57,7 @@ record/qmem-record.sh --normalize out
 | `access.csv` | `snapshot_start_ns, snapshot_end_ns, start, end, access_rate, access_hz, age` — регионы DAMON и частота обращений к ним по снимкам | `damo record` → `damo report access` |
 | `smaps/<ts_ms>.txt` | Снимки `/proc/<pid>/smaps`: тип отображений и RSS | скрипт |
 | `system.csv` | `ts_ms`, MemFree, MemAvailable, Cached, SwapFree (кБ), PSI some/full avg10, pgfault, pgmajfault, pswpin, pswpout | скрипт |
+| `proc.csv` | `ts_ms, minflt, majflt, rss_kb` — счётчики page faults самого приложения с его старта (включая faults до первого снимка) и его RSS | скрипт, `/proc/<pid>/stat` |
 | `syscalls.txt` | Сырые события tracefs: mmap, munmap, brk, mremap, madvise приложения, его потоков и детей | tracefs |
 | `writes.csv` | `ts_ms, start, end, present_pages, dirty_pages` по отображениям, если задан `-w` | `qmem-softdirty` |
 | `meta.json` | Режим, команда, pid и `kernel_pid`, версия и опции damo, ядро, время, `start_uptime`, интервалы, причина остановки, потери событий tracefs | скрипт |

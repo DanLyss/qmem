@@ -101,6 +101,7 @@ record/
   smaps/<ts>.txt   # снимки /proc/<pid>/smaps
   system.csv       # ts_ms, MemFree, MemAvailable, Cached, SwapFree (кБ),
                    # psi_some_avg10, psi_full_avg10, pgfault, pgmajfault, pswpin, pswpout
+  proc.csv         # ts_ms, minflt, majflt, rss_kb — счётчики самого приложения с его старта
   syscalls.txt     # сырой вывод tracefs (если трассировка доступна)
   writes.csv       # ts_ms, start, end, present_pages, dirty_pages (если задан -w)
 ```
