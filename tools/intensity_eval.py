@@ -170,8 +170,12 @@ def evaluate(record, gt_path, counter_error=0.0, damon='measured', seed=1,
         weight = sum(w for _, w in pairs)
         within2 = sum(w for v, w in pairs if 0.5 <= v <= 2) / weight
         within30 = sum(w for v, w in pairs if 0.7 <= v <= 1.3) / weight
+        cells_n = len(pairs)
         out[name] = {
             'within_x2': within2, 'within_30pct': within30,
+            # every touched (chunk, window) counted once, however often touched
+            'cells_within_x2': sum(1 for v, _ in pairs if 0.5 <= v <= 2) / cells_n,
+            'cells_within_30pct': sum(1 for v, _ in pairs if 0.7 <= v <= 1.3) / cells_n,
             'p10': weighted_quantile(pairs, 0.1), 'median': weighted_quantile(pairs, 0.5),
             'p90': weighted_quantile(pairs, 0.9),
             'total_ratio': totals[name][0] / totals[name][1] if totals[name][1] else None,
