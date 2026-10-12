@@ -7,6 +7,8 @@ Supports what qmem-record.sh uses:
   damo report access -i <file> ... (prints a canned report)
 
 Every call is appended to $FAKE_DAMO_LOG as one JSON line with argv.
+With FAKE_DAMO_DECOY=1, record first starts a short-lived helper child, as
+real damo sometimes does, before the target.
 """
 import json
 import os
@@ -69,6 +71,9 @@ def record(args):
         while pid_alive(pid):
             time.sleep(0.05)
     else:
+        if os.environ.get('FAKE_DAMO_DECOY') == '1':
+            subprocess.Popen(['sleep', '0.2'])
+            time.sleep(0.05)
         child = subprocess.Popen(target, shell=True, executable='/bin/bash')
         child.wait()
     finish(0)

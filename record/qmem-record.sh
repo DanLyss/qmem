@@ -267,10 +267,18 @@ trap 'stop_softdirty; stop_tracing' EXIT
 if [ $mode = attach ]; then
 	app_pid=$attach_pid
 else
-	# damo starts the command itself; the application is its first child
+	# damo starts the command itself (through bash, which execs it). It may
+	# also start short-lived helpers, so the application is the child whose
+	# argv[0] is our command's.
 	app_pid=
 	for _ in $(seq 100); do
-		app_pid=$(pgrep -o -P "$damo_pid" || true)
+		for child in $(pgrep -P "$damo_pid" || true); do
+			argv0=$(tr '\0' '\n' < "/proc/$child/cmdline" 2>/dev/null | head -n1)
+			if [ "$argv0" = "$1" ]; then
+				app_pid=$child
+				break
+			fi
+		done
 		[ -n "$app_pid" ] && break
 		kill -0 "$damo_pid" 2>/dev/null || break
 		sleep 0.05

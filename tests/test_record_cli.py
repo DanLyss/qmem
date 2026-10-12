@@ -121,3 +121,17 @@ def test_sigint_stops_recording(tmp_path, fake_env):
         if proc.poll() is None:
             os.killpg(proc.pid, signal.SIGKILL)
         kill_matching('hot_region 16 2 60.' + marker)
+
+
+def test_finds_application_among_damo_children(tmp_path, fake_env):
+    """damo may start a short-lived helper before the target; snapshots must
+    still follow the application."""
+    env = dict(fake_env, FAKE_DAMO_DECOY='1')
+    out = tmp_path / 'out'
+    p = run_record(['-o', out, '-i', '100', '--', HOT_REGION, '16', '2', '1.5'],
+                   env=env)
+    assert p.returncode == 0, p.stderr
+    assert len(list((out / 'smaps').iterdir())) >= 5
+    with open(out / 'smaps' / sorted((out / 'smaps').iterdir(),
+                                     key=lambda f: int(f.stem))[-1].name) as f:
+        assert 'hot_region' in f.read()
