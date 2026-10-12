@@ -20,7 +20,7 @@ def run_mkprofile(*args):
 
 def parse(path):
     """Profile -> dict with regions, maps, unmaps and {epoch_t: [access]}."""
-    prof = {'regions': {}, 'map': [], 'unmap': [], 'epochs': {}}
+    prof = {'regions': {}, 'map': [], 'unmap': [], 'populate': [], 'epochs': {}}
     current = None
     for line in path.read_text().splitlines():
         f = line.split('#')[0].split()
@@ -28,7 +28,7 @@ def parse(path):
             continue
         if f[0] == 'region':
             prof['regions'][int(f[1])] = int(f[2])
-        elif f[0] in ('map', 'unmap'):
+        elif f[0] in ('map', 'unmap', 'populate'):
             prof[f[0]].append(tuple(int(x) for x in f[1:]))
         elif f[0] == 'epoch':
             current = int(f[1])
@@ -96,6 +96,27 @@ def test_regions_and_lifetime(profile):
     assert (0, heap, 0, MB) in prof['map']
     assert (1000, a, 0, 64 * MB) in prof['map']
     assert prof['unmap'] == [(3000, a, 0, 32 * MB)]
+
+
+def test_populate_resident_memory(profile):
+    prof, _ = profile
+    a = region_of(prof, 64 * MB)
+    heap = region_of(prof, MB)
+    # both are fully resident when they appear; after the unmap the rest of A
+    # is already populated
+    assert prof['populate'] == [(0, heap, 0, MB), (1000, a, 0, 64 * MB)]
+
+
+def test_populate_follows_rss_growth(tmp_path):
+    base = 0x7f0000000000
+    smaps = {0: [(base, base + 8 * MB, '', 4096)],          # half resident
+             1000: [(base, base + 8 * MB, '', 8192)]}       # then all of it
+    rec = write_record(tmp_path / 'rec', smaps,
+                       snaps(0, 2000, [(base, base + 8 * MB, 0.0)]))
+    out = tmp_path / 'p.txt'
+    p = run_mkprofile(rec, '-o', out)
+    assert p.returncode == 0, p.stderr
+    assert parse(out)['populate'] == [(0, 0, 0, 4 * MB), (1000, 0, 4 * MB, 4 * MB)]
 
 
 def test_access_rate_and_write_ratio(profile):

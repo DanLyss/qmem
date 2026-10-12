@@ -216,3 +216,28 @@ def test_write_ratio_matches_softdirty(tmp_path):
     assert len(big) >= 2, rows
     for r in big:
         assert r[4] / r[3] == pytest.approx(0.25, abs=0.05)
+
+
+# ---------------------------------------------------------------- populate
+
+
+def test_populate_makes_memory_resident(tmp_path):
+    size = 32 * MB
+    body = ['region 0 %d' % size, 'map 0 0 0 %d' % (size // 2),
+            'populate 100 0 0 %d' % size, 'unmap 600 0 0 %d' % (size // 2)]
+    p = run_replay(write_profile(tmp_path / 'p.txt', body))
+    assert p.returncode == 0, p.stderr
+    s = summary(p.stderr)
+    # only the mapped half is populated, without accesses
+    assert int(s['populated']) == size // 2 // PAGE
+    assert int(s['maxrss_kb']) >= 0.95 * size / 2 / 1024
+    assert int(s['maxrss_kb']) < 0.75 * size / 1024
+    assert int(s['planned']) == 0
+
+
+def test_populate_is_validated(tmp_path):
+    prof = tmp_path / 'p.txt'
+    prof.write_text('qmem-profile 1\nepoch_ms 100\nregion 0 4096\n'
+                    'populate 0 0 0 8192\n')
+    p = run_replay(prof)
+    assert p.returncode == 2 and 'profile:4:' in p.stderr
