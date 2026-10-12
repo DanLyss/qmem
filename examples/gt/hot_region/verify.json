@@ -1,0 +1,172 @@
+{
+  "baseline": false,
+  "shift_ms": 163.90677899867296,
+  "metrics": {
+    "rss_peak_mb": {
+      "orig": 128.68359375,
+      "replay": 129.5546875,
+      "diff": 0.006769268129799957
+    },
+    "hot_mb_mean": {
+      "orig": 16.78108946917808,
+      "replay": 17.52924408783784,
+      "diff": 0.044583197058444705
+    },
+    "hot50_mb_mean": {
+      "orig": 16.133561643835616,
+      "replay": 15.723975929054054,
+      "diff": -0.025387185038466577
+    },
+    "app_minflt": {
+      "orig": 49553,
+      "replay": 57643,
+      "diff": 0.16325954029019435
+    },
+    "app_minflt_net": {
+      "orig": 32958,
+      "replay": 33007,
+      "diff": 0.0014867407002852114
+    },
+    "app_majflt": {
+      "orig": 1,
+      "replay": 1,
+      "diff": 0.0
+    },
+    "pgfault": {
+      "orig": 92929,
+      "replay": 110628,
+      "diff": 0.19045723078909704
+    },
+    "pgmajfault": {
+      "orig": 3,
+      "replay": 0,
+      "diff": -1.0
+    },
+    "pswpout": {
+      "orig": 0,
+      "replay": 0,
+      "diff": 0.0
+    },
+    "dirty_share": {
+      "orig": 0.12361378977820636,
+      "replay": 0.1315301220527324,
+      "diff": 0.06404085085272357
+    }
+  },
+  "maps": {
+    "mae_pp": 5.4013078119100495,
+    "corr": 0.9885576807799702,
+    "hot_recall": 0.999903953897871,
+    "hot_precision": 1.0
+  },
+  "regions": [
+    {
+      "region": 0,
+      "size": 675840,
+      "mae_pp": 2.675324675324675,
+      "corr": 0.0,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 1,
+      "size": 134217728,
+      "mae_pp": 5.396566499714109,
+      "corr": 0.9886292583316032,
+      "hot_recall": 1.0,
+      "hot_precision": 1.0
+    },
+    {
+      "region": 2,
+      "size": 53248,
+      "mae_pp": 3.96875,
+      "corr": 0.20153779951972856,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 3,
+      "size": 12288,
+      "mae_pp": 3.861111111111111,
+      "corr": 0.3298007028219151,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 4,
+      "size": 8192,
+      "mae_pp": 3.861111111111111,
+      "corr": 0.32980070282191504,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 5,
+      "size": 135168,
+      "mae_pp": 13.131172839506172,
+      "corr": 0.026507048149872037,
+      "hot_recall": 0.0,
+      "hot_precision": null
+    }
+  ],
+  "series": {
+    "rss_corr": 0.9965497165899698,
+    "rss_mean_dev": 0.004244407898848456,
+    "rss_max_dev": 0.006738912667334487,
+    "minflt_corr": 0.9155296018909161,
+    "minflt_mean_dev": 0.08957847865802629,
+    "minflt_max_dev": 0.1631586382257381
+  },
+  "gaps": {
+    "orig_ms": 0,
+    "replay_ms": 0
+  },
+  "pauses": {
+    "orig_ms": 0,
+    "replay_ms": 2962
+  },
+  "gt": {
+    "windows": [
+      {
+        "touched": {
+          "recall": 0.8631203391335227,
+          "precision": 0.868260799187305,
+          "jaccard": 0.7631754535731458,
+          "pages_orig": 360448,
+          "pages_replay": 358314
+        },
+        "written": {
+          "recall": 0.8331936922940341,
+          "precision": 0.8737812950058916,
+          "jaccard": 0.7436866998489463,
+          "pages_orig": 360448,
+          "pages_replay": 343705
+        },
+        "window_ms": 100
+      },
+      {
+        "touched": {
+          "recall": 1.0,
+          "precision": 0.9451126301520002,
+          "jaccard": 0.9451126301520002,
+          "pages_orig": 65536,
+          "pages_replay": 69342
+        },
+        "written": {
+          "recall": 0.99993896484375,
+          "precision": 0.954330983864391,
+          "jaccard": 0.954275396085741,
+          "pages_orig": 65536,
+          "pages_replay": 68668
+        },
+        "window_ms": 1000
+      }
+    ],
+    "touches": {
+      "orig": 657072128,
+      "replay": 5901056,
+      "ratio": 0.008980834445012405
+    }
+  },
+  "failed": []
+}

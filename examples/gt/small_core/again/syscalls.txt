@@ -1,0 +1,4 @@
+           <...>-2294    [005] ..... 36325.199810: sys_brk(brk: 0x58b89ce7c000)
+     qmem-replay-2294    [005] ..... 36325.199854: sys_brk -> 0x58b89ce7c000
+     qmem-replay-2294    [005] ..... 36327.043802: sys_mmap(addr: 0x7f5c262a9000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-2294    [005] ..... 36327.044112: sys_mmap -> 0x7f5c262a9000

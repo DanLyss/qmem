@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "/mnt/c/Users/Dan/qmem/replay/qmem-replay examples/gt/small_core/profile.txt --layout examples/gt/small_core/layout.txt",
+  "pid": 226235,
+  "kernel_pid": 2294,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791804574.643291491,
+  "start_uptime": 36320.85,
+  "end_time": 1791804584.038043829,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 0,
+  "syscalls": true,
+  "syscall_overrun": 0
+}

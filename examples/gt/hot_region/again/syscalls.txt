@@ -1,0 +1,18 @@
+           <...>-31354   [004] ..... 36252.849927: sys_mmap(addr: 0x74b9ddd7b000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-31354   [004] ..... 36252.849980: sys_mmap -> 0x74b9ddd7b000
+     qmem-replay-31354   [004] ..... 36252.973992: sys_brk(brk: 0x62fa95ab5000)
+     qmem-replay-31354   [004] ..... 36252.974033: sys_brk -> 0x62fa95ab5000
+     qmem-replay-31354   [004] ..... 36254.473971: sys_brk(brk: 0x62fa95ad6000)
+     qmem-replay-31354   [004] ..... 36254.474037: sys_brk -> 0x62fa95ad6000
+     qmem-replay-31354   [004] ..... 36254.729958: sys_mmap(addr: 0x74b9ddd9c000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-31354   [004] ..... 36254.730051: sys_mmap -> 0x74b9ddd9c000
+     qmem-replay-31354   [009] ..... 36256.173922: sys_brk(brk: 0x62fa95af7000)
+     qmem-replay-31354   [009] ..... 36256.173944: sys_brk -> 0x62fa95af7000
+     qmem-replay-31354   [000] ..... 36256.462990: sys_mmap(addr: 0x74b9dddbd000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-31354   [000] ..... 36256.463040: sys_mmap -> 0x74b9dddbd000
+     qmem-replay-31354   [001] ..... 36257.673952: sys_brk(brk: 0x62fa95b18000)
+     qmem-replay-31354   [001] ..... 36257.673991: sys_brk -> 0x62fa95b18000
+     qmem-replay-31354   [001] ..... 36257.775988: sys_mmap(addr: 0x74b9dddde000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-31354   [001] ..... 36257.776089: sys_mmap -> 0x74b9dddde000
+     qmem-replay-31354   [008] ..... 36259.374003: sys_brk(brk: 0x62fa95b39000)
+     qmem-replay-31354   [008] ..... 36259.374069: sys_brk -> 0x62fa95b39000

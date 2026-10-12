@@ -1,0 +1,12 @@
+           <...>-31905   [008] ..... 36265.257820: sys_brk(brk: 0x5e1b3b87d000)
+           <...>-31905   [008] ..... 36265.257847: sys_brk -> 0x5e1b3b87d000
+   moving_window-31905   [008] ..... 36266.857814: sys_brk(brk: 0x5e1b3b89e000)
+   moving_window-31905   [008] ..... 36266.857844: sys_brk -> 0x5e1b3b89e000
+   moving_window-31905   [009] ..... 36268.557806: sys_brk(brk: 0x5e1b3b8bf000)
+   moving_window-31905   [009] ..... 36268.557827: sys_brk -> 0x5e1b3b8bf000
+   moving_window-31905   [008] ..... 36270.157800: sys_brk(brk: 0x5e1b3b8e0000)
+   moving_window-31905   [008] ..... 36270.157820: sys_brk -> 0x5e1b3b8e0000
+   moving_window-31905   [009] ..... 36271.757836: sys_brk(brk: 0x5e1b3b901000)
+   moving_window-31905   [009] ..... 36271.757877: sys_brk -> 0x5e1b3b901000
+   moving_window-31905   [008] ..... 36271.988311: sys_munmap(addr: 0x726982800000, len: 0x8000000)
+   moving_window-31905   [008] ..... 36271.990989: sys_munmap -> 0x0

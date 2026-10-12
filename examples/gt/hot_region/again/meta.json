@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "/mnt/c/Users/Dan/qmem/replay/qmem-replay examples/gt/hot_region/profile.txt --layout examples/gt/hot_region/layout.txt",
+  "pid": 223086,
+  "kernel_pid": 31354,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791804496.138868457,
+  "start_uptime": 36251.21,
+  "end_time": 1791804508.391456740,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 2962,
+  "syscalls": true,
+  "syscall_overrun": 0
+}

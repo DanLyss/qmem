@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "workloads/hot_region 128 16 8",
+  "pid": 222573,
+  "kernel_pid": 30840,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791804485.871690054,
+  "start_uptime": 36240.94,
+  "end_time": 1791804495.096269604,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 0,
+  "syscalls": true,
+  "syscall_overrun": 0
+}

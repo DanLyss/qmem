@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "workloads/random_access 32 2 8 20000",
+  "pid": 225720,
+  "kernel_pid": 1774,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791804561.507125010,
+  "start_uptime": 36310.70,
+  "end_time": 1791804573.688167637,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 2000,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 2981,
+  "syscalls": true,
+  "syscall_overrun": 0
+}
