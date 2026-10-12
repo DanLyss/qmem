@@ -1,0 +1,18 @@
+           <...>-3736    [005] ..... 36630.035172: sys_mmap(addr: 0x778f68b2f000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-3736    [005] ..... 36630.035229: sys_mmap -> 0x778f68b2f000
+     qmem-replay-3736    [005] ..... 36630.363118: sys_brk(brk: 0x56414043d000)
+     qmem-replay-3736    [005] ..... 36630.363170: sys_brk -> 0x56414043d000
+     qmem-replay-3736    [005] ..... 36632.363139: sys_brk(brk: 0x56414045e000)
+     qmem-replay-3736    [005] ..... 36632.363163: sys_brk -> 0x56414045e000
+     qmem-replay-3736    [005] ..... 36632.430115: sys_mmap(addr: 0x778f68b50000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-3736    [005] ..... 36632.430141: sys_mmap -> 0x778f68b50000
+     qmem-replay-3736    [008] ..... 36634.379154: sys_mmap(addr: 0x778f68b71000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-3736    [008] ..... 36634.379232: sys_mmap -> 0x778f68b71000
+     qmem-replay-3736    [008] ..... 36634.463235: sys_brk(brk: 0x56414047f000)
+     qmem-replay-3736    [008] ..... 36634.463315: sys_brk -> 0x56414047f000
+     qmem-replay-3736    [004] ..... 36636.425149: sys_mmap(addr: 0x778f68b92000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-3736    [004] ..... 36636.425184: sys_mmap -> 0x778f68b92000
+     qmem-replay-3736    [004] ..... 36636.463155: sys_brk(brk: 0x5641404a0000)
+     qmem-replay-3736    [004] ..... 36636.463178: sys_brk -> 0x5641404a0000
+     qmem-replay-3736    [006] ..... 36638.363154: sys_brk(brk: 0x5641404c1000)
+     qmem-replay-3736    [006] ..... 36638.363192: sys_brk -> 0x5641404c1000
