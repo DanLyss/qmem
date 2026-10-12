@@ -282,3 +282,25 @@ def test_hot_memory_in_regions_and_common_window(tmp_path):
     m = verify_json(orig, again, profile, layout)['metrics']
     assert m['hot_mb_mean']['diff'] == pytest.approx(0, abs=0.01)
     assert m['hot50_mb_mean']['diff'] == pytest.approx(0, abs=0.01)
+
+
+def test_low_rate_memory_alone_does_not_fail(tmp_path):
+    """Extra memory at a low rate (DAMON's short-lived regions) changes
+    accessed memory at rate > 0 but not above 50 %: reported, not failed."""
+    orig, again, profile, layout = case(tmp_path)
+    rows = (again / 'access.csv').read_text().splitlines()
+    out = [rows[0]]
+    for r in rows[1:]:
+        f = r.split(',')
+        # 8 MB right after the hot spot at 10 % instead of 0
+        if int(f[2]) == B + 16 * MB and float(f[4]) == 0:
+            out.append(','.join([f[0], f[1], f[2], str(B + 24 * MB), '10.000000', '20.0', '0']))
+            out.append(','.join([f[0], f[1], str(B + 24 * MB), f[3], f[4], f[5], f[6]]))
+        else:
+            out.append(r)
+    (again / 'access.csv').write_text('\n'.join(out) + '\n')
+    m = verify_json(orig, again, profile, layout)['metrics']
+    assert m['hot_mb_mean']['diff'] > 0.5
+    assert m['hot50_mb_mean']['diff'] == pytest.approx(0, abs=0.01)
+    assert run_verify(orig, again, '--profile', profile, '--layout', layout,
+                      '--check').returncode == 0
