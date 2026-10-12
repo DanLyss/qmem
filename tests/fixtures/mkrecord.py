@@ -6,13 +6,14 @@ PAGE = 4096
 
 
 def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0):
+                 softdirty_ms=0, proc=None):
     """Write a record directory.
 
     smaps:  {ts_ms: [(start, end, name, rss_kb), ...]}; name '' is anonymous
     access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...]
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
     writes: [(ts_ms, start, end, present_pages, dirty_pages), ...]
+    proc:   [(ts_ms, minflt, majflt, rss_kb), ...]
     """
     d.mkdir(parents=True, exist_ok=True)
     (d / 'smaps').mkdir(exist_ok=True)
@@ -41,6 +42,10 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
     for ts, pf, pm, so in system or []:
         rows.append('%d,1000000,1000000,1000,0,0.00,0.00,%d,%d,0,%d' % (ts, pf, pm, so))
     (d / 'system.csv').write_text('\n'.join(rows) + '\n')
+
+    if proc is not None:
+        rows = ['ts_ms,minflt,majflt,rss_kb'] + ['%d,%d,%d,%d' % r for r in proc]
+        (d / 'proc.csv').write_text('\n'.join(rows) + '\n')
 
     if writes is not None:
         rows = ['ts_ms,start,end,present_pages,dirty_pages']

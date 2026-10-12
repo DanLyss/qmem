@@ -241,3 +241,27 @@ def test_populate_is_validated(tmp_path):
                     'populate 0 0 0 8192\n')
     p = run_replay(prof)
     assert p.returncode == 2 and 'profile:4:' in p.stderr
+
+
+def test_every_page_hit_at_the_planned_rate(tmp_path):
+    """rate = pages per second must touch every page once a second (a random
+    choice would miss about 1/e of them), so DAMON sees the planned rate."""
+    size = 32 * MB
+    pages = size // PAGE
+    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
+        epochs(0, 4000, 100, ['0 0 %d %d 1.0' % (size, pages)])
+    proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
+                            stderr=subprocess.PIPE, text=True)
+    try:
+        time.sleep(1.2)
+        sd = subprocess.run([str(SOFTDIRTY), str(proc.pid), '1000',
+                             str(int(time.time() * 1000))],
+                            capture_output=True, text=True, timeout=30)
+    finally:
+        _, err = proc.communicate(timeout=30)
+    assert proc.returncode == 0, err
+    rows = [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
+    big = [r for r in rows if r[3] >= 0.9 * pages]
+    assert len(big) >= 2, rows
+    for r in big:
+        assert r[4] / r[3] >= 0.97, r

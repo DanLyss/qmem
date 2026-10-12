@@ -25,6 +25,7 @@ ACCESS_HEADER = 'snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_
 SYSTEM_HEADER = ('ts_ms,MemFree,MemAvailable,Cached,SwapFree,'
                  'psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout')
 WRITES_HEADER = 'ts_ms,start,end,present_pages,dirty_pages'
+PROC_HEADER = 'ts_ms,minflt,majflt,rss_kb'
 
 
 def has_real_damon():
@@ -89,7 +90,7 @@ def kill_matching(pattern):
 
 
 __all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'FIXED_WORK', 'SOFTDIRTY',
-           'OVERHEAD', 'REPLAY', 'MKPROFILE', 'COMPARE', 'EXAMPLE', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER',
+           'OVERHEAD', 'REPLAY', 'MKPROFILE', 'COMPARE', 'EXAMPLE', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER', 'PROC_HEADER',
            'has_real_damon', 'has_tracefs', 'has_damo', 'run_record',
            'start_record', 'damo_calls', 'process_running', 'kill_matching',
            'signal']

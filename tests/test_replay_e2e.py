@@ -33,5 +33,5 @@ def test_hot_region_cycle(tmp_path):
     p = subprocess.run([sys.executable, str(COMPARE), str(orig), str(again),
                         '--json'], capture_output=True, text=True, timeout=60)
     m = json.loads(p.stdout)['metrics']
-    for name in ('rss_peak_mb', 'hot_mb_mean', 'pgfault'):
+    for name in ('rss_peak_mb', 'hot_mb_mean', 'hot50_mb_mean', 'app_minflt'):
         assert abs(m[name]['diff']) <= 0.2, (name, m[name])

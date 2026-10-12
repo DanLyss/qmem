@@ -1,7 +1,7 @@
 """R4: system.csv with meminfo, PSI and vmstat; damo options via -D."""
 import json
 
-from conftest import HOT_REGION, SYSTEM_HEADER, damo_calls, run_record
+from conftest import HOT_REGION, PROC_HEADER, SYSTEM_HEADER, damo_calls, run_record
 
 
 def test_system_csv(tmp_path, fake_env):
@@ -38,3 +38,21 @@ def test_damo_options_are_passed(tmp_path, fake_env):
     assert opts in joined
     assert rec[-1] == 'true'
     assert json.loads((out / 'meta.json').read_text())['damo_options'] == opts
+
+
+def test_proc_csv_counts_faults_since_start(tmp_path, fake_env):
+    """The application's own fault counters, including the faults before the
+    first snapshot (system.csv misses those)."""
+    out = tmp_path / 'out'
+    p = run_record(['-o', out, '-i', '100', '--',
+                    HOT_REGION, '64', '4', '1'], env=fake_env)
+    assert p.returncode == 0, p.stderr
+    lines = (out / 'proc.csv').read_text().splitlines()
+    assert lines[0] == PROC_HEADER
+    rows = [[int(x) for x in l.split(',')] for l in lines[1:]]
+    assert len(rows) >= 5
+    minflt = [r[1] for r in rows]
+    assert minflt == sorted(minflt)
+    # 64 MB written at once, right at the start
+    assert minflt[0] >= 16000
+    assert max(r[3] for r in rows) >= 60 * 1024
