@@ -1,0 +1,21 @@
+{
+  "mode": "launch",
+  "command": "workloads/moving_window 128 16 8",
+  "pid": 218246,
+  "kernel_pid": 26486,
+  "damo_version": "3.3.0",
+  "damo_options": "",
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "start_time": 1791803309.227743256,
+  "start_uptime": 35156.38,
+  "end_time": 1791803318.417779172,
+  "interval_ms": 250,
+  "duration_s": null,
+  "softdirty_ms": 0,
+  "stop_reason": "exited",
+  "interrupted": false,
+  "access_time_base": "record",
+  "paused_ms": 0,
+  "syscalls": true,
+  "syscall_overrun": 0
+}

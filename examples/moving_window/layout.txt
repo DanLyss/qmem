@@ -1,0 +1,8 @@
+qmem-replay-layout 1
+start_boottime_ns 35178049783784
+region 0 0x70cdc41c2000 135168
+region 1 0x70cdbbdff000 134217728
+region 2 0x70cdc41b4000 53248
+region 3 0x70cdc41ed000 12288
+region 4 0x70cdc41ea000 8192
+region 5 0x70cdc4192000 135168
