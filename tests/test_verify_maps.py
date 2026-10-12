@@ -73,6 +73,7 @@ def test_identical_replay(tmp_path):
     assert m['hot_recall'] == pytest.approx(1)
     assert m['hot_precision'] == pytest.approx(1)
     assert out['series']['rss_corr'] == pytest.approx(1, abs=0.001)
+    assert out['series']['rss_mean_dev'] == pytest.approx(0, abs=0.001)
     orig, again, profile, layout = case(tmp_path / 'again')
     assert run_verify(orig, again, '--profile', profile, '--layout', layout,
                       '--check').returncode == 0
@@ -140,9 +141,20 @@ def test_rss_growing_at_another_time(tmp_path):
     orig, again, profile, layout = case(tmp_path, replay_rss_from=1500)
     out = verify_json(orig, again, profile, layout)
     assert out['metrics']['rss_peak_mb']['diff'] == pytest.approx(0)
-    assert out['series']['rss_corr'] < 0.8
+    assert out['series']['rss_mean_dev'] > 0.3
     p = run_verify(orig, again, '--profile', profile, '--layout', layout, '--check')
-    assert p.returncode == 1 and 'rss_corr' in p.stdout
+    assert p.returncode == 1 and 'rss_mean_dev' in p.stdout
+
+
+def test_one_late_bin_is_tolerated(tmp_path):
+    """A flat original and a replay that is one time bin late: the mean
+    deviation stays small, so the check passes (correlation is meaningless
+    for a flat series and is not checked)."""
+    orig, again, profile, layout = case(tmp_path, replay_rss_from=250)
+    out = verify_json(orig, again, profile, layout)
+    assert out['series']['rss_mean_dev'] < 0.1
+    assert run_verify(orig, again, '--profile', profile, '--layout', layout,
+                      '--check').returncode == 0
 
 
 def test_dirty_share_skips_vmas_marked_sd(tmp_path):

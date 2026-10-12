@@ -96,9 +96,11 @@ def test_regions_and_lifetime(profile):
     heap = region_of(prof, MB)
     assert len(prof['regions']) == 2            # the file mapping is skipped
     assert 'file mappings skipped: 1' in p.stderr
+    # what the first snapshot shows existed from the start; a change between
+    # two snapshots is put halfway between them
     assert (0, heap, 0, MB) in prof['map']
-    assert (1000, a, 0, 64 * MB) in prof['map']
-    assert prof['unmap'] == [(3000, a, 0, 32 * MB)]
+    assert (500, a, 0, 64 * MB) in prof['map']
+    assert prof['unmap'] == [(2500, a, 0, 32 * MB)]
 
 
 def test_region_bases_of_the_original(profile):
@@ -114,7 +116,7 @@ def test_populate_resident_memory(profile):
     heap = region_of(prof, MB)
     # both are fully resident when they appear; after the unmap the rest of A
     # is already populated
-    assert prof['populate'] == [(0, heap, 0, MB), (1000, a, 0, 64 * MB)]
+    assert prof['populate'] == [(0, heap, 0, MB), (500, a, 0, 64 * MB)]
 
 
 def test_populate_follows_rss_growth(tmp_path):
@@ -126,7 +128,7 @@ def test_populate_follows_rss_growth(tmp_path):
     out = tmp_path / 'p.txt'
     p = run_mkprofile(rec, '-o', out)
     assert p.returncode == 0, p.stderr
-    assert parse(out)['populate'] == [(0, 0, 0, 4 * MB), (1000, 0, 4 * MB, 4 * MB)]
+    assert parse(out)['populate'] == [(0, 0, 0, 4 * MB), (500, 0, 4 * MB, 4 * MB)]
 
 
 def test_access_rate_and_write_ratio(profile):
@@ -177,11 +179,11 @@ def test_real_example(tmp_path):
     p = run_mkprofile(EXAMPLE, '-o', out)
     assert p.returncode == 0, p.stderr
     prof = parse(out)
-    # the 300 MB of bytearrays appear by the 1502 ms snapshot ...
+    # the 300 MB of bytearrays appear between the 975 and 1502 ms snapshots
     big = [m for m in prof['map'] if m[3] >= 290 * MB]
-    assert len(big) == 1 and 900 <= big[0][0] <= 1600
-    # ... and about 190 MB of them go away by the 6879 ms snapshot
-    freed = sum(u[3] for u in prof['unmap'] if 6300 <= u[0] <= 7000)
+    assert len(big) == 1 and 975 <= big[0][0] <= 1502
+    # ... and about 190 MB of them go away between 6352 and 6879 ms
+    freed = sum(u[3] for u in prof['unmap'] if 6352 <= u[0] <= 6879)
     assert 180 * MB <= freed <= 200 * MB
     # while they run, about 30 MB are hot
     hot = [sum(a[2] for a in prof['epochs'].get(t, []) if a[3] > 0)
