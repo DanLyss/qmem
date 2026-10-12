@@ -261,3 +261,24 @@ def test_pause_in_the_replay_record(tmp_path):
     assert out['maps']['corr'] == pytest.approx(1, abs=0.01)
     assert out['maps']['hot_recall'] == pytest.approx(1)
     assert out['pauses']['replay_ms'] == 1000
+
+
+def test_hot_memory_in_regions_and_common_window(tmp_path):
+    """Accessed memory is compared inside the replayed regions and while both
+    applications run: the replay's own memory and a longer tail of empty
+    DAMON snapshots after the original exited do not count."""
+    orig, again, profile, layout = case(tmp_path)
+    # the original's record goes on for 1.5 s after the application exited
+    rows = (orig / 'access.csv').read_text().splitlines()
+    tail = ['%d,%d,%d,%d,0.000000,0.000000,0' % (t * 10**6, (t + 100) * 10**6, A, A + SIZE)
+            for t in range(3000, 4500, 100)]
+    (orig / 'access.csv').write_text('\n'.join(rows + tail) + '\n')
+    # the replay touches 4 MB of its own memory outside the regions
+    rows = (again / 'access.csv').read_text().splitlines()
+    own = ['%d,%d,%d,%d,40.000000,80.000000,0' % ((700 + t) * 10**6, (800 + t) * 10**6,
+                                                   0x10000000, 0x10000000 + 4 * MB)
+           for t in range(0, 3000, 100)]
+    (again / 'access.csv').write_text('\n'.join(rows + own) + '\n')
+    m = verify_json(orig, again, profile, layout)['metrics']
+    assert m['hot_mb_mean']['diff'] == pytest.approx(0, abs=0.01)
+    assert m['hot50_mb_mean']['diff'] == pytest.approx(0, abs=0.01)
