@@ -128,3 +128,11 @@ def test_real_example_against_itself():
 
 def test_usage():
     assert run_compare().returncode == 2
+
+
+def test_tiny_amounts_are_not_relative_differences(tmp_path):
+    """0.000 MB against 0.001 MB is not +700 %: amounts below 1 MB on both
+    sides count as equal."""
+    a = make(tmp_path / 'a', A, 0, 64, 0, 20000)
+    m = metrics(run_compare(a, a, '--json'))
+    assert m['hot50_mb_mean']['diff'] == 0

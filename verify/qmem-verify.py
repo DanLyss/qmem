@@ -248,6 +248,15 @@ def dirty_share(d):
     return dirty / present if present else None
 
 
+def tiny_mb(metrics):
+    """Amounts of memory below 1 MB on both sides count as equal: 0.000 MB
+    against 0.001 MB is not a +700 % difference."""
+    for name, m in metrics.items():
+        if name.endswith('_mb_mean') and None not in (m['orig'], m['replay']) \
+                and max(m['orig'], m['replay']) < 1.0:
+            m['diff'] = 0.0
+
+
 def diff(orig, replay):
     if orig is None or replay is None:
         return None
@@ -435,6 +444,7 @@ def main():
     t0_rep, rep = totals(rep_d)
     metrics = {name: {'orig': orig[name], 'replay': rep[name],
                       'diff': diff(orig[name], rep[name])} for name in orig}
+    tiny_mb(metrics)
 
     maps = regions_out = None
     text = []
@@ -470,6 +480,7 @@ def main():
         hr = hot_in_regions(rep_d, r_regions, shift_ms, t_end)
         for i, name in enumerate(('hot_mb_mean', 'hot50_mb_mean')):
             metrics[name] = {'orig': ho[i], 'replay': hr[i], 'diff': diff(ho[i], hr[i])}
+        tiny_mb(metrics)
         o_shift = 0
     else:
         print('qmem-verify: no --profile/--layout, comparing totals only '

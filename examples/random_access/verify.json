@@ -1,0 +1,131 @@
+{
+  "baseline": false,
+  "shift_ms": 238.5371309965849,
+  "metrics": {
+    "rss_peak_mb": {
+      "orig": 32.05078125,
+      "replay": 33.6953125,
+      "diff": 0.05131017672151127
+    },
+    "hot_mb_mean": {
+      "orig": 32.01283482142857,
+      "replay": 31.203443287037036,
+      "diff": -0.02528334459932763
+    },
+    "hot50_mb_mean": {
+      "orig": 0.00016412815126050421,
+      "replay": 0.0013020833333333333,
+      "diff": 0.0
+    },
+    "app_minflt": {
+      "orig": 41175,
+      "replay": 41949,
+      "diff": 0.018797814207650275
+    },
+    "app_minflt_net": {
+      "orig": 8389,
+      "replay": 8792,
+      "diff": 0.04803909881988318
+    },
+    "app_majflt": {
+      "orig": 1,
+      "replay": 1,
+      "diff": 0.0
+    },
+    "pgfault": {
+      "orig": 109477,
+      "replay": 114429,
+      "diff": 0.04523324533920367
+    },
+    "pgmajfault": {
+      "orig": 12,
+      "replay": 9,
+      "diff": -0.25
+    },
+    "pswpout": {
+      "orig": 0,
+      "replay": 0,
+      "diff": 0.0
+    },
+    "dirty_share": {
+      "orig": 0.9516840882694542,
+      "replay": 0.922283050972849,
+      "diff": -0.030893694303608776
+    }
+  },
+  "maps": {
+    "mae_pp": 4.753410534783391,
+    "corr": 0.6337747345338138,
+    "hot_recall": null,
+    "hot_precision": null
+  },
+  "regions": [
+    {
+      "region": 0,
+      "size": 135168,
+      "mae_pp": 2.4730941704035874,
+      "corr": 0.0,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 1,
+      "size": 33554432,
+      "mae_pp": 4.771750181784361,
+      "corr": 0.6039319106321798,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 2,
+      "size": 53248,
+      "mae_pp": 2.1360839667028593,
+      "corr": 0.5524123449305889,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 3,
+      "size": 12288,
+      "mae_pp": 2.1712962962962963,
+      "corr": 0.5137682938335608,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 4,
+      "size": 8192,
+      "mae_pp": 2.1712962962962963,
+      "corr": 0.5137682938335608,
+      "hot_recall": null,
+      "hot_precision": null
+    },
+    {
+      "region": 5,
+      "size": 135168,
+      "mae_pp": 2.447339246119734,
+      "corr": -0.0379961146318817,
+      "hot_recall": null,
+      "hot_precision": null
+    }
+  ],
+  "series": {
+    "rss_corr": 0.0,
+    "rss_mean_dev": 0.04916450174797139,
+    "rss_max_dev": 0.05131017672151127,
+    "minflt_corr": 0.9643510360508792,
+    "minflt_mean_dev": 0.03490541914119685,
+    "minflt_max_dev": 0.21532855581197619
+  },
+  "gaps": {
+    "orig_ms": 0,
+    "replay_ms": 0
+  },
+  "pauses": {
+    "orig_ms": 0,
+    "replay_ms": 1335
+  },
+  "failed": [
+    "corr"
+  ]
+}
