@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -39,9 +38,6 @@ int main(int argc, char **argv)
 		fprintf(stderr, "need a_mb > 0, b_mb > 0, seconds >= 0\n");
 		return 2;
 	}
-
-	/* let non-parent tools (qmem-softdirty) read our pagemap under Yama */
-	prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
 
 	/* A, one guard page, B: adjacent anonymous mappings would be merged */
 	volatile uint8_t *a = mmap(NULL, a_size + page + b_size,

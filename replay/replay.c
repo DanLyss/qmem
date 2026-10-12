@@ -143,6 +143,18 @@ static uint64_t next_rand(void)
 	return rng * 0x2545F4914F6CDD1DULL;
 }
 
+/* A fixed pseudo-random fraction in [0, 1) for each page of each region. */
+static double page_fraction(uint32_t region, uint64_t p)
+{
+	/* splitmix64 */
+	uint64_t z = ((uint64_t)region << 40 ^ p) + 0x9E3779B97F4A7C15ULL;
+
+	z = (z ^ z >> 30) * 0xBF58476D1CE4E5B9ULL;
+	z = (z ^ z >> 27) * 0x94D049BB133111EBULL;
+	z ^= z >> 31;
+	return (z >> 11) * 0x1.0p-53;
+}
+
 static uint64_t now_ns(void)
 {
 	struct timespec ts;
@@ -317,7 +329,9 @@ static void touch(const struct access *a)
 		/* first touch writes: a read would map the shared zero page */
 		set_bits(g->touched, p, 1, 1);
 		*addr = 1;
-	} else if (a->write_ratio >= 1) {
+	} else if (page_fraction(a->region, p) < a->write_ratio) {
+		/* the same write_ratio share of pages is written every time, so
+		 * the share of dirty pages per period equals write_ratio */
 		*addr += 1;
 	} else {
 		(void)*addr;
