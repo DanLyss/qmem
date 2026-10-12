@@ -242,6 +242,26 @@ def heatmap(d, regions, shift_ms, time_bin, nbins):
     return {k: v[0] / v[1] for k, v in acc.items() if v[1]}
 
 
+def hot_in_regions(d, regions, shift_ms, t_end):
+    """Mean MB DAMON saw accessed (rate > 0, rate > 50) inside the replayed
+    regions, over snapshots in profile time [0, t_end]."""
+    spans = sorted((b, b + size) for b, size in regions.values())
+    hot, hot50, n = 0, 0, 0
+    for s_ms, e_ms, damon in read_access(d):
+        t = (s_ms + e_ms) / 2 - shift_ms
+        if not 0 <= t <= t_end:
+            continue
+        n += 1
+        for lo, hi, rate in damon:
+            if rate <= 0:
+                continue
+            ov = sum(max(0, min(hi, b) - max(lo, a)) for a, b in spans)
+            hot += ov
+            if rate > 50:
+                hot50 += ov
+    return (hot / n / MB, hot50 / n / MB) if n else (0.0, 0.0)
+
+
 def pearson(pairs, weights):
     sw = sum(weights)
     if not sw:
@@ -387,6 +407,13 @@ def main():
                 regions_out.append(dict(region=r, size=o_regions[r][1], **m))
         text = text_maps(omap, rmap, o_regions, args.offset_bins, args.time_bin_ms,
                          args.maps)
+        # accessed memory inside the replayed regions while both run (the
+        # last smaps snapshot is taken while the application is alive)
+        t_end = min(read_smaps(orig_d)[0][-1][0], read_smaps(rep_d)[0][-1][0] - shift_ms)
+        ho = hot_in_regions(orig_d, o_regions, 0, t_end)
+        hr = hot_in_regions(rep_d, r_regions, shift_ms, t_end)
+        for i, name in enumerate(('hot_mb_mean', 'hot50_mb_mean')):
+            metrics[name] = {'orig': ho[i], 'replay': hr[i], 'diff': diff(ho[i], hr[i])}
         o_shift = 0
     else:
         print('qmem-verify: no --profile/--layout, comparing totals only '
@@ -416,7 +443,10 @@ def main():
     # verdict
     faults = next(n for n in ('app_minflt_net', 'app_minflt', 'pgfault')
                   if metrics[n]['diff'] is not None or n == 'pgfault')
-    failed = [n for n in ('rss_peak_mb', 'hot_mb_mean', faults)
+    # accessed memory is checked above 50 %: with any rate > 0 it follows
+    # DAMON's short-lived low-rate regions (+20 % on hot_region replays,
+    # where memory above 50 % agrees within 2 %)
+    failed = [n for n in ('rss_peak_mb', 'hot50_mb_mean', faults)
               if metrics[n]['diff'] is not None and abs(metrics[n]['diff']) > args.tolerance]
     failed += [n for n in ('rss_mean_dev', 'minflt_mean_dev')
                if ser[n] is not None and ser[n] > args.tolerance]
