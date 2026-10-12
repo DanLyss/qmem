@@ -284,14 +284,17 @@ def epoch_accesses(damon_regions, mapped, regions, region_of, sample_s):
 
 
 def set_write_ratios(acc, writes, mid, regions):
-    """Written bytes of a mapping in the period, over the bytes accessed in it."""
+    """Written bytes of a mapping in the period, over the bytes accessed in it.
+    1.0 (everything is written) only without writes.csv at all."""
     if writes is None:
         return
     period, samples = writes
     covering = [ts for ts in samples if ts - period < mid <= ts]
-    if not covering:
-        return
-    for start, end, present, dirty in samples[covering[0]]:
+    # no sample covers the epoch (e.g. the application exited before the
+    # next one): the nearest period tells more than assuming every access
+    # writes
+    ts = covering[0] if covering else min(samples, key=lambda t: abs(t - period / 2 - mid))
+    for start, end, present, dirty in samples[ts]:
         inside = [a for a in acc if a[1] < end and a[2] > start]
         accessed = sum(min(a[2], end) - max(a[1], start) for a in inside)
         if accessed:
