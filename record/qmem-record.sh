@@ -48,20 +48,49 @@ json_str() {
 
 # Write <dir>/access.csv from <dir>/damon.data via `damo report`, so nothing
 # else depends on damo's record file format.
+#
+# damo stamps snapshots with trace-cmd's 'local' clock, which starts with damo
+# and may run at another rate than real time (~9 % fast under WSL). With clock
+# anchors (clock.csv: local clock seconds -> ts_ms) the snapshot times are
+# mapped onto the record's ts_ms, piecewise linearly; without them they stay
+# relative to damo's first snapshot.
 normalize() {
-	local dir=$1
+	local dir=$1 anchors=/dev/null
 
 	[ -f "$dir/damon.data" ] || die "no $dir/damon.data to normalize"
+	[ ! -f "$dir/clock.csv" ] || anchors="$dir/clock.csv"
 	{
 		echo "snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age"
 		"${DAMO[@]}" report access -i "$dir/damon.data" --raw_number \
-			--format set record_head "" \
+			--format set record_head "record <abs start time>" \
 			--format set snapshot_head "snapshot <start time> <end time>" \
 			--format set region "<start address> <end address> <access rate> <access hz> <age>" \
 			--format set snapshot_tail "" \
 			--format set record_tail "" |
-		awk '
-			$1 == "snapshot" { start = $2; end = $3; next }
+		awk -v anchors="$anchors" '
+			BEGIN {
+				while ((getline line < anchors) > 0) {
+					split(line, f, ",")
+					if (f[1] ~ /^[0-9.]+$/) {
+						n++
+						L[n] = f[1]
+						T[n] = f[2]
+					}
+				}
+			}
+			# local clock seconds -> record ms, extrapolated at the ends
+			function to_ms(sec,    i) {
+				for (i = 2; i < n && sec > L[i]; i++)
+					;
+				return T[i - 1] + (sec - L[i - 1]) * (T[i] - T[i - 1]) / (L[i] - L[i - 1])
+			}
+			function t(rel) {
+				if (n < 2)
+					return rel
+				return sprintf("%.0f", to_ms((base + rel) / 1e9) * 1e6)
+			}
+			$1 == "record" { base = $2; next }
+			$1 == "snapshot" { start = t($2); end = t($3); next }
 			NF == 5 { print start "," end "," $1 "," $2 "," $3 "," $4 "," $5 }'
 	} > "$dir/access.csv.tmp" || die "damo report failed"
 	mv "$dir/access.csv.tmp" "$dir/access.csv"
@@ -168,6 +197,36 @@ alive() {
 
 PAGE_KB=$(( $(getconf PAGESIZE) / 1024 ))
 
+# Clock anchors: markers in a tracefs instance with the 'local' clock (the
+# one damo's timestamps come from), each carrying the record's ts_ms.
+clk=
+start_clock() {
+	mkdir "$TRACEFS/instances/qmem-clock-$$" 2>/dev/null || return 0
+	clk="$TRACEFS/instances/qmem-clock-$$"
+	echo local > "$clk/trace_clock" && echo 1 > "$clk/tracing_on" ||
+		stop_clock
+}
+
+anchor() {
+	[ -n "$clk" ] || return 0
+	echo "qmem-anchor $(( $(now_ms) - start_ms ))" > "$clk/trace_marker" 2>/dev/null || true
+}
+
+# Write clock.csv (when there is a directory to write it to) and remove the
+# instance.
+stop_clock() {
+	[ -n "$clk" ] || return 0
+	if [ -n "${out-}" ] && [ -d "$out" ]; then
+		{
+			echo "local_s,ts_ms"
+			sed -n 's/.* \([0-9][0-9]*\.[0-9]*\): tracing_mark_write: qmem-anchor \([0-9]*\).*/\1,\2/p' \
+				"$clk/trace"
+		} > "$out/clock.csv"
+	fi
+	rmdir "$clk" 2>/dev/null || true
+	clk=
+}
+
 # Append one proc.csv row: the application's own fault counters since it
 # started (so faults before the first snapshot count too) and its RSS.
 proc_row() {
@@ -261,6 +320,8 @@ start_time=$(date +%s.%N)
 start_ms=$(now_ms)
 start_uptime=$(cut -d' ' -f1 /proc/uptime)
 [ -z "$duration" ] || deadline_ms=$(( start_ms + duration_ms ))
+start_clock
+anchor
 
 read -ra damo_opts <<< "$damo_options"
 "${DAMO[@]}" record --do_record access "${damo_opts[@]}" \
@@ -276,7 +337,7 @@ stop_damo() {
 	kill -INT "$damo_pid" 2>/dev/null || true
 }
 trap 'stop_damo interrupted' INT TERM
-trap 'stop_softdirty; stop_tracing' EXIT
+trap 'stop_softdirty; stop_tracing; stop_clock' EXIT
 
 if [ $mode = attach ]; then
 	app_pid=$attach_pid
@@ -342,6 +403,7 @@ while [ -n "$app_pid" ] && ! $stopped && alive "$app_pid"; do
 		fi
 		system_row "$ts" >> "$out/system.csv"
 		proc_row >> "$out/proc.csv"
+		anchor
 	fi
 	# sleep in the background so a signal is handled right away
 	sleep "$poll_s" &
@@ -365,7 +427,9 @@ while :; do
 	kill -0 "$damo_pid" 2>/dev/null || break
 done
 end_time=$(date +%s.%N)
+anchor
 stop_tracing
+stop_clock
 
 if $stopped; then
 	# damo exits with the signal number after saving the record
@@ -382,6 +446,10 @@ normalize "$out"
 
 interrupted=false
 [ $stop_reason != interrupted ] || interrupted=true
+access_time_base=damo
+if [ -f "$out/clock.csv" ] && [ "$(wc -l < "$out/clock.csv")" -ge 3 ]; then
+	access_time_base=record
+fi
 
 cat > "$out/meta.json" <<EOF
 {
@@ -400,6 +468,7 @@ cat > "$out/meta.json" <<EOF
   "softdirty_ms": $writes_ms,
   "stop_reason": "$stop_reason",
   "interrupted": $interrupted,
+  "access_time_base": "$access_time_base",
   "syscalls": $syscalls,
   "syscall_overrun": $overrun
 }

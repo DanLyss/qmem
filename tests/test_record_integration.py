@@ -63,8 +63,8 @@ def test_too_short_command_fails_clearly(tmp_path):
 
 
 def test_damon_time_matches_record_time(tmp_path):
-    """DAMON snapshots are in the record's time base: they end with the
-    application, not later (the trace clock may run fast, ~9 % under WSL)."""
+    """DAMON snapshots are in the record's time base, whatever the rate of
+    the trace clock damo uses (~9 % fast under WSL)."""
     import json
     out = tmp_path / 'out'
     p = run_record(['-o', out, '-i', '200', '--', HOT_REGION, '64', '4', '8'],
@@ -77,8 +77,9 @@ def test_damon_time_matches_record_time(tmp_path):
     rows = [l.split(',') for l in (out / 'access.csv').read_text().splitlines()[1:]]
     last_end_ms = max(int(r[1]) for r in rows) / 1e6
     run_ms = (meta['end_time'] - meta['start_time']) * 1000
-    snaps = sorted(int(f.stem) for f in (out / 'smaps').iterdir())
-    # DAMON stops when the application exits: within a snapshot period of
-    # the last smaps snapshot, and inside the record
     assert last_end_ms <= run_ms
-    assert abs(last_end_ms - snaps[-1]) < 600
+    # a snapshot lasts one 100 ms aggregation interval in real time; in the
+    # trace clock it may look ~110 ms
+    durations = sorted({(int(r[1]) - int(r[0])) / 1e6 for r in rows})
+    median = durations[len(durations) // 2]
+    assert 95 <= median <= 105, median
