@@ -77,3 +77,14 @@ def test_moving_window_runs_and_rejects_bad_args():
     for args in ([], ['8', '16', '1'], ['8', '2', '0']):
         assert subprocess.run([str(mw)] + args, capture_output=True,
                               timeout=10).returncode == 2
+
+
+def test_mixed_runs_and_rejects_bad_args():
+    mx = ROOT / 'workloads' / 'mixed'
+    p = subprocess.run([str(mx), '8', '0.3', '10'], capture_output=True, text=True,
+                       timeout=10)
+    assert p.returncode == 0, p.stderr
+    assert re.search(r'^zones A 0-\d+ B', p.stdout, re.M)
+    for args in ([], ['8', '0', '10'], ['8', '1', '0']):
+        assert subprocess.run([str(mx)] + args, capture_output=True,
+                              timeout=10).returncode == 2
