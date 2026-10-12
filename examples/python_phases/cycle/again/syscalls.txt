@@ -1,0 +1,22 @@
+           <...>-17503   [004] ..... 29667.388285: sys_mmap(addr: 0x7425d8b49000, len: 0x4000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388396: sys_mmap -> 0x7425d8b49000
+           <...>-17503   [004] ..... 29667.388398: sys_mmap(addr: 0x7425d8a47000, len: 0xf9000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388407: sys_mmap -> 0x7425d8a47000
+           <...>-17503   [004] ..... 29667.388409: sys_mmap(addr: 0x7425d86bf000, len: 0x141000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388417: sys_mmap -> 0x7425d86bf000
+           <...>-17503   [004] ..... 29667.388433: sys_mmap(addr: 0x7425d8a3a000, len: 0xd000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388438: sys_mmap -> 0x7425d8a3a000
+           <...>-17503   [004] ..... 29667.388438: sys_mmap(addr: 0x7425c586e000, len: 0x125000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388451: sys_mmap -> 0x7425c586e000
+           <...>-17503   [004] ..... 29667.388454: sys_mmap(addr: 0x7425d8b47000, len: 0x2000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388459: sys_mmap -> 0x7425d8b47000
+           <...>-17503   [004] ..... 29667.388460: sys_mmap(addr: 0x7425d8b45000, len: 0x2000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388463: sys_mmap -> 0x7425d8b45000
+           <...>-17503   [004] ..... 29667.388464: sys_mmap(addr: 0x7425d8a19000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+           <...>-17503   [004] ..... 29667.388467: sys_mmap -> 0x7425d8a19000
+     qmem-replay-17503   [008] ..... 29668.542182: sys_mmap(addr: 0x7425c5993000, len: 0x12d2c000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
+     qmem-replay-17503   [008] ..... 29668.542229: sys_mmap -> 0x7425c5993000
+     qmem-replay-17503   [008] ..... 29673.797263: sys_mmap(addr: 0x7425c5993000, len: 0x6464000, prot: 0, flags: 0x4032, fd: 0xffffffff, off: 0)
+     qmem-replay-17503   [008] ..... 29673.802070: sys_mmap -> 0x7425c5993000
+     qmem-replay-17503   [008] ..... 29673.802152: sys_mmap(addr: 0x7425cbef8000, len: 0x5bbc000, prot: 0, flags: 0x4032, fd: 0xffffffff, off: 0)
+     qmem-replay-17503   [008] ..... 29673.806877: sys_mmap -> 0x7425cbef8000

@@ -37,3 +37,31 @@ sudo record/qmem-record.sh -o record -i 500 -w 2000 -- python3 demo_app.py
 - **Чтение файла.** Файл маленький (6 МБ) и уже лежал в кэше, поэтому pgmajfault не изменился.
 
 В `meta.json` команда записана с путём к временному каталогу, где запись делалась.
+
+## Сквозной цикл: запись → profile → replay → запись → сравнение
+
+2026-10-12 · каталог [cycle/](cycle)
+
+```sh
+sudo record/qmem-record.sh -o cycle/orig -i 500 -w 2000 -- python3 examples/python_phases/demo_app.py
+tools/mkprofile.py cycle/orig -o cycle/profile.txt
+sudo record/qmem-record.sh -o cycle/again -i 500 -w 2000 -- replay/qmem-replay cycle/profile.txt
+tools/compare.py cycle/orig cycle/again --check
+```
+
+`cycle/orig` — новая запись того же скрипта (уже с `proc.csv`), `cycle/profile.txt` — 347 строк, 8 регионов, 77 эпох.
+
+| Метрика | Оригинал | Replay | Расхождение |
+| --- | --- | --- | --- |
+| Пиковый RSS анонимной памяти, МБ | 303.7 | 304.8 | +0.3% |
+| Память с обращениями (DAMON), МБ в среднем | 21.4 | 20.4 | −4.5% |
+| Память с частотой >50%, МБ в среднем | 18.1 | 18.3 | +1.1% |
+| Page faults приложения | 95 872 | 96 400 | +0.6% |
+| Page faults системы | 160 177 | 162 507 | +1.5% |
+| Доля записанных страниц | 0.323 | 0.098 | −70% |
+
+`--check` (допуск 20% по RSS, памяти с обращениями и faults приложения) проходит.
+
+Доля записи расходится не из-за replay. Когда Python освобождает 200 МБ из середины отображения, ядро помечает получившуюся VMA флагом `VM_SOFTDIRTY`, и pagemap показывает грязными все её страницы. В записи оригинала так «записанными» оказались оставшиеся 109 МБ (замер на 6.3 с). Подробно — в [docs/modules/replay.md](../../docs/modules/replay.md).
+
+Сам replay ([cycle/replay_summary.txt](cycle/replay_summary.txt)): 0.63 с CPU за 8.3 с, то есть около 8% одного ядра; заполнение 300 МБ при старте задерживает расписание на 124 мс.
