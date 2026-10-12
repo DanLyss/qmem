@@ -1,8 +1,8 @@
 /*
  * qmem-replay: replay a memory access profile (iteration 1).
  *
- * Reads a text profile (docs/modules/replay.md), maps and unmaps parts of
- * anonymous regions on its timeline and touches their pages at the given
+ * Reads a text profile (docs/modules/replay.md), maps, unmaps and populates
+ * parts of anonymous regions on its timeline and touches their pages at the given
  * rates in 10 ms ticks on absolute deadlines. Work that does not fit into
  * its tick is dropped, not queued, so the replay never drifts.
  *
@@ -28,9 +28,11 @@ struct region {
 	uint8_t *touched;	/* bitmap: page was touched since it was mapped */
 };
 
+enum { UNMAP, MAP, POPULATE };
+
 struct event {
 	uint64_t t_ms;
-	int map;		/* 1 = map, 0 = unmap */
+	int kind;		/* UNMAP, MAP or POPULATE */
 	uint32_t region;
 	uint64_t off, len;
 };
@@ -59,7 +61,7 @@ static uint64_t epoch_ms, seed = 42;
 static long page;
 
 static uint64_t rng;
-static uint64_t planned, done, skipped, checksum, lagged_ticks;
+static uint64_t planned, done, skipped, checksum, lagged_ticks, populated;
 static double max_lag_ms;
 
 /* ------------------------------------------------------------ helpers */
@@ -231,14 +233,17 @@ static void load(const char *path)
 			regions = grow(regions, n_regions, sizeof(*regions));
 			regions[n_regions++] = (struct region){
 				.size = size, .npages = (size + page - 1) / page };
-		} else if (!strcmp(tok[0], "map") || !strcmp(tok[0], "unmap")) {
-			struct event e = { .t_ms = num(tok[1]), .map = tok[0][0] == 'm',
+		} else if (!strcmp(tok[0], "map") || !strcmp(tok[0], "unmap") ||
+			   !strcmp(tok[0], "populate")) {
+			struct event e = { .t_ms = num(tok[1]),
+					   .kind = tok[0][0] == 'm' ? MAP :
+						   tok[0][0] == 'u' ? UNMAP : POPULATE,
 					   .region = num(tok[2]), .off = num(tok[3]),
 					   .len = num(tok[4]) };
 
 			check_range(e.region, e.off, e.len, 1);
 			if (e.t_ms < last_event)
-				bad("map/unmap times must not go back");
+				bad("map/unmap/populate times must not go back");
 			last_event = e.t_ms;
 			events = grow(events, n_events, sizeof(*events));
 			events[n_events++] = e;
@@ -299,16 +304,29 @@ static void prepare(void)
 static void apply(const struct event *e)
 {
 	struct region *g = &regions[e->region];
-	void *p = mmap(g->base + e->off, e->len,
-		       e->map ? PROT_READ | PROT_WRITE : PROT_NONE,
-		       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED |
-		       (e->map ? 0 : MAP_NORESERVE), -1, 0);
+	void *p;
 
+	if (e->kind == POPULATE) {
+		/* write every mapped, untouched page once: memory the application
+		 * kept resident without DAMON seeing accesses to it */
+		for (uint64_t i = e->off / page; i < (e->off + e->len) / page; i++) {
+			if (!bit(g->mapped, i) || bit(g->touched, i))
+				continue;
+			set_bits(g->touched, i, 1, 1);
+			g->base[i * page] = 1;
+			populated++;
+		}
+		return;
+	}
+	p = mmap(g->base + e->off, e->len,
+		 e->kind == MAP ? PROT_READ | PROT_WRITE : PROT_NONE,
+		 MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED |
+		 (e->kind == MAP ? 0 : MAP_NORESERVE), -1, 0);
 	if (p == MAP_FAILED) {
 		perror("mmap");
 		exit(1);
 	}
-	set_bits(g->mapped, e->off / page, e->len / page, e->map);
+	set_bits(g->mapped, e->off / page, e->len / page, e->kind == MAP);
 	set_bits(g->touched, e->off / page, e->len / page, 0);
 }
 
@@ -422,6 +440,23 @@ static void replay(uint64_t *wall_ns)
 	*wall_ns = now_ns() - start;
 }
 
+/* Peak RSS of this process in kB. ru_maxrss would also count the process
+ * image before execve (e.g. a Python parent), VmHWM does not. */
+static long peak_rss_kb(void)
+{
+	FILE *f = fopen("/proc/self/status", "r");
+	char line[256];
+	long kb = -1;
+
+	if (!f)
+		return -1;
+	while (fgets(line, sizeof(line), f))
+		if (sscanf(line, "VmHWM: %ld", &kb) == 1)
+			break;
+	fclose(f);
+	return kb;
+}
+
 static void write_stats(const char *path)
 {
 	FILE *f = fopen(path, "w");
@@ -475,12 +510,12 @@ int main(int argc, char **argv)
 
 	getrusage(RUSAGE_SELF, &ru);
 	fprintf(stderr, "replay: epochs=%" PRIu32 " planned=%" PRIu64 " done=%" PRIu64
-		" skipped=%" PRIu64 " lagged_ticks=%" PRIu64 " max_lag_ms=%.1f"
+		" skipped=%" PRIu64 " populated=%" PRIu64 " lagged_ticks=%" PRIu64 " max_lag_ms=%.1f"
 		" minflt=%ld majflt=%ld"
 		" maxrss_kb=%ld cpu_s=%.2f wall_s=%.2f checksum=%016" PRIx64 "\n",
-		n_epochs, planned, done, skipped, lagged_ticks, max_lag_ms,
+		n_epochs, planned, done, skipped, populated, lagged_ticks, max_lag_ms,
 		ru.ru_minflt, ru.ru_majflt,
-		ru.ru_maxrss,
+		peak_rss_kb(),
 		ru.ru_utime.tv_sec + ru.ru_stime.tv_sec +
 		(ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) / 1e6,
 		wall_ns / 1e9, checksum);

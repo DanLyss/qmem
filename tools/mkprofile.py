@@ -3,7 +3,7 @@
 
 usage: mkprofile.py <record dir> -o <profile.txt> [--epoch-ms 100] [--seed 42]
 
-Regions and their lifetime come from the smaps snapshots, access rates from
+Regions, their lifetime and resident memory come from the smaps snapshots, access rates from
 access.csv (DAMON), write ratios from writes.csv. Only anonymous memory is
 replayed in this iteration; file mappings are counted and skipped.
 See docs/modules/replay.md.
@@ -74,20 +74,25 @@ def is_anon(perms, name):
 
 
 def read_smaps(d):
-    """[(ts_ms, merged anonymous intervals)], number of file mappings."""
+    """[(ts_ms, merged anonymous intervals, [(start, end, rss_bytes)])],
+    number of file mappings."""
     snaps, files = [], set()
     for f in sorted((d / 'smaps').glob('*.txt'), key=lambda f: int(f.stem)):
-        anon = []
+        anon, rss, cur = [], [], None
         for line in f.read_text().splitlines():
             m = VMA.match(line)
-            if not m:
-                continue
-            start, end, perms, name = int(m[1], 16), int(m[2], 16), m[3], m[4].strip()
-            if is_anon(perms, name):
-                anon.append((start, end))
-            elif name and not name.startswith('['):
-                files.add((start, end, name))
-        snaps.append((int(f.stem), merge(anon)))
+            if m:
+                start, end, perms, name = int(m[1], 16), int(m[2], 16), m[3], m[4].strip()
+                cur = None
+                if is_anon(perms, name):
+                    anon.append((start, end))
+                    cur = [start, end, 0]
+                    rss.append(cur)
+                elif name and not name.startswith('['):
+                    files.add((start, end, name))
+            elif cur is not None and line.startswith('Rss:'):
+                cur[2] = int(line.split()[1]) * 1024
+        snaps.append((int(f.stem), merge(anon), [tuple(r) for r in rss]))
     if not snaps:
         die('no smaps snapshots in %s' % d)
     return snaps, len(files)
@@ -163,24 +168,30 @@ def read_writes(d):
 
 def build(d, epoch_ms):
     smaps, n_files = read_smaps(d)
-    regions = merge(i for _, anon in smaps for i in anon)
+    regions = merge(i for _, anon, _ in smaps for i in anon)
     region_starts = [s for s, _ in regions]
 
     def region_of(addr):
         i = bisect.bisect_right(region_starts, addr) - 1
         return i if i >= 0 and addr < regions[i][1] else None
 
-    # map/unmap events from the differences between snapshots
-    events, prev = [], []
-    for ts, anon in smaps:
+    # map/unmap events from the differences between snapshots, populate
+    # events from the growth of resident memory
+    events, prev, populated = [], [], []
+    for ts, anon, rss in smaps:
         for kind, parts in (('unmap', subtract(prev, anon)), ('map', subtract(anon, prev))):
             for s, e in parts:
                 r = region_of(s)
                 events.append((ts, kind, r, s - regions[r][0], e - s))
+        populated = intersect(populated, anon)
+        for s, e in populate_ranges(rss, populated):
+            r = region_of(s)
+            events.append((ts, 'populate', r, s - regions[r][0], e - s))
+            populated = merge(populated + [(s, e)])
         prev = anon
 
     def mapped_at(t_ms):
-        stamps = [ts for ts, _ in smaps]
+        stamps = [ts for ts, _, _ in smaps]
         i = bisect.bisect_right(stamps, t_ms) - 1
         return smaps[i][1] if i >= 0 else []
 
@@ -209,6 +220,26 @@ def build(d, epoch_ms):
                     epochs.append((t, acc))
             t += epoch_ms
     return regions, events, epochs, n_files
+
+
+def populate_ranges(rss, populated):
+    """Ranges to populate so that each mapping has its recorded Rss resident.
+
+    smaps does not say which pages are resident, so new resident memory is
+    taken from the lowest not yet populated addresses of the mapping."""
+    out = []
+    for start, end, rss_bytes in rss:
+        have = sum(e - s for s, e in intersect([(start, end)], populated))
+        need = rss_bytes - have
+        if need < PAGE:
+            continue
+        for s, e in subtract([(start, end)], populated):
+            take = min(e - s, -(-need // PAGE) * PAGE)
+            out.append((s, s + take))
+            need -= take
+            if need <= 0:
+                break
+    return out
 
 
 def epoch_accesses(damon_regions, mapped, regions, region_of, sample_s):
@@ -277,7 +308,7 @@ def main():
 
     regions, events, epochs, n_files = build(d, args.epoch_ms)
     write_profile(args.output, regions, events, epochs, args.epoch_ms, args.seed)
-    print('mkprofile: %d regions, %d map/unmap events, %d epochs, '
+    print('mkprofile: %d regions, %d map/unmap/populate events, %d epochs, '
           'file mappings skipped: %d' % (len(regions), len(events), len(epochs),
                                          n_files), file=sys.stderr)
 
