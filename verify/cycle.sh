@@ -23,6 +23,8 @@ usage() {
 	  -i <ms>    record snapshot period (default 500)
 	  -w <ms>    record soft-dirty period (default off)
 	  --baseline record the original twice; verify against its noise
+	  --gt       ground truth: the test program and replay log exactly which
+	             pages they touch (QMEM_GT); verify compares the pages
 	  -R <opts>  extra qmem-record options, e.g. -D "<damo options>"
 	  -V <opts>  extra qmem-verify options
 	EOF
@@ -38,6 +40,7 @@ writes=
 verify_opts=
 record_extra=
 baseline=false
+gt=false
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
@@ -46,6 +49,7 @@ while [ $# -gt 0 ]; do
 	-V) [ $# -ge 2 ] || usage; verify_opts=$2; shift 2 ;;
 	-R) [ $# -ge 2 ] || usage; record_extra=$2; shift 2 ;;
 	--baseline) baseline=true; shift ;;
+	--gt) gt=true; shift ;;
 	--) shift; break ;;
 	*) usage ;;
 	esac
@@ -62,8 +66,10 @@ record_opts=(-i "$interval")
 [ -z "$record_extra" ] || eval "record_opts+=($record_extra)"
 read -ra extra <<< "$verify_opts"
 
+gt_env() { if $gt; then echo "QMEM_GT=$out/$1"; else echo "QMEM_GT="; fi; }
+
 echo "cycle: recording the original" >&2
-bash "$root/record/qmem-record.sh" -o "$out/orig" "${record_opts[@]}" -- "$@"
+env "$(gt_env gt_orig.bin)" bash "$root/record/qmem-record.sh" -o "$out/orig" "${record_opts[@]}" -- "$@"
 
 if $baseline; then
 	echo "cycle: recording the original again (baseline)" >&2
@@ -77,12 +83,13 @@ echo "cycle: building the profile" >&2
 python3 "$root/tools/mkprofile.py" "$out/orig" -o "$out/profile.txt"
 
 echo "cycle: recording the replay" >&2
-bash "$root/record/qmem-record.sh" -o "$out/again" "${record_opts[@]}" -- \
+env "$(gt_env gt_replay.bin)" bash "$root/record/qmem-record.sh" -o "$out/again" "${record_opts[@]}" -- \
 	"$root/replay/qmem-replay" "$out/profile.txt" --layout "$out/layout.txt"
 
 echo "cycle: verifying" >&2
 verify=(python3 "$root/verify/qmem-verify.py" "$out/orig" "$out/again"
 	--profile "$out/profile.txt" --layout "$out/layout.txt" "${extra[@]}")
+! $gt || verify+=(--gt-orig "$out/gt_orig.bin" --gt-replay "$out/gt_replay.bin")
 "${verify[@]}" --json > "$out/verify.json" || true
 "${verify[@]}" --check > "$out/verify.txt" && rc=0 || rc=$?
 cat "$out/verify.txt"

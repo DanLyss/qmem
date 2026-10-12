@@ -21,6 +21,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "qmem_gt.h"
+
 struct region {
 	uint64_t size, npages;
 	uint8_t *base;		/* reserved on the first map */
@@ -344,6 +346,7 @@ static void apply(const struct event *e)
 				continue;
 			set_bits(g->touched, i, 1, 1);
 			g->base[i * page] = 1;
+			gt_mark(e->region, i, 1);
 			populated++;
 		}
 		return;
@@ -380,12 +383,15 @@ static void touch(struct access *a)
 		/* first touch writes: a read would map the shared zero page */
 		set_bits(g->touched, p, 1, 1);
 		*addr = 1;
+		gt_mark(a->region, p, 1);
 	} else if (page_fraction(a->region, p) < a->write_ratio) {
 		/* the same write_ratio share of pages is written every time, so
 		 * the share of dirty pages per period equals write_ratio */
 		*addr += 1;
+		gt_mark(a->region, p, 1);
 	} else {
 		(void)*addr;
+		gt_mark(a->region, p, 0);
 	}
 	done++;
 }
@@ -445,6 +451,8 @@ static void replay(uint64_t *wall_ns)
 
 		clock_gettime(CLOCK_BOOTTIME, &ts);
 		start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+		/* ground truth windows run on profile time */
+		gt.start_boot_ns = start_boottime_ns;
 	}
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
 		uint64_t due = start + t * 1000000ULL;
@@ -452,6 +460,7 @@ static void replay(uint64_t *wall_ns)
 
 		sleep_until(due);
 		lag_ms = (now_ns() - due) / 1e6;
+		gt_window(t / gt.window_ms);
 		while (ei < n_events && events[ei].t_ms <= t)
 			apply(&events[ei++]);
 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
@@ -545,6 +554,7 @@ int main(int argc, char **argv)
 	struct rusage ru;
 
 	page = sysconf(_SC_PAGESIZE);
+	gt_init();
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
 			char *end;
@@ -571,7 +581,10 @@ int main(int argc, char **argv)
 		seed = seed_arg;
 	rng = seed ? seed : 1;
 	prepare();
+	for (uint32_t r = 0; r < n_regions; r++)
+		gt_range(regions[r].base, regions[r].npages * page);
 	replay(&wall_ns);
+	gt_finish();
 	if (stats)
 		write_stats(stats);
 	if (layout)

@@ -30,6 +30,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
 from mkprofile import VMA, build, is_anon, read_access, read_smaps, unpause  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gt import gt_metrics, read_gt  # noqa: E402
+
 MB = 1 << 20
 PAGE = 4096
 HOT, WARM = 50.0, 25.0          # access rate (%) of hot and of "warm enough"
@@ -433,6 +436,8 @@ def main():
     ap.add_argument('--baseline', action='store_true',
                     help='both records are of the original: measure noise')
     ap.add_argument('--noise', help='baseline JSON from --baseline --json')
+    ap.add_argument('--gt-orig', help='ground truth of the original (QMEM_GT)')
+    ap.add_argument('--gt-replay', help='ground truth of the replay (QMEM_GT)')
     ap.add_argument('--noise-k', type=float, default=2.0)
     ap.add_argument('--json', action='store_true')
     ap.add_argument('--check', action='store_true')
@@ -507,6 +512,13 @@ def main():
     pauses = {'orig_ms': sum(int(r['pause_ms']) for r in pause_rows(orig_d)),
               'replay_ms': sum(int(r['pause_ms']) for r in pause_rows(rep_d))}
 
+    # exact pages from ground truth (test programs and replay log them)
+    gt = None
+    if args.gt_orig and args.gt_replay and args.profile and args.layout:
+        o_shift_gt = (read_gt(args.gt_orig)['start_boot_ns'] / 1e6
+                      - meta(orig_d).get('start_uptime', 0) * 1000)
+        gt = gt_metrics(args.gt_orig, args.gt_replay, o_regions, r_regions, o_shift_gt)
+
     # verdict
     noise = json.loads(Path(args.noise).read_text()) if args.noise else None
     limits, tol = limits_from_noise(noise, args.noise_k, args.tolerance)
@@ -529,7 +541,7 @@ def main():
         print(json.dumps({'baseline': args.baseline,
                           'shift_ms': shift_ms, 'metrics': metrics, 'maps': maps,
                           'regions': regions_out, 'series': ser, 'gaps': gaps,
-                          'pauses': pauses,
+                          'pauses': pauses, 'gt': gt,
                           'failed': failed}, indent=2))
     else:
         fmt = lambda v: '-' if v is None else ('%.3f' % v if abs(v) < 10 else '%.1f' % v)
@@ -547,6 +559,22 @@ def main():
                       'precision %s' % (r['region'], r['size'] / MB, r['mae_pp'],
                                         fmt(r['corr']), fmt(r['hot_recall']),
                                         fmt(r['hot_precision'])))
+            print()
+        if gt:
+            pct = lambda v: '-' if v is None else '%5.1f%%' % (v * 100)
+            print('exact pages (ground truth from the programs themselves):')
+            print('  %-8s %-9s %8s %10s %8s %14s' % ('window', 'kind', 'recall',
+                                                   'precision', 'jaccard', 'pages o / r'))
+            for m in gt['windows']:
+                for kind in ('touched', 'written'):
+                    k = m[kind]
+                    print('  %-8s %-9s %8s %10s %8s %14s' % (
+                        '%d ms' % m['window_ms'], kind, pct(k['recall']),
+                        pct(k['precision']), pct(k['jaccard']),
+                        '%d / %d' % (k['pages_orig'], k['pages_replay'])))
+            t = gt['touches']
+            print('  touches: original %d, replay %d (replay / original = %s)'
+                  % (t['orig'], t['replay'], '-' if t['ratio'] is None else '%.3f' % t['ratio']))
             print()
         print('over time:')
         for name in ser:

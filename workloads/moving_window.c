@@ -14,6 +14,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "qmem_gt.h"
+
 static double now(void)
 {
 	struct timespec ts;
@@ -45,11 +47,15 @@ int main(int argc, char **argv)
 		perror("mmap");
 		return 1;
 	}
+	gt_init();
+	gt_range(mem, total);
 	printf("total 0x%lx 0x%lx\n", (unsigned long)mem, (unsigned long)(mem + total));
 	fflush(stdout);
 
-	for (size_t off = 0; off < total; off += page)
+	for (size_t off = 0; off < total; off += page) {
 		mem[off] = 1;
+		gt_touch(mem + off, 1);
+	}
 
 	double start = now(), t;
 	uint8_t v = 0;
@@ -57,11 +63,15 @@ int main(int argc, char **argv)
 	while ((t = now() - start) < seconds) {
 		size_t from = (size_t)((total - window) * (t / seconds)) / page * page;
 
-		for (size_t off = from; off < from + window; off += page)
+		gt_tick();
+		for (size_t off = from; off < from + window; off += page) {
 			mem[off] = v;
+			gt_touch(mem + off, 1);
+		}
 		v++;
 	}
 
+	gt_finish();
 	munmap((void *)mem, total);
 	return 0;
 }
