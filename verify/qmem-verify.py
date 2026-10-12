@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
-from mkprofile import VMA, is_anon, read_access, read_smaps  # noqa: E402
+from mkprofile import VMA, is_anon, read_access, read_smaps, unpause  # noqa: E402
 
 MB = 1 << 20
 PAGE = 4096
@@ -66,9 +66,27 @@ def meta(d):
     return json.loads(path.read_text()) if path.exists() else {}
 
 
+def pause_rows(d):
+    path = Path(d) / 'pauses.csv'
+    return list(csv.DictReader(open(path))) if path.exists() else []
+
+
+def active_rows(d, name):
+    """Rows of a record CSV with ts_ms moved to active time (pauses out)."""
+    path = Path(d) / name
+    if not path.exists():
+        return []
+    active = unpause(d)
+    rows = list(csv.DictReader(open(path)))
+    for r in rows:
+        r['ts_ms'] = str(int(active(int(r['ts_ms']))))
+    return rows
+
+
 def sd_vmas(d):
     """{ts_ms: [(start, end)]} of anonymous VMAs flagged soft-dirty ('sd')."""
     out = {}
+    active = unpause(d)
     for f in sorted((Path(d) / 'smaps').glob('*.txt'), key=lambda f: int(f.stem)):
         cur, marked = None, []
         for line in f.read_text().splitlines():
@@ -77,7 +95,7 @@ def sd_vmas(d):
                 cur = (int(m[1], 16), int(m[2], 16)) if is_anon(m[3], m[4].strip()) else None
             elif cur and line.startswith('VmFlags:') and ' sd' in ' ' + line[8:]:
                 marked.append(cur)
-        out[int(f.stem)] = marked
+        out[active(int(f.stem))] = marked
     return out
 
 
@@ -104,7 +122,7 @@ def totals(d):
 
     app_minflt = app_majflt = None
     if (d / 'proc.csv').exists():
-        rows = list(csv.DictReader(open(d / 'proc.csv')))
+        rows = active_rows(d, 'proc.csv')
         if rows:
             app_minflt = int(rows[-1]['minflt'])
             app_majflt = int(rows[-1]['majflt'])
@@ -124,8 +142,7 @@ def totals(d):
 
 
 def writes_rows(d):
-    path = d / 'writes.csv'
-    return list(csv.DictReader(open(path))) if path.exists() else []
+    return active_rows(d, 'writes.csv')
 
 
 def minflt_net(d, shift_ms, cutoff_ms):
@@ -133,8 +150,7 @@ def minflt_net(d, shift_ms, cutoff_ms):
     caused (rewritten pages), at profile time cutoff_ms (or at the end).
     Rewrites after the last sample are never counted, so records are
     compared up to the last sample both have."""
-    path = d / 'proc.csv'
-    rows = list(csv.DictReader(open(path))) if path.exists() else []
+    rows = active_rows(d, 'proc.csv')
     if not rows:
         return None
     writes = writes_rows(d)
@@ -166,10 +182,7 @@ def damon_gaps_ms(d, shift_ms=0):
 def dirty_share(d):
     """Written pages over present pages, without the first sample (start-up
     writes) and without VMAs the kernel marked soft-dirty as a whole."""
-    path = d / 'writes.csv'
-    if not path.exists():
-        return None
-    rows = list(csv.DictReader(open(path)))
+    rows = active_rows(d, 'writes.csv')
     if not rows:
         return None
     first = min(int(r['ts_ms']) for r in rows)
@@ -299,7 +312,7 @@ def series(d, shift_ms, time_bin):
         if t >= 0:
             out['rss'][int(t // time_bin)] = sum(v[2] for v in vmas)
     if (d / 'proc.csv').exists():
-        for r in csv.DictReader(open(d / 'proc.csv')):
+        for r in active_rows(d, 'proc.csv'):
             t = int(r['ts_ms']) - shift_ms
             if t >= 0:
                 out['minflt'][int(t // time_bin)] = int(r['minflt'])
@@ -397,6 +410,8 @@ def main():
                     name + '_max_dev': max_dev})
 
     gaps = {'orig_ms': damon_gaps_ms(orig_d), 'replay_ms': damon_gaps_ms(rep_d)}
+    pauses = {'orig_ms': sum(int(r['pause_ms']) for r in pause_rows(orig_d)),
+              'replay_ms': sum(int(r['pause_ms']) for r in pause_rows(rep_d))}
 
     # verdict
     faults = next(n for n in ('app_minflt_net', 'app_minflt', 'pgfault')
@@ -413,6 +428,7 @@ def main():
     if args.json:
         print(json.dumps({'shift_ms': shift_ms, 'metrics': metrics, 'maps': maps,
                           'regions': regions_out, 'series': ser, 'gaps': gaps,
+                          'pauses': pauses,
                           'failed': failed}, indent=2))
     else:
         fmt = lambda v: '-' if v is None else ('%.3f' % v if abs(v) < 10 else '%.1f' % v)
@@ -439,6 +455,9 @@ def main():
                 '-' if m['diff'] is None else '%+.1f%%' % (m['diff'] * 100), mark(name)))
         print('replay starts %+d ms later than the original' % shift_ms)
         for side in ('orig', 'replay'):
+            if pauses[side + '_ms']:
+                print('note: the %s record has %d ms of VM pauses, taken out of '
+                      'its timeline' % (side, pauses[side + '_ms']))
             if gaps[side + '_ms']:
                 print('WARNING: the %s record has %d ms without DAMON snapshots '
                       '(the system or the recorder stalled)' % (side, gaps[side + '_ms']))

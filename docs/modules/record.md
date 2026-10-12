@@ -67,6 +67,8 @@ damo report access -i "$dir/damon.data" --raw_number \
 
 Время снимков damo берёт от trace-cmd по часам `local` (sched_clock): они начинаются со старта damo и могут идти с другой скоростью, чем реальное время (под WSL на ~9% быстрее). Поэтому в каждом снимке скрипт пишет метку `trace_marker` в свой экземпляр tracefs с часами `local` и сохраняет пару «секунды по этим часам → ts_ms» в `clock.csv`. Нормализация переводит время DAMON в ts_ms кусочно-линейно по этим меткам, и `access.csv` оказывается в одной шкале со smaps, `system.csv` и `proc.csv` (`access_time_base: record` в `meta.json`). Без tracefs время остаётся от первого снимка damo (`access_time_base: damo`).
 
+Те же метки показывают паузы виртуальной машины (под WSL — до нескольких секунд): между двумя метками настенные часы уходят далеко вперёд, а часы ядра почти стоят. Приложение и replay живут по монотонным часам и паузы не замечают, а все ts_ms после неё опаздывают на её длину. Паузы пишутся в `pauses.csv` (и их сумма — в `meta.json` как `paused_ms`), а mkprofile и verify вычитают их из времени записи.
+
 `--format` повторяется для каждой части отчёта. Время снимка отсчитывается от начала записи, `age` — в микросекундах, `access_rate` — в процентах от максимума, `access_hz` — частота обращений в герцах.
 
 ### Трассировка выделений (R3)
@@ -105,6 +107,7 @@ record/
                    # psi_some_avg10, psi_full_avg10, pgfault, pgmajfault, pswpin, pswpout
   proc.csv         # ts_ms, minflt, majflt, rss_kb — счётчики самого приложения с его старта
   clock.csv        # local_s, ts_ms — метки синхронизации часов damo (trace 'local') с ts_ms
+  pauses.csv       # ts_ms, pause_ms — паузы виртуальной машины, найденные по меткам
   syscalls.txt     # сырой вывод tracefs (если трассировка доступна)
   writes.csv       # ts_ms, start, end, present_pages, dirty_pages, rewritten_pages (если задан -w)
 ```

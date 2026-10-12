@@ -67,6 +67,28 @@ def intersect(a, b):
 # ------------------------------------------------------------------ reading
 
 
+def unpause(d):
+    """A function from record time (ms) to active time: VM pauses found by
+    qmem-record (pauses.csv) are taken out. The application never saw
+    them, but every record timestamp after a pause is late by it."""
+    path = Path(d) / 'pauses.csv'
+    pauses = []
+    if path.exists():
+        with open(path) as f:
+            pauses = sorted((int(r['ts_ms']), int(r['pause_ms'])) for r in csv.DictReader(f))
+    if not pauses:
+        return lambda t: t
+
+    def active(t):
+        shift = 0
+        for ts, length in pauses:
+            if t <= ts:
+                break
+            shift += min(length, t - ts)
+        return t - shift
+    return active
+
+
 def is_anon(perms, name):
     if perms.startswith('---'):
         return False            # guard pages: nothing to replay
@@ -77,6 +99,7 @@ def read_smaps(d):
     """[(ts_ms, merged anonymous intervals, [(start, end, rss_bytes)])],
     number of file mappings."""
     snaps, files = [], set()
+    active = unpause(d)
     for f in sorted((d / 'smaps').glob('*.txt'), key=lambda f: int(f.stem)):
         anon, rss, cur = [], [], None
         for line in f.read_text().splitlines():
@@ -92,7 +115,7 @@ def read_smaps(d):
                     files.add((start, end, name))
             elif cur is not None and line.startswith('Rss:'):
                 cur[2] = int(line.split()[1]) * 1024
-        snaps.append((int(f.stem), merge(anon), [tuple(r) for r in rss]))
+        snaps.append((active(int(f.stem)), merge(anon), [tuple(r) for r in rss]))
     if not snaps:
         die('no smaps snapshots in %s' % d)
     return snaps, len(files)
@@ -101,9 +124,11 @@ def read_smaps(d):
 def read_access(d):
     """[(start_ms, end_ms, [(start, end, access_rate)])] sorted by time."""
     snaps = {}
+    active = unpause(d)
     with open(d / 'access.csv') as f:
         for r in csv.DictReader(f):
-            key = (int(r['snapshot_start_ns']) / 1e6, int(r['snapshot_end_ns']) / 1e6)
+            key = (active(int(r['snapshot_start_ns']) / 1e6),
+                   active(int(r['snapshot_end_ns']) / 1e6))
             snaps.setdefault(key, []).append(
                 (int(r['start']), int(r['end']), float(r['access_rate'])))
     return [(s, e, regions) for (s, e), regions in sorted(snaps.items())]
@@ -146,9 +171,10 @@ def read_writes(d):
     if not path.exists():
         return None
     samples = {}
+    active = unpause(d)
     with open(path) as f:
         for r in csv.DictReader(f):
-            samples.setdefault(int(r['ts_ms']), []).append(
+            samples.setdefault(active(int(r['ts_ms'])), []).append(
                 (int(r['start']), int(r['end']), int(r['present_pages']),
                  int(r['dirty_pages'])))
     if not samples:

@@ -94,6 +94,37 @@ normalize() {
 			NF == 5 { print start "," end "," $1 "," $2 "," $3 "," $4 "," $5 }'
 	} > "$dir/access.csv.tmp" || die "damo report failed"
 	mv "$dir/access.csv.tmp" "$dir/access.csv"
+	[ "$anchors" = /dev/null ] || find_pauses "$anchors" > "$dir/pauses.csv"
+}
+
+# VM pauses (seen under WSL): between two anchors the wall clock (ts_ms)
+# moves much more than the kernel's clock. The application and replay run
+# on monotonic time and do not see the pause; every ts_ms after it is late
+# by its length. pauses.csv lists them so readers can take them out.
+find_pauses() {
+	awk -F, '
+		NR > 1 && $1 ~ /^[0-9.]+$/ {
+			n++
+			L[n] = $1
+			T[n] = $2
+		}
+		END {
+			print "ts_ms,pause_ms"
+			# the usual rate of the trace clock against the wall clock
+			for (i = 2; i <= n; i++)
+				if (T[i] > T[i - 1])
+					r[++m] = (L[i] - L[i - 1]) * 1000 / (T[i] - T[i - 1])
+			for (i = 2; i <= m; i++)
+				for (j = i; j > 1 && r[j - 1] > r[j]; j--) {
+					x = r[j]; r[j] = r[j - 1]; r[j - 1] = x
+				}
+			rate = m ? r[int((m + 1) / 2)] : 1
+			for (i = 2; i <= n; i++) {
+				pause = (T[i] - T[i - 1]) - (L[i] - L[i - 1]) * 1000 / rate
+				if (pause > 300)
+					printf "%d,%.0f\n", T[i - 1], pause
+			}
+		}' "$1"
 }
 
 PSI=/proc/pressure/memory
@@ -446,6 +477,9 @@ normalize "$out"
 
 interrupted=false
 [ $stop_reason != interrupted ] || interrupted=true
+paused_ms=0
+[ ! -f "$out/pauses.csv" ] ||
+	paused_ms=$(awk -F, 'NR > 1 { s += $2 } END { print s + 0 }' "$out/pauses.csv")
 access_time_base=damo
 if [ -f "$out/clock.csv" ] && [ "$(wc -l < "$out/clock.csv")" -ge 3 ]; then
 	access_time_base=record
@@ -469,6 +503,7 @@ cat > "$out/meta.json" <<EOF
   "stop_reason": "$stop_reason",
   "interrupted": $interrupted,
   "access_time_base": "$access_time_base",
+  "paused_ms": $paused_ms,
   "syscalls": $syscalls,
   "syscall_overrun": $overrun
 }
