@@ -60,7 +60,7 @@ record/qmem-record.sh --normalize out
 | `proc.csv` | `ts_ms, minflt, majflt, rss_kb` — счётчики page faults самого приложения с его старта (включая faults до первого снимка) и его RSS | скрипт, `/proc/<pid>/stat` |
 | `clock.csv` | `local_s, ts_ms` — метки синхронизации: часы, которыми damo ставит время снимков, против ts_ms записи. По ним `access.csv` переводится в шкалу записи | скрипт, tracefs |
 | `syscalls.txt` | Сырые события tracefs: mmap, munmap, brk, mremap, madvise приложения, его потоков и детей | tracefs |
-| `writes.csv` | `ts_ms, start, end, present_pages, dirty_pages` по отображениям, если задан `-w` | `qmem-softdirty` |
+| `writes.csv` | `ts_ms, start, end, present_pages, dirty_pages, rewritten_pages` по отображениям, если задан `-w`; `rewritten_pages` — лишние faults, которые вызвал сам замер | `qmem-softdirty` |
 | `meta.json` | Режим, команда, pid и `kernel_pid`, версия и опции damo, ядро, время, `start_uptime`, интервалы, причина остановки, потери событий tracefs | скрипт |
 | `damon.data`, `damon.data.kdamonds` | Внутренние файлы damo. Qmem их напрямую не читает | damo |
 

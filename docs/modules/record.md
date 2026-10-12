@@ -90,7 +90,7 @@ DAMON не отличает чтение от записи. `qmem-softdirty <pid
 2. пишет строку `ts_ms,start,end,present_pages,dirty_pages` для каждого отображения с present > 0;
 3. сбрасывает soft-dirty записью `4` в `/proc/<pid>/clear_refs`.
 
-`dirty_pages` — сколько страниц записали за прошедший период. Цена: после сброса каждая первая запись в страницу даёт лишний page fault. Поэтому замер выключен по умолчанию, а период лучше брать в несколько секунд.
+`dirty_pages` — сколько страниц записали за прошедший период. `rewritten_pages` — те из них, что были резидентны уже на прошлом сбросе: каждая такая запись стоила лишнего page fault из-за самого замера, и verify вычитает их из faults приложения. Цена: после сброса каждая первая запись в страницу даёт лишний page fault. Поэтому замер выключен по умолчанию, а период лучше брать в несколько секунд.
 
 ## Результат
 
@@ -106,7 +106,7 @@ record/
   proc.csv         # ts_ms, minflt, majflt, rss_kb — счётчики самого приложения с его старта
   clock.csv        # local_s, ts_ms — метки синхронизации часов damo (trace 'local') с ts_ms
   syscalls.txt     # сырой вывод tracefs (если трассировка доступна)
-  writes.csv       # ts_ms, start, end, present_pages, dirty_pages (если задан -w)
+  writes.csv       # ts_ms, start, end, present_pages, dirty_pages, rewritten_pages (если задан -w)
 ```
 
 ## Требования

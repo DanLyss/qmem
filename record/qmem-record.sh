@@ -242,7 +242,7 @@ proc_row() {
 # Sample written pages of the application into $out/writes.csv.
 sd_pid=
 start_softdirty() {
-	echo "ts_ms,start,end,present_pages,dirty_pages" > "$out/writes.csv"
+	echo "ts_ms,start,end,present_pages,dirty_pages,rewritten_pages" > "$out/writes.csv"
 	"$SOFTDIRTY" "$app_pid" "$writes_ms" "$start_ms" >> "$out/writes.csv" &
 	sd_pid=$!
 }
