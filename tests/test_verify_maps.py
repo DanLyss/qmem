@@ -236,3 +236,28 @@ def test_faults_net_up_to_the_last_common_sample(tmp_path):
     m = json.loads(run_verify(a, b, '--json').stdout)['metrics']
     assert m['app_minflt_net']['orig'] == 1000 + pages
     assert m['app_minflt_net']['diff'] == pytest.approx(0)
+
+
+def test_pause_in_the_replay_record(tmp_path):
+    """The replay record has a 1 s VM pause at 1500 ms: everything after it is
+    1 s later in record time. With pauses.csv the maps line up as before."""
+    orig, again, profile, layout = case(tmp_path)
+    shifted = record(tmp_path / 'paused', B, 700, 8, 8, 100, 1000, 3000, 0, 200.0)
+    # move everything recorded after 1500 + 700 ms by 1000 ms
+    cut = 2200
+    rows = (shifted / 'access.csv').read_text().splitlines()
+    out = [rows[0]]
+    for r in rows[1:]:
+        f = r.split(',')
+        if int(f[0]) >= cut * 10**6:
+            f[0], f[1] = str(int(f[0]) + 10**9), str(int(f[1]) + 10**9)
+        out.append(','.join(f))
+    (shifted / 'access.csv').write_text('\n'.join(out) + '\n')
+    for f in sorted((shifted / 'smaps').iterdir(), key=lambda f: -int(f.stem)):
+        if int(f.stem) >= cut:
+            f.rename(f.with_name('%d.txt' % (int(f.stem) + 1000)))
+    (shifted / 'pauses.csv').write_text('ts_ms,pause_ms\n%d,1000\n' % cut)
+    out = verify_json(orig, shifted, profile, layout)
+    assert out['maps']['corr'] == pytest.approx(1, abs=0.01)
+    assert out['maps']['hot_recall'] == pytest.approx(1)
+    assert out['pauses']['replay_ms'] == 1000

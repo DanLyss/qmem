@@ -89,3 +89,34 @@ def test_normalize_without_anchors_keeps_damo_time(tmp_path, fake_env):
     assert p.returncode == 0, p.stderr
     _, rows = read_csv(tmp_path / 'access.csv')
     assert sorted({int(r[0]) for r in rows}) == [0, 100000000]
+
+
+def test_normalize_finds_pauses(tmp_path, fake_env):
+    """A paused VM: wall-clock ts_ms jumps 3.5 s while the trace clock moves
+    0.25 s. normalize writes the pause to pauses.csv (the application and
+    replay, on monotonic time, never saw it)."""
+    (tmp_path / 'damon.data').write_text('fake')
+    rows = ['local_s,ts_ms']
+    local, ts = 5.0, 0
+    for i in range(20):
+        rows.append('%.6f,%d' % (local, ts))
+        if i == 9:
+            local, ts = local + 0.25 * 1.1, ts + 3500      # paused ~3.25 s
+        else:
+            local, ts = local + 0.33 * 1.1, ts + 330
+    (tmp_path / 'clock.csv').write_text('\n'.join(rows) + '\n')
+    p = run_record(['--normalize', tmp_path], env=fake_env)
+    assert p.returncode == 0, p.stderr
+    lines = (tmp_path / 'pauses.csv').read_text().splitlines()
+    assert lines[0] == 'ts_ms,pause_ms'
+    assert len(lines) == 2
+    ts_ms, pause_ms = (int(x) for x in lines[1].split(','))
+    assert ts_ms == 9 * 330
+    assert pause_ms == pytest.approx(3250, abs=20)
+
+
+def test_normalize_no_pauses(tmp_path, fake_env):
+    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n5.363,330\n5.726,660\n')
+    assert run_record(['--normalize', tmp_path], env=fake_env).returncode == 0
+    assert (tmp_path / 'pauses.csv').read_text().splitlines() == ['ts_ms,pause_ms']

@@ -226,3 +226,19 @@ def test_write_ratio_after_the_last_sample(tmp_path):
     for t in (500, 2500):
         ratios = sorted(acc[4] for acc in prof['epochs'][t])
         assert ratios == [0.0, 1.0], (t, prof['epochs'][t])
+
+
+def test_pauses_are_taken_out_of_time(tmp_path):
+    """A record with a 2 s pause at 1000 ms: what was recorded after it is
+    2 s later in record time than in the application's time."""
+    base = 0x7f0000000000
+    smaps = {0: [(base, base + 4 * MB, '', 1024)],
+             3500: [(base, base + 8 * MB, '', 8192)]}         # active time 1500
+    hot = [(base, base + 4 * MB, 100.0)]
+    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(3000, 4000, hot))
+    (rec / 'pauses.csv').write_text('ts_ms,pause_ms\n1000,2000\n')
+    out = tmp_path / 'p.txt'
+    assert run_mkprofile(rec, '-o', out).returncode == 0
+    prof = parse(out)
+    assert sorted(prof['epochs']) == list(range(0, 2000, 100))
+    assert prof['map'][-1][0] == (0 + 1500) // 2
