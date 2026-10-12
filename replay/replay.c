@@ -3,9 +3,10 @@
  *
  * Reads a text profile (docs/modules/replay.md), maps and unmaps parts of
  * anonymous regions on its timeline and touches their pages at the given
- * rates, epoch by epoch, on absolute deadlines.
+ * rates in 10 ms ticks on absolute deadlines. Work that does not fit into
+ * its tick is dropped, not queued, so the replay never drifts.
  *
- * usage: qmem-replay <profile.txt> [--seed N]
+ * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>]
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -45,6 +46,8 @@ struct access {
 struct epoch {
 	uint64_t t_ms;
 	uint32_t first, n;	/* range in accesses[] */
+	uint64_t planned, done;
+	double max_lag_ms;
 };
 
 static struct region *regions;
@@ -56,7 +59,8 @@ static uint64_t epoch_ms, seed = 42;
 static long page;
 
 static uint64_t rng;
-static uint64_t planned, done, skipped, checksum;
+static uint64_t planned, done, skipped, checksum, lagged_ticks;
+static double max_lag_ms;
 
 /* ------------------------------------------------------------ helpers */
 
@@ -321,23 +325,36 @@ static void touch(const struct access *a)
 	done++;
 }
 
-static void run_tick(struct epoch *e, uint64_t tick_ms)
+/* Do one tick of the epoch's touches; stop at deadline_ns. Returns 0 if the
+ * work did not fit. */
+static int run_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
 {
-	for (uint32_t i = e->first; i < e->first + e->n; i++) {
+	uint64_t before = done;
+	int fits = 1;
+
+	for (uint32_t i = e->first; i < e->first + e->n && fits; i++) {
 		struct access *a = &accesses[i];
 		uint64_t n;
 
 		a->carry += a->rate * tick_ms / 1000.0;
 		n = (uint64_t)a->carry;
 		a->carry -= n;
-		while (n--)
+		for (uint64_t k = 0; k < n; k++) {
+			if ((k & 1023) == 1023 && now_ns() >= deadline_ns) {
+				fits = 0;
+				break;
+			}
 			touch(a);
+		}
 	}
+	e->done += done - before;
+	return fits;
 }
 
 static void replay(uint64_t *wall_ns)
 {
-	uint64_t tick_ms = epoch_ms;
+	/* ticks of 10 ms spread an epoch's touches over the epoch */
+	uint64_t tick_ms = epoch_ms % 10 ? epoch_ms : 10;
 	uint64_t end_ms = 0, start;
 	uint32_t ei = 0, pi = 0;
 	int cur = -1;
@@ -346,19 +363,44 @@ static void replay(uint64_t *wall_ns)
 		end_ms = events[n_events - 1].t_ms;
 	if (n_epochs && epochs[n_epochs - 1].t_ms + epoch_ms > end_ms)
 		end_ms = epochs[n_epochs - 1].t_ms + epoch_ms;
-	for (uint32_t i = 0; i < n_epochs; i++)
+	for (uint32_t i = 0; i < n_epochs; i++) {
 		for (uint32_t j = epochs[i].first; j < epochs[i].first + epochs[i].n; j++)
-			planned += (uint64_t)(accesses[j].rate * epoch_ms / 1000.0);
+			epochs[i].planned += (uint64_t)(accesses[j].rate * epoch_ms / 1000.0);
+		planned += epochs[i].planned;
+	}
 
 	start = now_ns();
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
-		sleep_until(start + t * 1000000ULL);
+		uint64_t due = start + t * 1000000ULL;
+		double lag_ms;
+
+		sleep_until(due);
+		lag_ms = (now_ns() - due) / 1e6;
 		while (ei < n_events && events[ei].t_ms <= t)
 			apply(&events[ei++]);
-		while (pi < n_epochs && epochs[pi].t_ms <= t)
+		while (pi < n_epochs && epochs[pi].t_ms <= t) {
 			cur = pi++;
-		if (cur >= 0 && t < epochs[cur].t_ms + epoch_ms)
-			run_tick(&epochs[cur], tick_ms);
+			for (uint32_t j = epochs[cur].first;
+			     j < epochs[cur].first + epochs[cur].n; j++)
+				accesses[j].carry = 0;
+		}
+		if (cur < 0 || t >= epochs[cur].t_ms + epoch_ms)
+			continue;
+		if (lag_ms > epochs[cur].max_lag_ms)
+			epochs[cur].max_lag_ms = lag_ms;
+		if (lag_ms > max_lag_ms)
+			max_lag_ms = lag_ms;
+		if (!run_tick(&epochs[cur], tick_ms, due + tick_ms * 1000000ULL)) {
+			/* behind schedule: drop the missed ticks instead of queueing */
+			uint64_t now_ms = (now_ns() - start) / 1000000ULL;
+			uint64_t next = now_ms / tick_ms * tick_ms;
+
+			lagged_ticks++;
+			if (next > t + tick_ms) {
+				lagged_ticks += (next - t) / tick_ms - 1;
+				t = next - tick_ms;
+			}
+		}
 	}
 	while (ei < n_events)
 		apply(&events[ei++]);
@@ -366,9 +408,24 @@ static void replay(uint64_t *wall_ns)
 	*wall_ns = now_ns() - start;
 }
 
+static void write_stats(const char *path)
+{
+	FILE *f = fopen(path, "w");
+
+	if (!f) {
+		perror(path);
+		exit(1);
+	}
+	fprintf(f, "t_ms,planned,done,lag_ms\n");
+	for (uint32_t i = 0; i < n_epochs; i++)
+		fprintf(f, "%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%.0f\n", epochs[i].t_ms,
+			epochs[i].planned, epochs[i].done, epochs[i].max_lag_ms);
+	fclose(f);
+}
+
 int main(int argc, char **argv)
 {
-	const char *path = NULL;
+	const char *path = NULL, *stats = NULL;
 	int seed_set = 0;
 	uint64_t seed_arg = 0, wall_ns;
 	struct rusage ru;
@@ -382,6 +439,8 @@ int main(int argc, char **argv)
 			if (*end)
 				goto usage;
 			seed_set = 1;
+		} else if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
+			stats = argv[++i];
 		} else if (argv[i][0] == '-' || path) {
 			goto usage;
 		} else {
@@ -397,12 +456,16 @@ int main(int argc, char **argv)
 	rng = seed ? seed : 1;
 	prepare();
 	replay(&wall_ns);
+	if (stats)
+		write_stats(stats);
 
 	getrusage(RUSAGE_SELF, &ru);
 	fprintf(stderr, "replay: epochs=%" PRIu32 " planned=%" PRIu64 " done=%" PRIu64
-		" skipped=%" PRIu64 " lagged_ticks=0 max_lag_ms=0.0 minflt=%ld majflt=%ld"
+		" skipped=%" PRIu64 " lagged_ticks=%" PRIu64 " max_lag_ms=%.1f"
+		" minflt=%ld majflt=%ld"
 		" maxrss_kb=%ld cpu_s=%.2f wall_s=%.2f checksum=%016" PRIx64 "\n",
-		n_epochs, planned, done, skipped, ru.ru_minflt, ru.ru_majflt,
+		n_epochs, planned, done, skipped, lagged_ticks, max_lag_ms,
+		ru.ru_minflt, ru.ru_majflt,
 		ru.ru_maxrss,
 		ru.ru_utime.tv_sec + ru.ru_stime.tv_sec +
 		(ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) / 1e6,
@@ -410,6 +473,7 @@ int main(int argc, char **argv)
 	return 0;
 
 usage:
-	fprintf(stderr, "usage: %s <profile.txt> [--seed N]\n", argv[0]);
+	fprintf(stderr, "usage: %s <profile.txt> [--seed N] [--stats <file>]\n",
+		argv[0]);
 	return 2;
 }
