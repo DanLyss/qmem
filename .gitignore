@@ -1,6 +1,7 @@
 /workloads/hot_region
 /workloads/rw_split
 /workloads/fixed_work
+/workloads/random_access
 /record/qmem-softdirty
 /replay/qmem-replay
 __pycache__/

@@ -1,7 +1,7 @@
 import re
 import subprocess
 
-from conftest import FIXED_WORK, HOT_REGION, RW_SPLIT
+from conftest import FIXED_WORK, HOT_REGION, RANDOM_ACCESS, RW_SPLIT
 
 
 def test_hot_region_prints_ranges_and_exits():
@@ -52,3 +52,17 @@ def test_fixed_work_runs_and_rejects_bad_args():
         p = subprocess.run([str(FIXED_WORK)] + args, capture_output=True,
                            timeout=10)
         assert p.returncode == 2
+
+
+def test_random_access_prints_core_and_rejects_bad_args():
+    p = subprocess.run([str(RANDOM_ACCESS), '8', '2', '0.2', '10000'],
+                       capture_output=True, text=True, timeout=10)
+    assert p.returncode == 0, p.stderr
+    t0, t1 = (int(x, 16) for x in re.search(
+        r'^total 0x([0-9a-f]+) 0x([0-9a-f]+)$', p.stdout, re.M).groups())
+    c0, c1 = (int(x, 16) for x in re.search(
+        r'^core 0x([0-9a-f]+) 0x([0-9a-f]+)$', p.stdout, re.M).groups())
+    assert t1 - t0 == 8 << 20 and c1 - c0 == 2 << 20 and t0 < c0 < c1 < t1
+    for args in ([], ['8', '16', '1', '1'], ['8', '2', '1', '-5']):
+        assert subprocess.run([str(RANDOM_ACCESS)] + args,
+                              capture_output=True, timeout=10).returncode == 2

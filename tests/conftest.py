@@ -14,6 +14,7 @@ FAKE_DAMO = ROOT / 'tests' / 'fake_damo.py'
 MKDAMON = ROOT / 'tests' / 'fixtures' / 'mkdamon.py'
 RW_SPLIT = ROOT / 'workloads' / 'rw_split'
 FIXED_WORK = ROOT / 'workloads' / 'fixed_work'
+RANDOM_ACCESS = ROOT / 'workloads' / 'random_access'
 SOFTDIRTY = ROOT / 'record' / 'qmem-softdirty'
 OVERHEAD = ROOT / 'tools' / 'measure-overhead.sh'
 REPLAY = ROOT / 'replay' / 'qmem-replay'
@@ -89,7 +90,7 @@ def kill_matching(pattern):
     subprocess.run(['pkill', '-KILL', '-f', pattern])
 
 
-__all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'FIXED_WORK', 'SOFTDIRTY',
+__all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'FIXED_WORK', 'RANDOM_ACCESS', 'SOFTDIRTY',
            'OVERHEAD', 'REPLAY', 'MKPROFILE', 'VERIFY', 'EXAMPLE', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER', 'PROC_HEADER',
            'has_real_damon', 'has_tracefs', 'has_damo', 'run_record',
            'start_record', 'damo_calls', 'process_running', 'kill_matching',

@@ -16,12 +16,14 @@ set -euo pipefail
 
 usage() {
 	cat >&2 <<-EOF
-	usage: cycle.sh -o <dir> [-i <ms>] [-w <ms>] [--baseline] [-V "<verify options>"] -- <command> [args...]
+	usage: cycle.sh -o <dir> [-i <ms>] [-w <ms>] [--baseline] [-R "<record options>"]
+	                [-V "<verify options>"] -- <command> [args...]
 
 	  -o <dir>   output directory (must be empty or absent)
 	  -i <ms>    record snapshot period (default 500)
 	  -w <ms>    record soft-dirty period (default off)
 	  --baseline record the original twice; verify against its noise
+	  -R <opts>  extra qmem-record options, e.g. -D "<damo options>"
 	  -V <opts>  extra qmem-verify options
 	EOF
 	exit 2
@@ -34,6 +36,7 @@ out=
 interval=500
 writes=
 verify_opts=
+record_extra=
 baseline=false
 while [ $# -gt 0 ]; do
 	case $1 in
@@ -41,6 +44,7 @@ while [ $# -gt 0 ]; do
 	-i) [ $# -ge 2 ] || usage; interval=$2; shift 2 ;;
 	-w) [ $# -ge 2 ] || usage; writes=$2; shift 2 ;;
 	-V) [ $# -ge 2 ] || usage; verify_opts=$2; shift 2 ;;
+	-R) [ $# -ge 2 ] || usage; record_extra=$2; shift 2 ;;
 	--baseline) baseline=true; shift ;;
 	--) shift; break ;;
 	*) usage ;;
@@ -55,6 +59,7 @@ mkdir -p "$out"
 
 record_opts=(-i "$interval")
 [ -z "$writes" ] || record_opts+=(-w "$writes")
+[ -z "$record_extra" ] || eval "record_opts+=($record_extra)"
 read -ra extra <<< "$verify_opts"
 
 echo "cycle: recording the original" >&2
