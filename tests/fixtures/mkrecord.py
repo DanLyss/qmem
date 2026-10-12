@@ -13,7 +13,7 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
             anonymous; vmflags defaults to 'rd wr mr mw me ac'
     access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...]
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
-    writes: [(ts_ms, start, end, present_pages, dirty_pages), ...]
+    writes: [(ts_ms, start, end, present_pages, dirty_pages[, rewritten]), ...]
     proc:   [(ts_ms, minflt, majflt, rss_kb), ...]
     """
     d.mkdir(parents=True, exist_ok=True)
@@ -51,8 +51,8 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
         (d / 'proc.csv').write_text('\n'.join(rows) + '\n')
 
     if writes is not None:
-        rows = ['ts_ms,start,end,present_pages,dirty_pages']
-        rows += ['%d,%d,%d,%d,%d' % w for w in writes]
+        rows = ['ts_ms,start,end,present_pages,dirty_pages,rewritten_pages']
+        rows += ['%d,%d,%d,%d,%d,%d' % (tuple(w) + (0,) * (6 - len(w))) for w in writes]
         (d / 'writes.csv').write_text('\n'.join(rows) + '\n')
 
     (d / 'damon.data.kdamonds').write_text(json.dumps(

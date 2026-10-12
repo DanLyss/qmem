@@ -189,3 +189,19 @@ def test_real_example(tmp_path):
     hot = [sum(a[2] for a in prof['epochs'].get(t, []) if a[3] > 0)
            for t in range(3000, 5000, 100)]
     assert all(25 * MB <= h <= 45 * MB for h in hot), hot
+
+
+def test_damon_gap_holds_last_pattern(tmp_path):
+    """Snapshots missing for a while (the system stalled): the epochs in the
+    gap keep the last known pattern instead of going idle."""
+    base = 0x7f0000000000
+    smaps = {0: [(base, base + 8 * MB, '', 8192)], 3000: [(base, base + 8 * MB, '', 8192)]}
+    hot = [(base, base + 4 * MB, 100.0), (base + 4 * MB, base + 8 * MB, 0.0)]
+    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(2000, 3000, hot))
+    out = tmp_path / 'p.txt'
+    p = run_mkprofile(rec, '-o', out)
+    assert p.returncode == 0, p.stderr
+    prof = parse(out)
+    assert sorted(prof['epochs']) == list(range(0, 3000, 100))
+    assert prof['epochs'][1500] == prof['epochs'][500]
+    assert 'gap' in p.stderr

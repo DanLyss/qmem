@@ -30,7 +30,7 @@ def test_softdirty_tells_written_from_read():
     rows = [[int(x) for x in line.split(',')]
             for line in sd.stdout.splitlines()]
     assert rows, 'no samples'
-    assert all(len(r) == 5 for r in rows)
+    assert all(len(r) == 6 for r in rows)
     # skip the first sample: it still holds the initial writes to both regions
     first_ts = min(r[0] for r in rows)
     late = [r for r in rows if r[0] > first_ts]
@@ -41,6 +41,29 @@ def test_softdirty_tells_written_from_read():
     b_dirty = sum(r[4] for r in b_rows) / sum(r[3] for r in b_rows)
     assert a_dirty > 0.9, a_dirty
     assert b_dirty < 0.1, b_dirty
+    # A was resident before every period, so each of its dirty pages was a
+    # write fault caused by re-arming soft-dirty
+    for r in a_rows:
+        assert r[5] == r[4]
+
+
+def test_rewritten_excludes_new_pages(tmp_path):
+    """Pages that become resident in a period are dirty but were not
+    re-armed: rewritten_pages counts only pages resident at the last clear."""
+    app = subprocess.Popen([str(RW_SPLIT), '8', '8', '2'],
+                           stdout=subprocess.PIPE, text=True)
+    try:
+        app.stdout.readline(); app.stdout.readline()
+        # start sampling while rw_split is still writing its regions the
+        # first time is racy; instead check the invariant on every row
+        sd = subprocess.run([str(SOFTDIRTY), str(app.pid), '200', '0'],
+                            capture_output=True, text=True, timeout=20)
+    finally:
+        app.kill()
+        app.wait()
+    rows = [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
+    assert rows
+    assert all(0 <= r[5] <= r[4] <= r[3] for r in rows)
 
 
 def test_softdirty_bad_args():

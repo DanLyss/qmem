@@ -24,7 +24,7 @@ EXAMPLE = ROOT / 'examples' / 'python_phases' / 'record'
 ACCESS_HEADER = 'snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age'
 SYSTEM_HEADER = ('ts_ms,MemFree,MemAvailable,Cached,SwapFree,'
                  'psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout')
-WRITES_HEADER = 'ts_ms,start,end,present_pages,dirty_pages'
+WRITES_HEADER = 'ts_ms,start,end,present_pages,dirty_pages,rewritten_pages'
 PROC_HEADER = 'ts_ms,minflt,majflt,rss_kb'
 
 

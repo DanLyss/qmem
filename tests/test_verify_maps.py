@@ -174,3 +174,38 @@ def test_dirty_share_skips_vmas_marked_sd(tmp_path):
     a = write_record(tmp_path / 'a', smaps, access, writes=writes)
     out = json.loads(run_verify(a, a, '--json').stdout)
     assert out['metrics']['dirty_share']['orig'] == pytest.approx(0.25)
+
+
+def test_faults_net_of_soft_dirty(tmp_path):
+    """Soft-dirty sampling adds a write fault per rewritten page; records with
+    a different number of samples compare by faults net of those."""
+    base = A
+    smaps = {0: [(base, base + SIZE, '', 65536)], 3000: [(base, base + SIZE, '', 65536)]}
+    access = [(t * 10**6, (t + 100) * 10**6, [(base, base + SIZE, 10.0)])
+              for t in range(0, 3000, 100)]
+    pages = SIZE // 4096
+    a = write_record(tmp_path / 'a', smaps, access,
+                     proc=[(0, 1000, 0, 1024), (3000, 1000 + pages + 4096, 0, 65536)],
+                     writes=[(1000, base, base + SIZE, pages, 4096, 4096)])
+    b = write_record(tmp_path / 'b', smaps, access,
+                     proc=[(0, 1000, 0, 1024), (3000, 1000 + pages + 3 * 4096, 0, 65536)],
+                     writes=[(1000, base, base + SIZE, pages, 4096, 4096),
+                             (2000, base, base + SIZE, pages, 4096, 4096),
+                             (3000, base, base + SIZE, pages, 4096, 4096)])
+    out = json.loads(run_verify(a, b, '--json').stdout)
+    m = out['metrics']
+    assert m['app_minflt']['diff'] > 0.3
+    assert m['app_minflt_net']['orig'] == 1000 + pages
+    assert m['app_minflt_net']['diff'] == pytest.approx(0)
+    assert run_verify(a, b, '--check').returncode == 0
+
+
+def test_gaps_are_reported(tmp_path):
+    orig, again, profile, layout = case(tmp_path)
+    rows = (orig / 'access.csv').read_text().splitlines()
+    keep = [rows[0]] + [r for r in rows[1:]
+                        if not 1500e6 <= int(r.split(',')[0]) < 2500e6]
+    (orig / 'access.csv').write_text('\n'.join(keep) + '\n')
+    out = verify_json(orig, again, profile, layout)
+    assert out['gaps']['orig_ms'] == pytest.approx(1000, abs=150)
+    assert out['gaps']['replay_ms'] == 0
