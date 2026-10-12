@@ -44,8 +44,8 @@ Replay записывается тем же `qmem-record`. Поэтому сра
 qmem-profile 1
 epoch_ms 100
 seed 42
-region 0 315621376                  # id, размер в байтах (анонимная память)
-region 1 2097152
+region 0 315621376 0x751731eb3000   # id, размер в байтах, база в оригинале (для verify)
+region 1 2097152 0x55d0c1a3e000
 map 0 0 0 315621376                # t_ms, region, offset, len: выделить часть региона
 map 1200 1 0 2097152
 populate 1200 0 0 315621376         # t_ms, region, offset, len: записать каждую страницу один раз
@@ -65,8 +65,10 @@ unmap 6400 0 0 210763776            # t_ms, region, offset, len: освобод�
 ## qmem-replay (C)
 
 ```
-qmem-replay <profile.txt> [--seed N] [--stats <file>]
+qmem-replay <profile.txt> [--seed N] [--stats <file>] [--layout <file>]
 ```
+
+`--layout` пишет, где регионы оказались в этом прогоне и когда было время 0 profile (`CLOCK_BOOTTIME`) — по нему verify переводит адреса и время записи replay в координаты profile.
 
 | Компонент | Что делает |
 | --- | --- |

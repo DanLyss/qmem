@@ -281,7 +281,9 @@ def set_write_ratios(acc, writes, mid, regions):
 
 def write_profile(path, regions, events, epochs, epoch_ms, seed):
     lines = ['qmem-profile 1', 'epoch_ms %d' % epoch_ms, 'seed %d' % seed]
-    lines += ['region %d %d' % (i, e - s) for i, (s, e) in enumerate(regions)]
+    # the third field is the region's base in the original; replay ignores it,
+    # verify maps the original's addresses with it
+    lines += ['region %d %d 0x%x' % (i, e - s, s) for i, (s, e) in enumerate(regions)]
     lines += ['%s %d %d %d %d' % (kind, ts, r, off, length)
               for ts, kind, r, off, length in events]
     for t, acc in epochs:

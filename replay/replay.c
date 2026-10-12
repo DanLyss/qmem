@@ -6,7 +6,7 @@
  * rates (walking each range round robin) in 1 ms ticks on absolute deadlines. Work that does not fit into
  * its tick is dropped, not queued, so the replay never drifts.
  *
- * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>]
+ * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>] [--layout <file>]
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -232,6 +232,10 @@ static void load(const char *path)
 				bad("regions must be numbered 0, 1, ... in order");
 			if (size == 0)
 				bad("empty region");
+			/* optional base in the original record, for verify only */
+			if (tok[3] && (strncmp(tok[3], "0x", 2) || !tok[3][2] ||
+				       tok[3][2 + strspn(tok[3] + 2, "0123456789abcdefABCDEF")]))
+				bad("bad region base '%s'", tok[3]);
 			regions = grow(regions, n_regions, sizeof(*regions));
 			regions[n_regions++] = (struct region){
 				.size = size, .npages = (size + page - 1) / page };
@@ -409,6 +413,8 @@ static int run_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
 	return fits;
 }
 
+static uint64_t start_boottime_ns;
+
 static void replay(uint64_t *wall_ns)
 {
 	/* 1 ms ticks spread an epoch's touches over the epoch. They must be
@@ -431,6 +437,12 @@ static void replay(uint64_t *wall_ns)
 	}
 
 	start = now_ns();
+	{
+		struct timespec ts;
+
+		clock_gettime(CLOCK_BOOTTIME, &ts);
+		start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+	}
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
 		uint64_t due = start + t * 1000000ULL;
 		double lag_ms;
@@ -489,6 +501,24 @@ static long peak_rss_kb(void)
 	return kb;
 }
 
+/* Where the regions are in this run and when profile time 0 was, for
+ * verify to map the replay's DAMON addresses and times. */
+static void write_layout(const char *path)
+{
+	FILE *f = fopen(path, "w");
+
+	if (!f) {
+		perror(path);
+		exit(1);
+	}
+	fprintf(f, "qmem-replay-layout 1\nstart_boottime_ns %" PRIu64 "\n",
+		start_boottime_ns);
+	for (uint32_t r = 0; r < n_regions; r++)
+		fprintf(f, "region %" PRIu32 " 0x%lx %" PRIu64 "\n", r,
+			(unsigned long)regions[r].base, regions[r].size);
+	fclose(f);
+}
+
 static void write_stats(const char *path)
 {
 	FILE *f = fopen(path, "w");
@@ -506,7 +536,7 @@ static void write_stats(const char *path)
 
 int main(int argc, char **argv)
 {
-	const char *path = NULL, *stats = NULL;
+	const char *path = NULL, *stats = NULL, *layout = NULL;
 	int seed_set = 0;
 	uint64_t seed_arg = 0, wall_ns;
 	struct rusage ru;
@@ -522,6 +552,8 @@ int main(int argc, char **argv)
 			seed_set = 1;
 		} else if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
 			stats = argv[++i];
+		} else if (!strcmp(argv[i], "--layout") && i + 1 < argc) {
+			layout = argv[++i];
 		} else if (argv[i][0] == '-' || path) {
 			goto usage;
 		} else {
@@ -539,6 +571,8 @@ int main(int argc, char **argv)
 	replay(&wall_ns);
 	if (stats)
 		write_stats(stats);
+	if (layout)
+		write_layout(layout);
 
 	getrusage(RUSAGE_SELF, &ru);
 	fprintf(stderr, "replay: epochs=%" PRIu32 " planned=%" PRIu64 " done=%" PRIu64
@@ -554,7 +588,7 @@ int main(int argc, char **argv)
 	return 0;
 
 usage:
-	fprintf(stderr, "usage: %s <profile.txt> [--seed N] [--stats <file>]\n",
-		argv[0]);
+	fprintf(stderr, "usage: %s <profile.txt> [--seed N] [--stats <file>]"
+		" [--layout <file>]\n", argv[0]);
 	return 2;
 }
