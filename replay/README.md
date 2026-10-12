@@ -10,9 +10,9 @@ Replay воспроизводит нагрузку приложения на п�
 | --- | --- |
 | `replay/replay.c` → `qmem-replay` | Воспроизведение profile (C, без зависимостей) |
 | `tools/mkprofile.py` | profile из каталога записи `qmem-record` |
-| `tools/compare.py` | Сравнение записи оригинала и записи replay |
+| `verify/qmem-verify.py` | Сравнение записи оригинала и записи replay — теперь модуль [verify](../docs/modules/verify.md) |
 | `examples/python_phases/cycle/` | Пример полного цикла с результатом сравнения |
-| `tests/test_replay.py`, `test_mkprofile.py`, `test_compare.py`, `test_replay_e2e.py` | Тесты |
+| `tests/test_replay.py`, `test_mkprofile.py`, `test_verify.py`, `test_replay_e2e.py` | Тесты |
 
 Сборка: `make`.
 
@@ -22,7 +22,7 @@ Replay воспроизводит нагрузку приложения на п�
 sudo record/qmem-record.sh -o orig -w 2000 -- ./my_app        # записать оригинал
 tools/mkprofile.py orig -o profile.txt                        # построить profile
 sudo record/qmem-record.sh -o again -w 2000 -- replay/qmem-replay profile.txt
-tools/compare.py orig again --check                           # насколько похоже
+verify/qmem-verify.py orig again --check                      # насколько похоже
 ```
 
 `qmem-replay <profile.txt> [--seed N] [--stats <file>]` можно запускать и без записи. Root ему не нужен. В конце он печатает сводку в stderr: план и сделанные касания, отставание, page faults, пиковый RSS, CPU.
@@ -68,7 +68,7 @@ sudo make test    # с root и DAMON: 87 из 87
 | --- | --- |
 | `test_replay.py` | Разбор и проверка profile (номер строки в ошибке), `map`/`unmap`/`populate`, RSS и faults, повторяемость по seed, точность времени и сброс работы при перегрузке, `--stats`, доля записи и покрытие страниц (через `qmem-softdirty`) |
 | `test_mkprofile.py` | Регионы, их жизнь и заполнение по синтетической записи; частота и доля записи; обрезка по выделенной памяти; настоящий пример `python_phases` |
-| `test_compare.py` | Метрики, выравнивание по времени, `--check`, faults приложения и системы |
+| `test_verify.py` | Метрики, выравнивание по времени, `--check`, faults приложения и системы |
 | `test_replay_e2e.py` | Полный цикл на `hot_region` с настоящим DAMON (root): RSS, память с обращениями, частота >50% и faults приложения в пределах 20% |
 
 Тесты коммитились до кода.

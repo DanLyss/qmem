@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Compare the record of an original run with the record of its replay.
 
-usage: compare.py <original record> <replay record> [--json] [--check]
-                  [--tolerance 0.2]
+usage: qmem-verify.py <original record> <replay record> [--json] [--check]
+                      [--tolerance 0.2]
 
 Compares what does not depend on addresses: peak anonymous RSS, the amount
 of memory DAMON saw accessed, the application's page faults (proc.csv;
@@ -18,7 +18,8 @@ import json
 import sys
 from pathlib import Path
 
-from mkprofile import read_access, read_smaps
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
+from mkprofile import read_access, read_smaps  # noqa: E402
 
 MB = 1 << 20
 CHECKED = ('rss_peak_mb', 'hot_mb_mean')

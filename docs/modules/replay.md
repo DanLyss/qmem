@@ -22,7 +22,7 @@ flowchart LR
     P --> RP["qmem-replay"]
     RP --> Rec2["qmem-record"]
     Rec2 --> R2["запись replay"]
-    R1 --> CMP["compare.py"]
+    R1 --> CMP["qmem-verify"]
     R2 --> CMP
     CMP --> Rep["отчёт: насколько похоже"]
 ```
@@ -31,7 +31,7 @@ flowchart LR
 sudo record/qmem-record.sh -o orig -- ./my_app
 tools/mkprofile.py orig -o profile.txt
 sudo record/qmem-record.sh -o again -- replay/qmem-replay profile.txt
-tools/compare.py orig again
+verify/qmem-verify.py orig again
 ```
 
 Replay записывается тем же `qmem-record`. Поэтому сравниваются одни и те же файлы, снятые одинаково.
@@ -96,10 +96,14 @@ tools/mkprofile.py <record dir> -o <profile.txt> [--epoch-ms 100] [--seed 42]
 
 Формула интенсивности — допущение. Проверяется на шаге P5: если DAMON на replay видит другую частоту, формула меняется.
 
-## compare.py (Python)
+## Сравнение (перенесено в verify)
+
+Сравнение записей переехало в модуль [verify](verify.md) (`verify/qmem-verify.py`). Ниже — то, с чего оно начиналось в этой итерации.
+
+### compare.py (Python)
 
 ```
-tools/compare.py <record оригинала> <record replay>
+verify/qmem-verify.py <record оригинала> <record replay>
 ```
 
 Сравнивает две записи по тому, что от адресов не зависит, и печатает таблицу «оригинал / replay / расхождение»:

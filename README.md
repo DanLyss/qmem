@@ -27,7 +27,7 @@ tools/measure-overhead.sh -n 5 -- ./workloads/fixed_work 512 600
 ```sh
 tools/mkprofile.py out -o profile.txt                   # profile из записи
 sudo record/qmem-record.sh -o again -- replay/qmem-replay profile.txt
-tools/compare.py out again --check                      # насколько replay похож на оригинал
+verify/qmem-verify.py out again --check                 # насколько replay похож на оригинал (см. docs/modules/verify.md)
 ```
 
 ## Тесты

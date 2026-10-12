@@ -46,7 +46,7 @@ sudo record/qmem-record.sh -o record -i 500 -w 2000 -- python3 demo_app.py
 sudo record/qmem-record.sh -o cycle/orig -i 500 -w 2000 -- python3 examples/python_phases/demo_app.py
 tools/mkprofile.py cycle/orig -o cycle/profile.txt
 sudo record/qmem-record.sh -o cycle/again -i 500 -w 2000 -- replay/qmem-replay cycle/profile.txt
-tools/compare.py cycle/orig cycle/again --check
+verify/qmem-verify.py cycle/orig cycle/again --check   # тогда: tools/compare.py
 ```
 
 `cycle/orig` — новая запись того же скрипта (уже с `proc.csv`), `cycle/profile.txt` — 347 строк, 8 регионов, 77 эпох.
