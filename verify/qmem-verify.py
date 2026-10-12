@@ -137,10 +137,17 @@ def minflt_net(d, shift_ms, cutoff_ms):
     rows = list(csv.DictReader(open(path))) if path.exists() else []
     if not rows:
         return None
+    writes = writes_rows(d)
     if cutoff_ms is not None:
-        rows = [r for r in rows if int(r['ts_ms']) - shift_ms <= cutoff_ms] or rows[:1]
-    rewritten = sum(int(w.get('rewritten_pages') or 0) for w in writes_rows(d)
-                    if cutoff_ms is None or int(w['ts_ms']) - shift_ms <= cutoff_ms)
+        # this record's own last sample by the cutoff, and its faults no
+        # later than that sample: rewrites come in a burst right after each
+        # clear, and a later row would already hold the next period's
+        own = [int(w['ts_ms']) for w in writes if int(w['ts_ms']) - shift_ms <= cutoff_ms]
+        if own:
+            last = max(own)
+            rows = [r for r in rows if int(r['ts_ms']) <= last] or rows[:1]
+            writes = [w for w in writes if int(w['ts_ms']) <= last]
+    rewritten = sum(int(w.get('rewritten_pages') or 0) for w in writes)
     return int(rows[-1]['minflt']) - rewritten
 
 
