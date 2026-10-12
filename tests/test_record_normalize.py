@@ -68,3 +68,24 @@ def test_normalize_with_real_damo_report(tmp_path):
         assert float(hot[4]) == 100.0 and float(hot[5]) == 200.0
         assert float(cold[4]) == 0.0 and float(cold[5]) == 0.0
         assert int(hot[6]) == 300000 and int(cold[6]) == 700000
+
+
+def test_normalize_maps_damon_time_to_record_time(tmp_path, fake_env):
+    """With clock anchors (trace 'local' clock seconds -> ts_ms), DAMON times
+    are moved to the record's time base: here the trace clock runs 10 %
+    fast and the canned record starts at 5.0 s of it."""
+    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n6.1,1000\n')
+    p = run_record(['--normalize', tmp_path], env=fake_env)
+    assert p.returncode == 0, p.stderr
+    _, rows = read_csv(tmp_path / 'access.csv')
+    starts = sorted({(int(r[0]), int(r[1])) for r in rows})
+    assert starts == [(0, 90909091), (90909091, 181818182)]
+
+
+def test_normalize_without_anchors_keeps_damo_time(tmp_path, fake_env):
+    (tmp_path / 'damon.data').write_text('fake')
+    p = run_record(['--normalize', tmp_path], env=fake_env)
+    assert p.returncode == 0, p.stderr
+    _, rows = read_csv(tmp_path / 'access.csv')
+    assert sorted({int(r[0]) for r in rows}) == [0, 100000000]

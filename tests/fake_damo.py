@@ -19,7 +19,8 @@ import time
 
 # Output in the shape of real `damo report access --raw_number` for the --format
 # strings that qmem-record.sh passes (shape checked against damo 3.3.0).
-CANNED_REPORT = """snapshot 0 100000000
+CANNED_REPORT = """record 5000000000
+snapshot 0 100000000
 4096         20480       100.000000 200.000000 300000
 20480        1048576     0.000000 0.000000 700000
 
