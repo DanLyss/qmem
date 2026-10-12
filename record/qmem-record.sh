@@ -287,7 +287,9 @@ else
 	app_pid=
 	for _ in $(seq 100); do
 		for child in $(pgrep -P "$damo_pid" || true); do
-			argv0=$(tr '\0' '\n' < "/proc/$child/cmdline" 2>/dev/null | head -n1)
+			# the child may be gone already
+			argv0=$( (tr '\0' '\n' < "/proc/$child/cmdline") 2>/dev/null |
+				head -n1) || true
 			if [ "$argv0" = "$1" ]; then
 				app_pid=$child
 				break
