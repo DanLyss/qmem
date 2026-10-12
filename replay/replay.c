@@ -3,7 +3,7 @@
  *
  * Reads a text profile (docs/modules/replay.md), maps, unmaps and populates
  * parts of anonymous regions on its timeline and touches their pages at the given
- * rates in 10 ms ticks on absolute deadlines. Work that does not fit into
+ * rates (walking each range round robin) in 10 ms ticks on absolute deadlines. Work that does not fit into
  * its tick is dropped, not queued, so the replay never drifts.
  *
  * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>]
@@ -43,6 +43,8 @@ struct access {
 	double rate;		/* page touches per second */
 	double write_ratio;
 	double carry;		/* fractional touches left from the last tick */
+	uint64_t cursor;	/* next page to touch, relative to the range */
+	int64_t prev;		/* same range in the previous epoch, or -1 */
 };
 
 struct epoch {
@@ -260,7 +262,7 @@ static void load(const char *path)
 		} else if (!strcmp(tok[0], "access")) {
 			struct access a = { .region = num(tok[1]), .off = num(tok[2]),
 					    .len = num(tok[3]), .rate = real(tok[4]),
-					    .write_ratio = real(tok[5]) };
+					    .write_ratio = real(tok[5]), .prev = -1 };
 
 			if (!n_epochs)
 				bad("access before the first epoch");
@@ -284,8 +286,29 @@ static void load(const char *path)
 
 /* ------------------------------------------------------------ replay */
 
+static uint64_t range_pages(const struct access *a)
+{
+	return (a->off + a->len - 1) / page - a->off / page + 1;
+}
+
 static void prepare(void)
 {
+	/* a range walks on from where the same range stopped in the previous
+	 * epoch; a new range starts at a random page */
+	for (uint32_t i = 0; i < n_epochs; i++) {
+		struct epoch *e = &epochs[i], *pe = i ? &epochs[i - 1] : NULL;
+
+		for (uint32_t j = e->first; j < e->first + e->n; j++) {
+			struct access *a = &accesses[j];
+
+			for (uint32_t k = pe ? pe->first : 0; pe && k < pe->first + pe->n; k++)
+				if (accesses[k].region == a->region &&
+				    accesses[k].off == a->off && accesses[k].len == a->len)
+					a->prev = k;
+			a->cursor = next_rand() % range_pages(a);
+		}
+	}
+
 	for (uint32_t r = 0; r < n_regions; r++) {
 		struct region *g = &regions[r];
 		size_t bytes = (g->npages + 7) / 8;
@@ -330,12 +353,15 @@ static void apply(const struct event *e)
 	set_bits(g->touched, e->off / page, e->len / page, 0);
 }
 
-static void touch(const struct access *a)
+/* Touch the next page of the range. Walking the range round robin touches
+ * every page at the planned rate; random pages would leave about 1/e of
+ * them untouched, and DAMON would see the range cooler than planned. */
+static void touch(struct access *a)
 {
 	struct region *g = &regions[a->region];
-	uint64_t first = a->off / page;
-	uint64_t last = (a->off + a->len - 1) / page;
-	uint64_t p = first + next_rand() % (last - first + 1);
+	uint64_t p = a->off / page + a->cursor;
+
+	a->cursor = (a->cursor + 1) % range_pages(a);
 	volatile uint8_t *addr = g->base + p * page;
 
 	if (!bit(g->mapped, p)) {
@@ -413,8 +439,11 @@ static void replay(uint64_t *wall_ns)
 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
 			cur = pi++;
 			for (uint32_t j = epochs[cur].first;
-			     j < epochs[cur].first + epochs[cur].n; j++)
+			     j < epochs[cur].first + epochs[cur].n; j++) {
 				accesses[j].carry = 0;
+				if (accesses[j].prev >= 0)
+					accesses[j].cursor = accesses[accesses[j].prev].cursor;
+			}
 		}
 		if (cur < 0 || t >= epochs[cur].t_ms + epoch_ms)
 			continue;
