@@ -148,10 +148,12 @@ readers  →  модель  →  estimators  →  writer
 Интерфейс estimator'а — функция модуля Python:
 
 ```python
-def estimate(model, options) -> list[ProfileItem]
+def estimate(model, options, profile) -> None
 ```
 
-Новый оценщик — новый модуль в `builder/estimators/`; выбирается опцией `--intensity <имя>`.
+Estimator добавляет в `profile` свои строки (`lifecycle`, `resident`, `intensity`) или заполняет поля уже добавленных (`write`, `timing`). Порядок: lifecycle → resident → intensity → write → timing.
+
+Новый оценщик — новый модуль `builder/estimators/<вид>_<имя>.py`; выбирается опцией `--intensity <имя>` (`--write`, `--timing`).
 
 ## 4. Формат profile v2
 
@@ -247,13 +249,14 @@ qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
 record/
   qmem-record.sh         # driver
   sources/               # damon.sh smaps.sh proc.sh system.sh softdirty.sh syscalls.sh
-                         # pmu-count.sh pmu-sample.sh (заглушки)
+                         # pmu_count.sh pmu_sample.sh (заглушки)
   softdirty.c            # помощник источника softdirty
 builder/
   qmem-build.py          # бывший tools/mkprofile.py
-  readers/               # по источнику
-  estimators/            # lifecycle resident intensity_passthrough write timing
-  profile.py             # writer и reader формата v2
+  readers/               # layout (v1/v2) timebase smaps damon softdirty
+  model.py               # модель
+  estimators/            # lifecycle resident intensity_passthrough write_softdirty timing_roundrobin
+  profile_v2.py          # writer и reader формата v2
 replay/
   replay.c               # loader, scheduler
   memory.c  gen_*.c  exec.c
