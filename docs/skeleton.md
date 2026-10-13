@@ -18,12 +18,14 @@
 
 **То, что уже работает** (qmem-record.sh, mkprofile.py, qmem-replay), переезжает в каркас как первые реализации модулей.
 
+Точные форматы: [formats/record.md](formats/record.md), [formats/profile.md](formats/profile.md).
+
 ## 1. Общая схема
 
 ```mermaid
 flowchart LR
     subgraph record
-        T["target<br/>запуск / подключение"] --> S["sources<br/>damon, smaps, proc, system,<br/>softdirty, syscalls,<br/>pmu-count*, pmu-sample*"]
+        T["target<br/>запуск / подключение"] --> S["sources<br/>damon, smaps, proc, system,<br/>softdirty, syscalls,<br/>pmu_count*, pmu_sample*"]
         S --> RD["каталог записи<br/>+ record.json"]
     end
     subgraph builder
@@ -57,7 +59,7 @@ flowchart LR
 
 ### 2.2 Интерфейс источника
 
-Каждый источник лежит в `record/sources/<имя>.sh` (для Linux — bash; позже — C для устройства) и реализует четыре функции:
+Каждый источник лежит в `record/sources/<имя>.sh` (для Linux — bash; позже — C для устройства) и реализует функции `src_<имя>_check`, `_start`, `_tick`, `_stop` и `_manifest` (последняя печатает описание источника для `record.json`):
 
 | Функция | Когда вызывается | Что делает |
 | --- | --- | --- |
@@ -78,21 +80,22 @@ flowchart LR
 | `system` | Память системы, PSI, vmstat | есть |
 | `softdirty` | Записанные страницы по отображениям | есть |
 | `syscalls` | mmap/munmap/brk/mremap/madvise (tracefs) | есть |
-| `pmu-count` | Общий счётчик обращений процесса (`perf_event_open`, подсчёт) | **заглушка**: `check` проверяет доступность PMU, без PMU источник пропускается |
-| `pmu-sample` | Выборка адресов обращений (PEBS / SPE) | **заглушка** |
+| `pmu_count` | Общий счётчик обращений процесса (`perf_event_open`, подсчёт) | **заглушка**: `check` проверяет доступность PMU, без PMU источник пропускается |
+| `pmu_sample` | Выборка адресов обращений (PEBS / SPE) | **заглушка** |
 
 ### 2.4 Каталог записи
 
 ```
 <dir>/
-  record.json          # манифест: версия, цель, время, часы, источники и их файлы
-  damon/  access.csv, damon.data, damon.data.kdamonds, clock.csv
+  record.json          # манифест: версия, цель, время, источники и их файлы
+  clock.csv, pauses.csv   # часы и паузы — общие для всей записи
+  damon/  access.csv, damon.data, damon.data.kdamonds
   smaps/  <ts>.txt
   proc/   proc.csv
   system/ system.csv
   softdirty/ writes.csv
   syscalls/  syscalls.txt
-  pmu-count/ ...       # когда появится
+  pmu_count/ ...       # когда появится
 ```
 
 `record.json`:
@@ -265,7 +268,7 @@ docs/formats/            # record.md, profile.md — описания форма
 
 | Где | Заглушка | Как ведёт себя сейчас | Интерфейс зафиксирован |
 | --- | --- | --- | --- |
-| record | `pmu-count`, `pmu-sample` | `check` → нет PMU → источник пропущен, в `record.json` `status: unavailable` | 2.2 |
+| record | `pmu_count`, `pmu_sample` | `check` → нет PMU → источник пропущен, в `record.json` `status: unavailable` | 2.2 |
 | builder | `intensity=passthrough` | `rate` = псевдочастота DAMON без перевода | 3.2 |
 | builder | `write`, `timing` | Нынешнее поведение / всегда `roundrobin` | 3.2 |
 | profile | `counter`, `threads`, `kind=file` | Пишутся или нет; replay принимает, не использует | 4.4 |
