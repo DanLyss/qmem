@@ -6,23 +6,18 @@ PAGE = 4096
 
 
 def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0, proc=None, start_uptime=100.0, layout='v1'):
-    """Write a record directory: the flat layout of record v1 or, with
-    layout='v2', one subdirectory per source and record.json.
+                 softdirty_ms=0, proc=None, start_uptime=100.0):
+    """Write a record v2 directory: a subdirectory per source and record.json.
 
     smaps:  {ts_ms: [(start, end, name, rss_kb[, vmflags]), ...]}; name '' is
             anonymous; vmflags defaults to 'rd wr mr mw me ac'
     access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...];
-            None (v2 only): no damon source
+            None: no damon source
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
     writes: [(ts_ms, start, end, present_pages, dirty_pages[, rewritten]), ...]
     proc:   [(ts_ms, minflt, majflt, rss_kb), ...]
     """
-    v2 = layout == 'v2'
-
     def at(source, name):
-        if not v2:
-            return d / name
         (d / source).mkdir(exist_ok=True)
         return d / source / name
 
@@ -68,14 +63,6 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
         rows = ['ts_ms,start,end,present_pages,dirty_pages,rewritten_pages']
         rows += ['%d,%d,%d,%d,%d,%d' % (tuple(w) + (0,) * (6 - len(w))) for w in writes]
         at('softdirty', 'writes.csv').write_text('\n'.join(rows) + '\n')
-
-    if not v2:
-        (d / 'meta.json').write_text(json.dumps({
-            'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1,
-            'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
-            'interval_ms': 1000, 'softdirty_ms': softdirty_ms,
-            'stop_reason': 'exited'}))
-        return d
 
     def ok(files, **params):
         return dict(status='ok', version=1, files=files, **params)

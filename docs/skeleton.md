@@ -161,7 +161,7 @@ Estimator добавляет в `profile` свои строки (`lifecycle`, `r
 
 Текст, одна запись на строку, поля `ключ=значение`.
 - **Почему текст:** читается глазами, легко разбирается в C без библиотек, расширяется добавлением ключей.
-- **Почему `ключ=значение`, а не позиционные поля, как в v1:** новые поля не ломают старый replay, а порядок полей не важен.
+- **Почему `ключ=значение`, а не позиционные поля:** новые поля не ломают старый replay, а порядок полей не важен.
 
 Бинарный вариант для устройства — потом, отдельной сборкой из текста.
 
@@ -197,12 +197,12 @@ counter t=3000 name=pmu.loads value=0      # заглушка: пока никт
 | --- | --- | --- | --- |
 | `meta` | — | любые | Сведения о происхождении и параметрах; replay их игнорирует, кроме `epoch_ms`, `seed` |
 | `region` | `id`, `size` | `kind` (`anon`; `file` — заглушка), `base` (адрес в оригинале), `file` | Регион памяти |
-| `map`, `unmap`, `populate` | `t`, `region`, `off`, `len` | — | Жизнь памяти, как в v1 |
+| `map`, `unmap`, `populate` | `t`, `region`, `off`, `len` | — | Жизнь памяти |
 | `epoch` | `t` | `dur` (по умолчанию `epoch_ms`) | Начало эпохи; следующие `access` относятся к ней |
 | `access` | `region`, `off`, `len`, `rate` | `write` (0..1, по умолчанию 0), `pattern` (по умолчанию `roundrobin`), `threads` (заглушка) | Обращения эпохи. `rate` — касаний **на страницу в секунду** |
 | `counter` | `t`, `name`, `value` | — | Числовые ряды для будущих оценщиков и режимов (заглушка) |
 
-Строка `access` из v1 (`access 0 0 4194304 1200 1.0`) — это `rate` на весь участок, а не на страницу. В v2 единица одна, на страницу: replay умножает на число страниц. Это убирает путаницу единиц.
+`rate` задаётся на страницу: replay умножает его на число страниц участка, так что частота не зависит от того, как участок нарезан.
 
 ## 5. replay
 
@@ -210,7 +210,7 @@ counter t=3000 name=pmu.loads value=0      # заглушка: пока никт
 
 | Часть | Что делает |
 | --- | --- |
-| **loader** | Разбор profile v2 (и v1 для старых файлов): правила 4.2, ошибки с номером строки |
+| **loader** | Разбор profile v2: правила 4.2, ошибки с номером строки |
 | **memory manager** | Регионы: резерв, `map`/`unmap`/`populate`, битовые карты. Тип памяти — через `kind`: `anon` есть, `file` — заглушка (отказ с понятной ошибкой) |
 | **scheduler** | Время: тики, абсолютные дедлайны, смена эпох, сброс невыполненной работы, статистика |
 | **generators** | Как выбирать следующую страницу участка. Интерфейс 5.2, выбор по `pattern` |
@@ -253,7 +253,7 @@ record/
   softdirty.c            # помощник источника softdirty
 builder/
   qmem-build.py          # бывший tools/mkprofile.py
-  readers/               # layout (v1/v2) timebase smaps damon softdirty
+  readers/               # layout timebase smaps damon softdirty
   model.py               # модель
   estimators/            # lifecycle resident intensity_passthrough write_softdirty timing_roundrobin
   profile_v2.py          # writer и reader формата v2
@@ -284,8 +284,8 @@ docs/formats/            # record.md, profile.md — описания форма
 
 1. **Описание форматов:** `docs/formats/record.md` и `docs/formats/profile.md` — по разделам 2.4 и 4.
 2. **record:** driver + интерфейс источников; нынешний код разложить по `sources/`; `record.json`; заглушки PMU.
-3. **builder:** readers, модель, estimators, writer v2; нынешняя логика mkprofile — первые реализации; заглушки estimators. Чтение старого формата записи.
-4. **replay:** loader v2 (и v1), memory manager, интерфейс генераторов, `roundrobin` + заглушки, заглушка `threads`.
+3. **builder:** readers, модель, estimators, writer v2; нынешняя логика mkprofile — первые реализации; заглушки estimators.
+4. **replay:** loader v2, memory manager, интерфейс генераторов, `roundrobin` + заглушки, заглушка `threads`.
 5. **Сквозной прогон каркаса:** record → build → replay на тестовой нагрузке. Проверяется только, что всё проходит и файлы на месте.
 
 ## 9. Дальше (после каркаса)

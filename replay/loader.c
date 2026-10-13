@@ -1,8 +1,8 @@
 /*
- * loader: profile v2 (docs/formats/profile.md) and the older v1 into the
- * tables of profile.h. Errors exit with code 2 and "profile:<line>: ...".
+ * loader: profile v2 (docs/formats/profile.md) into the tables of
+ * profile.h. Errors exit with code 2 and "profile:<line>: ...".
  *
- * v2 rules: lines are "type key=value ..."; an unknown key is skipped, an
+ * Rules: lines are "type key=value ..."; an unknown key is skipped, an
  * unknown line type too (one warning per type); a key written "!key" must
  * be understood, so an unknown one is an error.
  */
@@ -21,11 +21,11 @@ struct event *events;
 struct access *accesses;
 struct epoch *epochs;
 uint32_t n_regions, n_events, n_accesses, n_epochs, max_threads = 1;
-uint64_t epoch_ms, seed = 42;
+uint64_t epoch_ms = 100, seed = 42;
 
 #define MAX_TOKENS 32
 
-static int line_no, version;
+static int line_no, header;
 static char *tok[MAX_TOKENS];
 static int n_tok;
 
@@ -184,7 +184,7 @@ static void add_epoch(uint64_t t, uint64_t dur)
 	epochs[n_epochs++] = (struct epoch){ .t_ms = t, .dur_ms = dur, .first = n_accesses };
 }
 
-static void add_access(struct access a, int per_page)
+static void add_access(struct access a)
 {
 	if (!n_epochs)
 		bad("access before the first epoch");
@@ -192,8 +192,7 @@ static void add_access(struct access a, int per_page)
 	if (a.write_ratio > 1)
 		bad("write ratio above 1");
 	a.pages = (a.off + a.len - 1) / page - a.off / page + 1;
-	if (per_page)
-		a.rate *= a.pages;
+	a.rate *= a.pages;	/* the profile gives touches per page */
 	a.prev = -1;
 	if (a.threads > max_threads)
 		max_threads = a.threads;
@@ -212,33 +211,7 @@ static int is_event(const char *s)
 	return !strcmp(s, "map") || !strcmp(s, "unmap") || !strcmp(s, "populate");
 }
 
-static void line_v1(void)
-{
-	if (!strcmp(tok[0], "epoch_ms")) {
-		epoch_ms = num(tok[1]);
-		if (epoch_ms == 0)
-			bad("epoch_ms must be positive");
-	} else if (!strcmp(tok[0], "seed")) {
-		seed = num(tok[1]);
-	} else if (!strcmp(tok[0], "region")) {
-		add_region(num(tok[1]), num(tok[2]), tok[3]);
-	} else if (is_event(tok[0])) {
-		add_event(kind_of(tok[0]), num(tok[1]), num(tok[2]), num(tok[3]), num(tok[4]));
-	} else if (!strcmp(tok[0], "epoch")) {
-		if (!epoch_ms)
-			bad("epoch before epoch_ms");
-		add_epoch(num(tok[1]), 0);
-	} else if (!strcmp(tok[0], "access")) {
-		add_access((struct access){ .region = num(tok[1]), .off = num(tok[2]),
-					    .len = num(tok[3]), .rate = real(tok[4]),
-					    .write_ratio = real(tok[5]), .threads = 1,
-					    .gen = generator("roundrobin") }, 0);
-	} else {
-		bad("unknown keyword '%s'", tok[0]);
-	}
-}
-
-static void line_v2(void)
+static void parse_line(void)
 {
 	static char unknown[16][32];
 	static int n_unknown;
@@ -305,7 +278,7 @@ static void line_v2(void)
 				fprintf(stderr, "qmem-replay: %s\n", a.gen->stub);
 			}
 		}
-		add_access(a, 1);
+		add_access(a);
 	} else if (!strcmp(tok[0], "counter")) {
 		/* for future estimators and modes; not replayed */
 		check_keys("t name value");
@@ -351,25 +324,18 @@ void load(const char *path)
 		for (int i = n_tok; i < MAX_TOKENS; i++)
 			tok[i] = NULL;
 
-		if (!version) {
-			if (strcmp(tok[0], "qmem-profile") || !tok[1] ||
-			    (strcmp(tok[1], "1") && strcmp(tok[1], "2")))
-				bad("expected 'qmem-profile 2' (or 1)");
-			version = tok[1][0] - '0';
-			if (version == 2)
-				epoch_ms = 100;
-		} else if (version == 1) {
-			line_v1();
+		if (!header) {
+			if (strcmp(tok[0], "qmem-profile") || !tok[1] || strcmp(tok[1], "2"))
+				bad("expected 'qmem-profile 2'");
+			header = 1;
 		} else {
-			line_v2();
+			parse_line();
 		}
 	}
 	free(line);
 	fclose(f);
-	if (!version)
+	if (!header)
 		bad("empty profile");
-	if (!epoch_ms)
-		bad("missing epoch_ms");
 	for (uint32_t i = 0; i < n_epochs; i++)
 		if (!epochs[i].dur_ms)
 			epochs[i].dur_ms = epoch_ms;

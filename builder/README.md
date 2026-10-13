@@ -13,7 +13,7 @@ readers  →  model  →  estimators  →  writer
 | Файл | Что это |
 | --- | --- |
 | `qmem-build.py` | Командная строка: записи → модель → estimators → profile |
-| `readers/layout.py` | Где лежат файлы каждого источника: record v2 (`record.json`, подпапки) или старый плоский v1 |
+| `readers/layout.py` | Где лежат файлы каждого источника: `record.json`, подпапка на источник |
 | `readers/timebase.py` | Время записи → время приложения (вычет пауз VM из `pauses.csv`) |
 | `readers/smaps.py`, `damon.py`, `softdirty.py` | По reader'у на источник |
 | `model.py` | Модель: регионы, снимки smaps, наблюдения DAMON по эпохам, записи softdirty |
@@ -48,4 +48,4 @@ builder/qmem-build.py out -o profile.txt --epoch-ms 200 --seed 9 --intensity pas
 
 ## Тесты
 
-`tests/test_build.py`: формат и `meta`, каждый оценщик на синтетической записи, вычет пауз, дыры DAMON, выбор оценщиков, одинаковый profile из записи v1 и v2, запись без damon, настоящий пример `examples/python_phases` (v1). Точность не проверяется.
+`tests/test_build.py`: формат и `meta`, каждый оценщик на синтетической записи, вычет пауз, дыры DAMON, выбор оценщиков, запись без damon. Точность не проверяется.

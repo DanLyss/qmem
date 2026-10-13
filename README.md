@@ -26,8 +26,7 @@ replay/qmem-replay profile.txt --stats stats.csv                        # вос
 
 ### Итерация 1 (история)
 
-- verify, mkprofile, инструменты оценки и примеры экспериментов удалены; они есть в git до тега `skeleton-v0.1`
-- `examples/python_phases/` — настоящая запись в старом формате (record v1), на ней тесты проверяют чтение v1
+- verify, mkprofile, инструменты оценки, примеры и старые форматы (record v1, profile v1) удалены; они есть в git до тега `skeleton-v0.1`
 
 ## Тесты
 

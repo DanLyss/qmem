@@ -1,6 +1,6 @@
-"""qmem-replay on profile v2: core, timing and stats, write share, populate,
-layout. The compatibility rules and the stubs are in test_replay_v2.py,
-profile v1 in test_replay_v1.py."""
+"""qmem-replay: core, timing and stats, write share, populate,
+layout. The compatibility rules and the stubs are in test_replay_v2.py.
+"""
 import re
 import subprocess
 import time

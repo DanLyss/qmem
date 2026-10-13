@@ -85,7 +85,3 @@
 ### pmu_count, pmu_sample (заглушки, версия 0)
 
 Проверяют доступность аппаратных счётчиков. Без них — `status: unavailable` с причиной, с ними — `status: stub`: данных пока нет.
-
-## Записи версии 1
-
-Записи `record-v0.1` и примеры в `examples/` лежат плоско: `meta.json`, `access.csv`, `smaps/`, `proc.csv`, `system.csv`, `writes.csv`, `syscalls.txt`, `clock.csv`, `pauses.csv`. builder читает оба формата.

@@ -1,5 +1,4 @@
-"""builder: builder/qmem-build.py turns a record (v2 or v1 layout) into a
-profile v2. See docs/skeleton.md (section 3) and docs/formats/profile.md.
+"""builder: builder/qmem-build.py turns a record into a profile v2. See docs/skeleton.md (section 3) and docs/formats/profile.md.
 
 Only the skeleton is checked: readers, estimators, the writer and the
 format. The rates are DAMON's pseudo-frequencies passed through
@@ -9,7 +8,7 @@ import sys
 
 import pytest
 
-from conftest import BUILD, EXAMPLE
+from conftest import BUILD
 from fixtures.mkrecord import MB, write_record
 
 A = 0x7f0000000000           # 64 MB anonymous mapping
@@ -62,7 +61,7 @@ def snaps(t0, t1, regions):
     return [(t * 10**6, (t + 100) * 10**6, regions) for t in range(t0, t1, 100)]
 
 
-def example_record(d, layout):
+def example_record(d):
     heap = (HEAP, HEAP + MB, '[heap]', 1024)
     lib = (LIB, LIB + 0x1000, '/usr/bin/app', 4)
     full = (A, A + 64 * MB, '', 65536)
@@ -77,13 +76,12 @@ def example_record(d, layout):
                                    (A + 48 * MB, A + 64 * MB, 0.0)]))
     # 8 MB written in (1000, 2000] where 16 MB were accessed -> 0.5
     writes = [(2000, A, A + 64 * MB, 16384, 2048)]
-    return write_record(d, smaps, access, writes=writes, softdirty_ms=1000,
-                        layout=layout)
+    return write_record(d, smaps, access, writes=writes, softdirty_ms=1000)
 
 
 @pytest.fixture
 def record(tmp_path):
-    return example_record(tmp_path / 'rec', 'v2')
+    return example_record(tmp_path / 'rec')
 
 
 @pytest.fixture
@@ -112,7 +110,6 @@ def test_header_and_meta(profile):
     assert meta['intensity'] == 'passthrough'
     assert meta['write'] == 'softdirty'
     assert meta['timing'] == 'roundrobin'
-    assert meta['record'] == '2'
 
 
 def test_regions_are_anonymous_with_bases(profile):
@@ -160,7 +157,7 @@ def test_resident_follows_rss_growth(tmp_path):
     smaps = {0: [(base, base + 8 * MB, '', 4096)],          # half resident
              1000: [(base, base + 8 * MB, '', 8192)]}       # then all of it
     rec = write_record(tmp_path / 'rec', smaps,
-                       snaps(0, 2000, [(base, base + 8 * MB, 0.0)]), layout='v2')
+                       snaps(0, 2000, [(base, base + 8 * MB, 0.0)]))
     out = tmp_path / 'p.txt'
     p = run_build(rec, '-o', out)
     assert p.returncode == 0, p.stderr
@@ -196,8 +193,7 @@ def test_damon_gap_holds_last_pattern(tmp_path):
     base = 0x7f0000000000
     smaps = {0: [(base, base + 8 * MB, '', 8192)], 3000: [(base, base + 8 * MB, '', 8192)]}
     hot = [(base, base + 4 * MB, 100.0), (base + 4 * MB, base + 8 * MB, 0.0)]
-    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(2000, 3000, hot),
-                       layout='v2')
+    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(2000, 3000, hot))
     out = tmp_path / 'p.txt'
     p = run_build(rec, '-o', out)
     assert p.returncode == 0, p.stderr
@@ -211,7 +207,7 @@ def test_write_without_softdirty_is_all_writes(tmp_path):
     base = 0x7f0000000000
     smaps = {0: [(base, base + 8 * MB, '', 8192)]}
     rec = write_record(tmp_path / 'rec', smaps,
-                       snaps(0, 500, [(base, base + 8 * MB, 100.0)]), layout='v2')
+                       snaps(0, 500, [(base, base + 8 * MB, 100.0)]))
     out = tmp_path / 'p.txt'
     assert run_build(rec, '-o', out).returncode == 0
     prof = parse(out)
@@ -223,8 +219,7 @@ def test_pauses_are_taken_out_of_time(tmp_path):
     smaps = {0: [(base, base + 4 * MB, '', 1024)],
              3500: [(base, base + 8 * MB, '', 8192)]}         # active time 1500
     hot = [(base, base + 4 * MB, 100.0)]
-    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(3000, 4000, hot),
-                       layout='v2')
+    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(3000, 4000, hot))
     (rec / 'pauses.csv').write_text('ts_ms,pause_ms\n1000,2000\n')
     out = tmp_path / 'p.txt'
     assert run_build(rec, '-o', out).returncode == 0
@@ -233,7 +228,7 @@ def test_pauses_are_taken_out_of_time(tmp_path):
     assert prof['map'][-1][0] == (0 + 1500) // 2
 
 
-# ------------------------------------------------------------------ options, layouts
+# ------------------------------------------------------------------ options
 
 
 def test_epoch_ms_and_seed_options(record, tmp_path):
@@ -253,21 +248,10 @@ def test_unknown_estimator(record, tmp_path):
         assert 'nonsense' in p.stderr
 
 
-def test_v1_layout_gives_the_same_profile(tmp_path):
-    out1, out2 = tmp_path / 'p1.txt', tmp_path / 'p2.txt'
-    assert run_build(example_record(tmp_path / 'v1', 'v1'), '-o', out1).returncode == 0
-    assert run_build(example_record(tmp_path / 'v2', 'v2'), '-o', out2).returncode == 0
-    p1, p2 = parse(out1), parse(out2)
-    assert p1['meta'].pop('record') == '1' and p2['meta'].pop('record') == '2'
-    p1['meta'].pop('source'), p2['meta'].pop('source')
-    assert p1 == p2
-
-
 def test_record_without_damon(tmp_path):
     """No damon source: regions, lifetime and resident memory, no epochs."""
     base = 0x7f0000000000
-    rec = write_record(tmp_path / 'rec', {0: [(base, base + 8 * MB, '', 8192)]}, None,
-                       layout='v2')
+    rec = write_record(tmp_path / 'rec', {0: [(base, base + 8 * MB, '', 8192)]}, None)
     out = tmp_path / 'p.txt'
     p = run_build(rec, '-o', out)
     assert p.returncode == 0, p.stderr
@@ -281,16 +265,3 @@ def test_usage(tmp_path):
     assert run_build().returncode == 2
     p = run_build(tmp_path / 'nothing', '-o', tmp_path / 'p.txt')
     assert p.returncode != 0
-
-
-def test_real_example_v1(tmp_path):
-    out = tmp_path / 'p.txt'
-    p = run_build(EXAMPLE, '-o', out)
-    assert p.returncode == 0, p.stderr
-    prof = parse(out)
-    assert prof['meta']['record'] == '1'
-    # the 300 MB of bytearrays appear between the 975 and 1502 ms snapshots
-    big = [m for m in prof['map'] if m[3] >= 290 * MB]
-    assert len(big) == 1 and 975 <= big[0][0] <= 1502
-    freed = sum(u[3] for u in prof['unmap'] if 6352 <= u[0] <= 6879)
-    assert 180 * MB <= freed <= 200 * MB

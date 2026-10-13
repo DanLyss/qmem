@@ -2,7 +2,7 @@
  * qmem-replay: the profile in memory and the interfaces between the parts
  * (docs/skeleton.md, section 5):
  *
- *   loader.c      profile v2 (and v1) -> the tables below
+ *   loader.c      profile v2 -> the tables below
  *   memory.c      regions: reservation, map/unmap/populate, touching pages
  *   generators.c  which page of a range is touched next (gen_*.c)
  *   exec.c        who does the touches of a tick (one thread for now)

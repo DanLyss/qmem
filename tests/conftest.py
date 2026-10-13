@@ -19,7 +19,6 @@ SOFTDIRTY = ROOT / 'record' / 'qmem-softdirty'
 OVERHEAD = ROOT / 'tools' / 'measure-overhead.sh'
 REPLAY = ROOT / 'replay' / 'qmem-replay'
 BUILD = ROOT / 'builder' / 'qmem-build.py'
-EXAMPLE = ROOT / 'examples' / 'python_phases' / 'record'
 
 ACCESS_HEADER = 'snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age'
 SYSTEM_HEADER = ('ts_ms,MemFree,MemAvailable,Cached,SwapFree,'
@@ -95,7 +94,7 @@ def kill_matching(pattern):
 
 
 __all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'FIXED_WORK', 'RANDOM_ACCESS', 'SOFTDIRTY',
-           'OVERHEAD', 'REPLAY', 'BUILD', 'EXAMPLE', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER', 'PROC_HEADER',
+           'OVERHEAD', 'REPLAY', 'BUILD', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER', 'PROC_HEADER',
            'has_real_damon', 'has_tracefs', 'has_damo', 'run_record',
            'start_record', 'record_json', 'damo_calls', 'process_running', 'kill_matching',
            'signal']

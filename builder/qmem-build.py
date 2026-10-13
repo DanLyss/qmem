@@ -5,7 +5,7 @@ usage: qmem-build.py <record dir> -o <profile> [--epoch-ms 100] [--seed 42]
                      [--intensity passthrough] [--write softdirty]
                      [--timing roundrobin]
 
-readers (one per record source, record v1 or v2) -> model -> estimators
+readers (one per record source) -> model -> estimators
 -> writer. See docs/skeleton.md, section 3, and docs/formats/profile.md.
 Only anonymous memory is replayed; file mappings are counted and skipped.
 """
@@ -41,7 +41,7 @@ def main():
     model = Model(record, args.epoch_ms)
     choice = {k: getattr(args, k) for k in estimators.CHOOSABLE}
     prof = pf.Profile(meta={'source': '_'.join(record.name.split()) or 'record',
-                            'builder': 2, 'record': record.version, **choice,
+                            'builder': 2, **choice,
                             'epoch_ms': args.epoch_ms, 'seed': args.seed})
     for name in estimators.pipeline(choice):
         estimators.load(name).estimate(model, args, prof)

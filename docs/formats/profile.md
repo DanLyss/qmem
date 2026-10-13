@@ -49,7 +49,3 @@ counter t=1000 name=pmu.loads value=0
 | `threads=N`, N > 1 | Один поток; одно предупреждение |
 | `kind=file` | replay отказывается: `file regions are not supported yet` |
 | `counter` | Принимается и пропускается |
-
-## Версия 1
-
-Строки без ключей: `region <id> <size> [base]`, `map|unmap|populate <t> <region> <off> <len>`, `epoch <t>`, `access <region> <off> <len> <rate> <write>`; `epoch_ms` и `seed` — отдельные строки. В v1 `rate` — касаний **на весь участок** в секунду. replay читает и v1.

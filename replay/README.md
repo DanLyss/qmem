@@ -9,7 +9,7 @@
 | Файл | Часть | Что делает |
 | --- | --- | --- |
 | `profile.h` | — | Структуры profile и интерфейсы между частями |
-| `loader.c` | loader | Разбор profile v2 и v1; ошибки — код 2 и `profile:<строка>:` |
+| `loader.c` | loader | Разбор profile v2; ошибки — код 2 и `profile:<строка>:` |
 | `memory.c` | memory manager | Резерв регионов, map/unmap/populate, битовые карты, касание страницы |
 | `generators.c`, `gen_roundrobin.c`, `gen_random.c` | generators | Какая страница участка следующая |
 | `exec.c` | executors | Касания одного тика; один поток |
@@ -47,7 +47,6 @@ struct generator_ops {
 | `threads=N`, N > 1 | Один поток, одно предупреждение |
 | `kind=file` | Ошибка: `file regions are not supported yet` |
 | `counter` | Принимается, не используется |
-| profile v1 | Читается; `rate` в нём — на весь участок |
 
 ## Как пользоваться
 
@@ -63,5 +62,4 @@ Root не нужен. В конце в stderr печатается сводка:
 | --- | --- |
 | `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, доля записи (softdirty), populate, `--layout`, отдельные VMA |
 | `tests/test_replay_v2.py` | Правила совместимости и заглушки |
-| `tests/test_replay_v1.py` | Чтение profile v1 |
 | `tests/test_skeleton_e2e.py` | record → build → replay целиком (с настоящим DAMON — под root) |
