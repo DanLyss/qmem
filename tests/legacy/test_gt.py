@@ -10,7 +10,7 @@ import pytest
 
 from conftest import HOT_REGION, REPLAY, ROOT
 
-sys.path.insert(0, str(ROOT / 'verify'))
+sys.path.insert(0, str(ROOT / 'legacy' / 'verify'))
 from gt import compare, gt_metrics, page_sets, read_gt  # noqa: E402
 
 MB = 1 << 20

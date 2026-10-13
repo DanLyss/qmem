@@ -18,9 +18,12 @@ replay/qmem-replay: replay/replay.c common/qmem_gt.h
 	$(CC) $(CFLAGS) -o $@ $<
 
 test: all
-	python3 -m pytest -v tests
+	python3 -m pytest -v tests --ignore=tests/legacy
+
+test-legacy: all
+	python3 -m pytest -v tests/legacy
 
 clean:
 	rm -f $(WORKLOADS) $(TOOLS)
 
-.PHONY: all test clean
+.PHONY: all test test-legacy clean

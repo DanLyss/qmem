@@ -7,7 +7,7 @@ import pytest
 
 from conftest import HOT_REGION, ROOT, RW_SPLIT, has_real_damon
 
-CYCLE = ROOT / 'verify' / 'cycle.sh'
+CYCLE = ROOT / 'legacy' / 'verify' / 'cycle.sh'
 
 pytestmark = pytest.mark.skipif(not has_real_damon(),
                                 reason='needs root, DAMON sysfs and damo')
