@@ -1,4 +1,6 @@
-"""qmem-replay: P1 core, P2 timing and stats, P3 write ratio."""
+"""qmem-replay on profile v2: core, timing and stats, write share, populate,
+layout. The compatibility rules and the stubs are in test_replay_v2.py,
+profile v1 in test_replay_v1.py."""
 import re
 import subprocess
 import time
@@ -12,19 +14,33 @@ MB = 1 << 20
 
 
 def write_profile(path, body, epoch_ms=100, seed=None):
-    lines = ['qmem-profile 1', 'epoch_ms %d' % epoch_ms]
+    meta = 'meta epoch_ms=%d' % epoch_ms
     if seed is not None:
-        lines.append('seed %d' % seed)
-    path.write_text('\n'.join(lines + body) + '\n')
+        meta += ' seed=%d' % seed
+    path.write_text('\n'.join(['qmem-profile 2', meta] + body) + '\n')
     return path
 
 
-def epochs(t0, t1, step, accesses):
+def region(i, size, extra=''):
+    return ('region id=%d size=%d %s' % (i, size, extra)).rstrip()
+
+
+def ev(kind, t, r, off, length):
+    return '%s t=%d region=%d off=%d len=%d' % (kind, t, r, off, length)
+
+
+def access(r, off, length, rate, write=1.0, extra=''):
+    """rate: touches per page per second."""
+    return ('access region=%d off=%d len=%d rate=%s write=%s %s' % (
+        r, off, length, rate, write, extra)).rstrip()
+
+
+def epochs(t0, t1, step, accesses, dur=None):
     """Lines for epochs t0, t0+step, ... < t1, each with the same accesses."""
     out = []
     for t in range(t0, t1, step):
-        out.append('epoch %d' % t)
-        out.extend('access ' + a for a in accesses)
+        out.append('epoch t=%d' % t + ('' if dur is None else ' dur=%d' % dur))
+        out.extend(accesses)
     return out
 
 
@@ -38,23 +54,28 @@ def summary(stderr):
     return dict(re.findall(r'(\w+)=(\S+)', line))
 
 
+def stats_rows(path):
+    return [[int(x) for x in l.split(',')] for l in path.read_text().splitlines()[1:]]
+
+
 def rss_kb(pid):
     with open('/proc/%d/status' % pid) as f:
         return int(re.search(r'^VmRSS:\s+(\d+)', f.read(), re.M)[1])
 
 
-# ---------------------------------------------------------------- P1
+def whole(size, rate, write=1.0, extra=''):
+    return [region(0, size), ev('map', 0, 0, 0, size)], [access(0, 0, size, rate, write, extra)]
+
+
+# ---------------------------------------------------------------- core
 
 
 def test_touches_whole_region(tmp_path):
     size = 64 * MB
     pages = size // PAGE
-    # 5 touches per page on average over 2 s: more than 99 % of pages hit
-    rate = 5 * pages // 2
-    prof = write_profile(tmp_path / 'p.txt', ['region 0 %d' % size,
-                                              'map 0 0 0 %d' % size]
-                         + epochs(0, 2000, 100, ['0 0 %d %d 1.0' % (size, rate)]))
-    p = run_replay(prof)
+    # 5 touches per page over 2 s: more than 99 % of pages hit
+    head, acc = whole(size, 2.5)
+    p = run_replay(write_profile(tmp_path / 'p.txt', head + epochs(0, 2000, 100, acc)))
     assert p.returncode == 0, p.stderr
     s = summary(p.stderr)
     assert int(s['epochs']) == 20
@@ -64,11 +85,22 @@ def test_touches_whole_region(tmp_path):
     assert int(s['skipped']) == 0
 
 
+def test_rate_is_per_page(tmp_path):
+    """planned touches of an epoch = rate * pages * dur."""
+    size = 4 * MB
+    pages = size // PAGE
+    head, acc = whole(size, 2)
+    stats = tmp_path / 's.csv'
+    p = run_replay(write_profile(tmp_path / 'p.txt', head + epochs(0, 1000, 100, acc)),
+                   '--stats', stats)
+    assert p.returncode == 0, p.stderr
+    assert all(r[1] == 2 * pages // 10 for r in stats_rows(stats))
+
+
 def test_same_seed_same_sequence(tmp_path):
     size = 4 * MB
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
-        epochs(0, 300, 100, ['0 0 %d 20000 0.5' % size])
-    prof = write_profile(tmp_path / 'p.txt', body, seed=7)
+    head, acc = whole(size, 20, 0.5)
+    prof = write_profile(tmp_path / 'p.txt', head + epochs(0, 300, 100, acc), seed=7)
     a, b = run_replay(prof), run_replay(prof)
     c = run_replay(prof, '--seed', '8')
     assert a.returncode == b.returncode == c.returncode == 0
@@ -78,13 +110,10 @@ def test_same_seed_same_sequence(tmp_path):
 
 def test_unmap_frees_memory(tmp_path):
     size = 64 * MB
-    pages = size // PAGE
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size,
-            'unmap 1500 0 0 %d' % (size // 2)] + \
-        epochs(0, 2500, 100, ['0 0 %d %d 1.0' % (size, 10 * pages)])
-    prof = write_profile(tmp_path / 'p.txt', body)
-    proc = subprocess.Popen([str(REPLAY), str(prof)], stderr=subprocess.PIPE,
-                            text=True)
+    head, acc = whole(size, 10)
+    body = head + [ev('unmap', 1500, 0, 0, size // 2)] + epochs(0, 2500, 100, acc)
+    proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
+                            stderr=subprocess.PIPE, text=True)
     time.sleep(1.2)
     before = rss_kb(proc.pid)
     time.sleep(1.0)
@@ -98,11 +127,9 @@ def test_unmap_frees_memory(tmp_path):
 
 def test_partial_map(tmp_path):
     size = 32 * MB
-    pages = size // PAGE
     half = size // 2
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % half,
-            'map 1000 0 %d %d' % (half, half)] + \
-        epochs(0, 2000, 100, ['0 0 %d %d 1.0' % (size, 10 * pages)])
+    body = [region(0, size), ev('map', 0, 0, 0, half), ev('map', 1000, 0, half, half)] + \
+        epochs(0, 2000, 100, [access(0, 0, size, 10)])
     p = run_replay(write_profile(tmp_path / 'p.txt', body))
     assert p.returncode == 0, p.stderr
     s = summary(p.stderr)
@@ -110,42 +137,58 @@ def test_partial_map(tmp_path):
     assert int(s['maxrss_kb']) >= 0.9 * size / 1024
 
 
+H = ['qmem-profile 2', 'meta epoch_ms=100']
+R = H + ['region id=0 size=4096']
+E = R + ['epoch t=0']
+
+
 @pytest.mark.parametrize('body,line', [
-    (['region 0 4096'], 1),                                   # no header
-    (['qmem-profile 2', 'epoch_ms 100'], 1),                  # bad version
-    (['qmem-profile 1', 'epoch_ms 0'], 2),
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 x'], 3),
-    (['qmem-profile 1', 'epoch_ms 100', 'region 1 4096'], 3),  # ids from 0
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096',
-      'access 0 0 4096 10 1.0'], 4),                          # access before epoch
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'epoch 0',
-      'access 1 0 4096 10 1.0'], 5),                          # unknown region
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'epoch 0',
-      'access 0 0 8192 10 1.0'], 5),                          # past the end
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'epoch 0',
-      'access 0 0 4096 10 1.5'], 5),                          # write ratio > 1
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'epoch 100',
-      'epoch 0'], 5),                                         # time goes back
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'map 100 0 0 4096',
-      'map 0 0 0 4096'], 5),
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'map 0 0 1 4095'], 4),
-    (['qmem-profile 1', 'epoch_ms 100', 'region 0 4096', 'bogus 1'], 4),
+    (['region id=0 size=4096'], 1),                            # no header
+    (['qmem-profile 3'], 1),                                   # unknown version
+    (['qmem-profile 2', 'meta epoch_ms=0'], 2),
+    (H + ['region id=0 size=x'], 3),
+    (H + ['region id=1 size=4096'], 3),                        # ids from 0
+    (H + ['region id=0'], 3),                                  # no size
+    (H + ['region id=0 size=4096 kind=bogus'], 3),
+    (H + ['region id=0 size=4096 base=zz'], 3),
+    (R + ['access region=0 off=0 len=4096 rate=10'], 4),       # access before epoch
+    (E + ['access region=1 off=0 len=4096 rate=10'], 5),       # unknown region
+    (E + ['access region=0 off=0 len=8192 rate=10'], 5),       # past the end
+    (E + ['access region=0 off=0 len=4096 rate=10 write=1.5'], 5),
+    (E + ['access region=0 off=0 len=4096'], 5),               # no rate
+    (E + ['access region=0 off=0 len=4096 rate=10 pattern=bogus'], 5),
+    (R + ['epoch t=100', 'epoch t=0'], 5),                     # time goes back
+    (R + ['epoch t=0 dur=0'], 4),
+    (R + ['map t=100 region=0 off=0 len=4096', 'map t=0 region=0 off=0 len=4096'], 5),
+    (R + ['map t=0 region=0 off=1 len=4095'], 4),              # not page aligned
+    (R + ['populate t=0 region=0 off=0 len=8192'], 4),
 ])
 def test_rejects_bad_profile(tmp_path, body, line):
     prof = tmp_path / 'p.txt'
     prof.write_text('\n'.join(body) + '\n')
     p = run_replay(prof)
-    assert p.returncode == 2
+    assert p.returncode == 2, p.stderr
     assert 'profile:%d:' % line in p.stderr
 
 
 def test_comments_and_blank_lines(tmp_path):
     prof = tmp_path / 'p.txt'
-    prof.write_text('qmem-profile 1   # header\n\nepoch_ms 100\n'
-                    'region 0 4096\nmap 0 0 0 4096\n# nothing\n'
-                    'epoch 0\naccess 0 0 4096 100 1.0  # one page\n')
+    prof.write_text('qmem-profile 2   # header\n\nmeta epoch_ms=100\n'
+                    'region id=0 size=4096\nmap t=0 region=0 off=0 len=4096\n# nothing\n'
+                    'epoch t=0\naccess region=0 off=0 len=4096 rate=100  # one page\n')
     p = run_replay(prof)
     assert p.returncode == 0, p.stderr
+
+
+def test_defaults(tmp_path):
+    """No meta at all: epoch_ms 100; write 0; pattern roundrobin."""
+    prof = tmp_path / 'p.txt'
+    prof.write_text('qmem-profile 2\nregion id=0 size=4096\nmap t=0 region=0 off=0 len=4096\n'
+                    'epoch t=0\naccess region=0 off=0 len=4096 rate=100\n')
+    stats = tmp_path / 's.csv'
+    p = run_replay(prof, '--stats', stats)
+    assert p.returncode == 0, p.stderr
+    assert stats_rows(stats)[0][1] == 10
 
 
 def test_usage(tmp_path):
@@ -153,23 +196,22 @@ def test_usage(tmp_path):
     assert run_replay(tmp_path / 'missing.txt').returncode == 1
 
 
-# ---------------------------------------------------------------- P2
+# ---------------------------------------------------------------- timing and stats
 
 
 def test_stats_and_timing(tmp_path):
     size = 16 * MB
     pages = size // PAGE
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
-        epochs(0, 4000, 100, ['0 0 %d %d 1.0' % (size, 2 * pages)])
+    head, acc = whole(size, 2)
     stats = tmp_path / 'stats.csv'
     started = time.monotonic()
-    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--stats', stats)
+    p = run_replay(write_profile(tmp_path / 'p.txt', head + epochs(0, 4000, 100, acc)),
+                   '--stats', stats)
     wall = time.monotonic() - started
     assert p.returncode == 0, p.stderr
     assert 3.9 <= wall <= 4.6
-    lines = stats.read_text().splitlines()
-    assert lines[0] == 't_ms,planned,done,lag_ms'
-    rows = [[int(x) for x in l.split(',')] for l in lines[1:]]
+    assert stats.read_text().splitlines()[0] == 't_ms,planned,done,lag_ms'
+    rows = stats_rows(stats)
     assert [r[0] for r in rows] == list(range(0, 4000, 100))
     planned, done = sum(r[1] for r in rows), sum(r[2] for r in rows)
     assert planned == pytest.approx(2 * pages * 4, rel=0.01)
@@ -177,12 +219,25 @@ def test_stats_and_timing(tmp_path):
     assert max(r[3] for r in rows) < 50
 
 
+def test_epoch_dur(tmp_path):
+    """An epoch lasts dur ms: half the touches with dur=50, then a pause."""
+    size = 4 * MB
+    pages = size // PAGE
+    head, acc = whole(size, 10)
+    body = head + ['epoch t=0 dur=50'] + acc + ['epoch t=100'] + acc
+    stats = tmp_path / 's.csv'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--stats', stats)
+    assert p.returncode == 0, p.stderr
+    rows = stats_rows(stats)
+    assert rows[0][1] == 10 * pages // 20 and rows[1][1] == 10 * pages // 10
+    assert rows[0][2] == pytest.approx(rows[0][1], rel=0.02)
+
+
 def test_overload_does_not_drift(tmp_path):
     size = 64 * MB
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
-        epochs(0, 1000, 100, ['0 0 %d 2000000000 1.0' % size])
+    head, acc = whole(size, 200000)
     started = time.monotonic()
-    p = run_replay(write_profile(tmp_path / 'p.txt', body))
+    p = run_replay(write_profile(tmp_path / 'p.txt', head + epochs(0, 1000, 100, acc)))
     wall = time.monotonic() - started
     assert p.returncode == 0, p.stderr
     s = summary(p.stderr)
@@ -191,19 +246,13 @@ def test_overload_does_not_drift(tmp_path):
     assert int(s['lagged_ticks']) > 0
 
 
-# ---------------------------------------------------------------- P3
+# ---------------------------------------------------------------- write share
 
 
-def test_write_ratio_matches_softdirty(tmp_path):
-    size = 32 * MB
-    pages = size // PAGE
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
-        epochs(0, 500, 100, ['0 0 %d %d 1.0' % (size, 20 * pages)]) + \
-        epochs(500, 4500, 100, ['0 0 %d %d 0.25' % (size, 10 * pages)])
-    proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
-                            stderr=subprocess.PIPE, text=True)
+def softdirty_during(prof, after_s):
+    proc = subprocess.Popen([str(REPLAY), str(prof)], stderr=subprocess.PIPE, text=True)
     try:
-        time.sleep(0.8)
+        time.sleep(after_s)
         sd = subprocess.run([str(SOFTDIRTY), str(proc.pid), '1000',
                              str(int(time.time() * 1000))],
                             capture_output=True, text=True, timeout=30)
@@ -211,11 +260,34 @@ def test_write_ratio_matches_softdirty(tmp_path):
     finally:
         _, err = proc.communicate(timeout=30)
     assert proc.returncode == 0, err
-    rows = [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
+    return [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
+
+
+def test_write_ratio_matches_softdirty(tmp_path):
+    size = 32 * MB
+    pages = size // PAGE
+    head, _ = whole(size, 0)
+    body = head + epochs(0, 500, 100, [access(0, 0, size, 20)]) + \
+        epochs(500, 4500, 100, [access(0, 0, size, 10, 0.25)])
+    rows = softdirty_during(write_profile(tmp_path / 'p.txt', body), 0.8)
     big = [r for r in rows if r[3] >= 0.9 * pages]
     assert len(big) >= 2, rows
     for r in big:
         assert r[4] / r[3] == pytest.approx(0.25, abs=0.05)
+
+
+def test_every_page_hit_at_the_planned_rate(tmp_path):
+    """rate=1 must touch every page once a second with roundrobin (a random
+    choice would miss about 1/e of them)."""
+    size = 32 * MB
+    pages = size // PAGE
+    head, acc = whole(size, 1)
+    rows = softdirty_during(write_profile(tmp_path / 'p.txt', head + epochs(0, 4000, 100, acc)),
+                            1.2)
+    big = [r for r in rows if r[3] >= 0.9 * pages]
+    assert len(big) >= 2, rows
+    for r in big:
+        assert r[4] / r[3] >= 0.97, r
 
 
 # ---------------------------------------------------------------- populate
@@ -223,8 +295,8 @@ def test_write_ratio_matches_softdirty(tmp_path):
 
 def test_populate_makes_memory_resident(tmp_path):
     size = 32 * MB
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % (size // 2),
-            'populate 100 0 0 %d' % size, 'unmap 600 0 0 %d' % (size // 2)]
+    body = [region(0, size), ev('map', 0, 0, 0, size // 2), ev('populate', 100, 0, 0, size),
+            ev('unmap', 600, 0, 0, size // 2)]
     p = run_replay(write_profile(tmp_path / 'p.txt', body))
     assert p.returncode == 0, p.stderr
     s = summary(p.stderr)
@@ -235,45 +307,13 @@ def test_populate_makes_memory_resident(tmp_path):
     assert int(s['planned']) == 0
 
 
-def test_populate_is_validated(tmp_path):
-    prof = tmp_path / 'p.txt'
-    prof.write_text('qmem-profile 1\nepoch_ms 100\nregion 0 4096\n'
-                    'populate 0 0 0 8192\n')
-    p = run_replay(prof)
-    assert p.returncode == 2 and 'profile:4:' in p.stderr
-
-
-def test_every_page_hit_at_the_planned_rate(tmp_path):
-    """rate = pages per second must touch every page once a second (a random
-    choice would miss about 1/e of them), so DAMON sees the planned rate."""
-    size = 32 * MB
-    pages = size // PAGE
-    body = ['region 0 %d' % size, 'map 0 0 0 %d' % size] + \
-        epochs(0, 4000, 100, ['0 0 %d %d 1.0' % (size, pages)])
-    proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
-                            stderr=subprocess.PIPE, text=True)
-    try:
-        time.sleep(1.2)
-        sd = subprocess.run([str(SOFTDIRTY), str(proc.pid), '1000',
-                             str(int(time.time() * 1000))],
-                            capture_output=True, text=True, timeout=30)
-    finally:
-        _, err = proc.communicate(timeout=30)
-    assert proc.returncode == 0, err
-    rows = [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
-    big = [r for r in rows if r[3] >= 0.9 * pages]
-    assert len(big) >= 2, rows
-    for r in big:
-        assert r[4] / r[3] >= 0.97, r
-
-
-# ---------------------------------------------------------------- layout (verify V2)
+# ---------------------------------------------------------------- layout
 
 
 def test_layout_file(tmp_path):
-    body = ['region 0 %d 0x7f0000000000' % (4 * MB), 'region 1 %d' % (2 * MB),
-            'map 0 0 0 %d' % (4 * MB), 'map 0 1 0 %d' % (2 * MB)] + \
-        epochs(0, 300, 100, ['0 0 %d 1000 1.0' % (4 * MB)])
+    body = [region(0, 4 * MB, 'base=0x7f0000000000'), region(1, 2 * MB),
+            ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
+        epochs(0, 300, 100, [access(0, 0, 4 * MB, 1)])
     layout = tmp_path / 'layout.txt'
     before = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
     p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
@@ -290,20 +330,13 @@ def test_layout_file(tmp_path):
     assert all(b % PAGE == 0 for b in bases) and bases[0] != bases[1]
 
 
-def test_region_base_must_be_hex(tmp_path):
-    prof = tmp_path / 'p.txt'
-    prof.write_text('qmem-profile 1\nepoch_ms 100\nregion 0 4096 zz\n')
-    p = run_replay(prof)
-    assert p.returncode == 2 and 'profile:3:' in p.stderr
-
-
 def test_regions_stay_separate_mappings(tmp_path):
     """Regions are separate mappings in the original; adjacent reservations
     must not let the kernel merge them into one VMA."""
-    body = ['region %d %d' % (i, 8 * MB) for i in range(3)] + \
-        ['map 0 %d 0 %d' % (i, 8 * MB) for i in range(3)] + \
-        ['populate 0 %d 0 %d' % (i, 8 * MB) for i in range(3)] + \
-        epochs(0, 1000, 100, ['%d 0 %d 1000 1.0' % (i, 8 * MB) for i in range(3)])
+    body = [region(i, 8 * MB) for i in range(3)] + \
+        [ev('map', 0, i, 0, 8 * MB) for i in range(3)] + \
+        [ev('populate', 0, i, 0, 8 * MB) for i in range(3)] + \
+        epochs(0, 1000, 100, [access(i, 0, 8 * MB, 1) for i in range(3)])
     proc = subprocess.Popen([str(REPLAY), str(write_profile(tmp_path / 'p.txt', body))],
                             stderr=subprocess.PIPE, text=True)
     try:
