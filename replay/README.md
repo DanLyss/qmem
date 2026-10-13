@@ -1,6 +1,6 @@
 # qmem-replay: что сделано (каркас)
 
-2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 5 · формат profile: [docs/formats/profile.md](../docs/formats/profile.md) · итерация 1: [docs/modules/replay.md](../docs/modules/replay.md)
+2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 5 · формат profile: [docs/formats/profile.md](../docs/formats/profile.md)
 
 `qmem-replay` исполняет profile без приложения: выделяет и освобождает регионы по времени, заполняет резидентную память, касается страниц с заданной частотой тиками по 1 мс с абсолютными дедлайнами. Работа, которая не влезла в тик, отбрасывается, поэтому replay не уплывает по времени. Код итерации 1 разложен по частям каркаса.
 

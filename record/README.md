@@ -1,6 +1,6 @@
 # qmem-record: что сделано (каркас, record v2)
 
-2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 2 · формат записи: [docs/formats/record.md](../docs/formats/record.md) · итерация 1: [docs/modules/record.md](../docs/modules/record.md)
+2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 2 · формат записи: [docs/formats/record.md](../docs/formats/record.md)
 
 `qmem-record` записывает, как приложение нагружает память. Код итерации 1 разложен по каркасу: **driver** запускает приложение или подключается к нему, ведёт время записи (ts_ms, метки часов, паузы VM) и вызывает **источники**. Каждый источник пишет в свою подпапку и описывает себя в `record.json`.
 

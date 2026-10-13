@@ -22,15 +22,13 @@ replay/qmem-replay profile.txt --stats stats.csv                        # вос
 ### Документы
 
 - [docs/spec.md](docs/spec.md) — что такое Qmem и зачем
-- [docs/architecture.md](docs/architecture.md) — архитектура и общий план
-- [docs/skeleton.md](docs/skeleton.md) — каркас: модули, интерфейсы, заглушки, план
+- [docs/skeleton.md](docs/skeleton.md) — каркас: модули, интерфейсы, заглушки, план и что дальше
 - [docs/proposals/intensity.md](docs/proposals/intensity.md), [docs/proposals/pseudofrequency.md](docs/proposals/pseudofrequency.md) — интенсивность обращений и псевдочастота (на потом)
 
 ### Итерация 1 (история)
 
-- [docs/modules/record.md](docs/modules/record.md), [docs/modules/replay.md](docs/modules/replay.md), [docs/modules/verify.md](docs/modules/verify.md) — план и устройство итерации 1
 - verify, mkprofile, инструменты оценки и примеры экспериментов удалены; они есть в git до тега `skeleton-v0.1`
-- [examples/python_phases](examples/python_phases/README.md) — настоящая запись в старом формате (record v1); builder её читает
+- `examples/python_phases/` — настоящая запись в старом формате (record v1), на ней тесты проверяют чтение v1
 
 ## Тесты
 
