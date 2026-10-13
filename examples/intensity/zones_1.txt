@@ -1,8 +1,0 @@
-total 0x7dcc9b400000 0x7dcca1800000
-seed 1 zones 5 scale 1.000
-zone 0 pages 0-4498 uniform 24.6 Hz/page writes 100%
-zone 1 pages 4498-18794 window 34.7 Hz/page writes 30% window 4115 pages
-zone 2 pages 18794-20943 window 8939.7 Hz/page writes 0% window 524 pages
-zone 3 pages 20943-22495 stride 22.5 Hz/page writes 100% every 12
-zone 4 pages 22495-25600 bursts 1.9 Hz/page writes 0% period 2.50 s duty 55%
-Press Ctrl+C to stop

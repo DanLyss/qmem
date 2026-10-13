@@ -1,4 +1,0 @@
-           <...>-1217    [003] ..... 36302.275873: sys_brk(brk: 0x62e17f5d8000)
-           <...>-1217    [003] ..... 36302.275932: sys_brk -> 0x62e17f5d8000
-     qmem-replay-1217    [011] ..... 36303.365865: sys_mmap(addr: 0x7636f31de000, len: 0x21000, prot: 3, flags: 0x32, fd: 0xffffffff, off: 0)
-     qmem-replay-1217    [011] ..... 36303.365928: sys_mmap -> 0x7636f31de000

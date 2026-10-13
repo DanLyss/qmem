@@ -1,7 +1,0 @@
-total 0x7e42fc200000 0x7e4302600000
-seed 6 zones 4 scale 1.000
-zone 0 pages 0-13681 bursts 29.9 Hz/page writes 100% period 0.85 s duty 41%
-zone 1 pages 13681-13764 stride 384.1 Hz/page writes 0% every 8
-zone 2 pages 13764-19737 uniform 6.9 Hz/page writes 100%
-zone 3 pages 19737-25600 uniform 8.4 Hz/page writes 30%
-Press Ctrl+C to stop

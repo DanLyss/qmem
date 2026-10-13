@@ -29,13 +29,12 @@ replay/qmem-replay profile.txt --stats stats.csv                        # вос
 ### Итерация 1 (история)
 
 - [docs/modules/record.md](docs/modules/record.md), [docs/modules/replay.md](docs/modules/replay.md), [docs/modules/verify.md](docs/modules/verify.md) — план и устройство итерации 1
-- [legacy/](legacy/README.md) — verify, mkprofile и инструменты оценки, вне работы
-- Примеры в `examples/` записаны в старом формате (record v1, profile v1); builder и replay их читают
+- verify, mkprofile, инструменты оценки и примеры экспериментов удалены; они есть в git до тега `skeleton-v0.1`
+- [examples/python_phases](examples/python_phases/README.md) — настоящая запись в старом формате (record v1); builder её читает
 
 ## Тесты
 
 ```sh
 make test                 # без root: тесты с DAMON и tracefs пропускаются
 sudo make test            # с root и DAMON: все тесты
-make test-legacy          # тесты legacy/
 ```

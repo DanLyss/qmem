@@ -176,7 +176,7 @@ Estimator добавляет в `profile` свои строки (`lifecycle`, `r
 
 ```
 qmem-profile 2
-meta source=examples/cycle_demo/orig builder=0.2 intensity=passthrough
+meta source=rec1 builder=2 intensity=passthrough
 meta epoch_ms=100 seed=42
 
 region id=2 size=317898752 kind=anon base=0x74b7dfad4000
@@ -265,7 +265,7 @@ common/qmem_gt.h
 docs/formats/            # record.md, profile.md — описания форматов
 ```
 
-`verify`, `mkprofile` и инструменты оценки перенесены в `legacy/`: в работу сейчас не входят. `tools/measure-overhead.sh` остаётся.
+`verify`, `mkprofile`, инструменты оценки и примеры экспериментов удалены (есть в git до тега `skeleton-v0.1`). `tools/measure-overhead.sh` остаётся.
 
 ## 7. Заглушки
 

@@ -1,9 +1,0 @@
-total 0x729d73e00000 0x729d7a200000
-seed 2 zones 6 scale 1.000
-zone 0 pages 0-1239 stride 18.2 Hz/page writes 100% every 2
-zone 1 pages 1239-7128 hotset 7030.3 Hz/page writes 100% 73 hot pages
-zone 2 pages 7128-9053 bursts 7996.0 Hz/page writes 30% period 1.67 s duty 27%
-zone 3 pages 9053-15025 stride 26.0 Hz/page writes 0% every 9
-zone 4 pages 15025-22289 window 110.6 Hz/page writes 100% window 1679 pages
-zone 5 pages 22289-25600 window 37.7 Hz/page writes 100% window 375 pages
-Press Ctrl+C to stop

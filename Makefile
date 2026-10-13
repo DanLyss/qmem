@@ -20,12 +20,9 @@ replay/qmem-replay: $(REPLAY_SRC) replay/profile.h common/qmem_gt.h
 	$(CC) $(CFLAGS) -o $@ $(REPLAY_SRC)
 
 test: all
-	python3 -m pytest -v tests --ignore=tests/legacy
-
-test-legacy: all
-	python3 -m pytest -v tests/legacy
+	python3 -m pytest -v tests
 
 clean:
 	rm -f $(WORKLOADS) $(TOOLS)
 
-.PHONY: all test test-legacy clean
+.PHONY: all test clean

@@ -2,7 +2,7 @@
 
 2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 3 · формат profile: [docs/formats/profile.md](../docs/formats/profile.md)
 
-`qmem-build.py` строит profile v2 для replay из каталога записи. Он заменил `tools/mkprofile.py` (копия в `legacy/tools/`). Логика mkprofile стала первыми реализациями частей; там, где будут другие оценщики, стоят заглушки.
+`qmem-build.py` строит profile v2 для replay из каталога записи. Он заменил `tools/mkprofile.py`. Логика mkprofile стала первыми реализациями частей; там, где будут другие оценщики, стоят заглушки.
 
 ```
 readers  →  model  →  estimators  →  writer

@@ -1,2 +1,0 @@
-           <...>-23742   [005] ..... 34702.904655: sys_mmap(addr: 0x7a2d39017000, len: 0x21000, prot: 0, flags: 0x4032, fd: 0xffffffff, off: 0)
-     qmem-replay-23742   [005] ..... 34702.904706: sys_mmap -> 0x7a2d39017000
