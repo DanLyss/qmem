@@ -1,118 +1,72 @@
-# qmem-record: что сделано в итерации 1
+# qmem-record: что сделано (каркас, record v2)
 
-2026-10-09 · план и устройство: [docs/modules/record.md](../docs/modules/record.md)
+2026-10-13 · устройство: [docs/skeleton.md](../docs/skeleton.md), раздел 2 · формат записи: [docs/formats/record.md](../docs/formats/record.md) · итерация 1: [docs/modules/record.md](../docs/modules/record.md)
 
-`qmem-record` записывает, как приложение нагружает память. Паттерн обращений снимает DAMON через `damo`. Остальное снимает сам скрипт: карту памяти, состояние памяти системы, выделения памяти (tracefs) и долю записи (soft-dirty). Результат — каталог с простыми CSV и текстовыми файлами. Из него следующий модуль (`qmem-profile`) будет строить profile для replay.
+`qmem-record` записывает, как приложение нагружает память. Код итерации 1 разложен по каркасу: **driver** запускает приложение или подключается к нему, ведёт время записи (ts_ms, метки часов, паузы VM) и вызывает **источники**. Каждый источник пишет в свою подпапку и описывает себя в `record.json`.
 
-Сделаны все шаги плана, R1–R7. Всё проверено под root с настоящими DAMON и tracefs на WSL2 (ядро 6.18, damo 3.3.0).
+Проверено под root с настоящими DAMON и tracefs на WSL2 (ядро 6.18, damo 3.3.0).
 
 ## Что лежит в репозитории
 
 | Файл | Что это |
 | --- | --- |
-| `record/qmem-record.sh` | Основной скрипт (bash) |
-| `record/softdirty.c` → `qmem-softdirty` | Помощник на C: сколько страниц каждого отображения записано за период |
-| `tools/measure-overhead.sh` | Замер накладных расходов записи |
-| `workloads/hot_region.c` | Тестовая нагрузка: один горячий участок в большом отображении |
-| `workloads/rw_split.c` | Тестовая нагрузка: в одну область пишет, другую только читает |
-| `workloads/fixed_work.c` | Тестовая нагрузка с фиксированным объёмом работы, для замеров времени |
-| `tests/` | Тесты на pytest, фейковый damo, генератор тестового `damon.data` |
+| `record/qmem-record.sh` | Driver: опции, запуск/подключение, цикл тиков, остановка, `record.json` |
+| `record/lib.sh` | Общее для driver и источников: сообщения, JSON, часы (метки `clock.csv`, паузы `pauses.csv`) |
+| `record/sources/<имя>.sh` | Источники, по файлу на источник |
+| `record/softdirty.c` → `qmem-softdirty` | Помощник источника softdirty |
 
-Сборка: `make` (нагрузки и `qmem-softdirty`).
+## Источники
+
+| Источник | Файлы | Что пишет | Статус |
+| --- | --- | --- | --- |
+| `damon` | `damon/access.csv`, `damon/damon.data` | Псевдочастоты регионов DAMON (через `damo`) | есть |
+| `smaps` | `smaps/<ts_ms>.txt` | Копии `/proc/<pid>/smaps` | есть |
+| `proc` | `proc/proc.csv` | minflt, majflt, RSS процесса | есть |
+| `system` | `system/system.csv` | meminfo, PSI, vmstat | есть |
+| `softdirty` | `softdirty/writes.csv` | Записанные страницы по отображениям (только с `-w`) | есть |
+| `syscalls` | `syscalls/syscalls.txt` | mmap/munmap/brk/mremap/madvise (tracefs) | есть |
+| `pmu_count` | — | Общее число обращений (perf) | **заглушка** |
+| `pmu_sample` | — | Выборка адресов (PEBS/SPE) | **заглушка** |
+
+Статус каждого источника пишется в `record.json`: `ok`, `off` (выключен), `unavailable` (здесь не работает, с причиной) или `stub`. Заглушки PMU проверяют, есть ли аппаратные счётчики. Без них (WSL) статус — `unavailable`, с ними — `stub`: пока ничего не записывается.
+
+### Интерфейс источника
+
+Источник `X` — файл `sources/X.sh` с функциями:
+
+| Функция | Когда | Что делает |
+| --- | --- | --- |
+| `src_X_check` | до старта | 0 — может работать; 3 — заглушка; иначе недоступен, причина в `SRC_REASON` |
+| `src_X_start <pid>` | после запуска приложения | Начать запись; ошибка → источник `unavailable` |
+| `src_X_tick <ts_ms>` | каждые `-i` мс | Снимок (только smaps, proc, system); 1 от smaps — приложение завершилось |
+| `src_X_stop` | при остановке | Остановить фоновые процессы |
+| `src_X_finish` | после закрытия часов | Довести файлы (damon: `access.csv` по меткам часов) |
+| `src_X_manifest` | в конце | Поля источника для `record.json`: `version`, `files`, параметры |
+
+Новый источник — новый файл и его имя в `ALL_SOURCES` в driver.
 
 ## Как пользоваться
 
 ```sh
-# запустить приложение и записать, пока оно не завершится (или до Ctrl+C)
-sudo record/qmem-record.sh -o out -- ./my_app --flag
-
-# подключиться к работающему процессу на 30 с, с замером доли записи раз в 5 с
-sudo record/qmem-record.sh -o out -p 1234 -d 30 -w 5000
-
-# свои параметры DAMON
-sudo record/qmem-record.sh -o out -D "--monitoring_intervals 5ms 100ms 1s" -- ./my_app
-
-# пересобрать access.csv из уже записанного damon.data
-record/qmem-record.sh --normalize out
+sudo record/qmem-record.sh -o out -- ./my_app --flag           # все источники
+sudo record/qmem-record.sh -o out -p 1234 -d 30 -w 5000        # подключиться на 30 с, с softdirty
+sudo record/qmem-record.sh -o out --sources smaps,proc -- ./my_app   # только часть источников
+record/qmem-record.sh --normalize out                          # пересобрать damon/access.csv
 ```
 
 | Опция | Значение |
 | --- | --- |
-| `-o <dir>` | Каталог для результата: пустой или несуществующий |
-| `-i <ms>` | Период снимков smaps и `system.csv`, по умолчанию 1000 |
-| `-w <ms>` | Период замера доли записи (soft-dirty). По умолчанию выключен: замер дорогой |
-| `-p <pid>` | Подключиться к процессу вместо запуска. При остановке процесс не трогаем |
-| `-d <s>` | Остановить запись через N секунд |
-| `-D "<options>"` | Дополнительные опции для `damo record` |
-| `--no-syscalls` | Не трассировать выделения |
+| `-o <dir>` | Каталог записи (пустой или несуществующий) |
+| `-i <ms>` | Период снимков smaps, proc, system (по умолчанию 1000) |
+| `-w <ms>` | Включить softdirty с этим периодом |
+| `-p <pid>` | Подключиться к процессу вместо запуска |
+| `-d <s>` | Остановить через `<s>` секунд |
+| `-D "<опции>"` | Дополнительные опции `damo record` |
+| `--no-syscalls` | Выключить источник syscalls |
+| `--sources <список>` | Включить только эти источники; неизвестное имя — ошибка (код 2) |
 
-Запись заканчивается, когда приложение завершилось, истекло `-d` или пришёл Ctrl+C. Запущенное скриптом приложение при остановке получает SIGTERM.
-
-Нужны: Linux с DAMON (`CONFIG_DAMON_VADDR`, `CONFIG_DAMON_SYSFS`), tracefs с syscall-событиями, `CONFIG_MEM_SOFT_DIRTY`, `damo` и root. Если tracefs недоступен, скрипт предупреждает и пишет без `syscalls.txt`.
-
-## Что получается на выходе
-
-| Файл | Содержимое | Откуда |
-| --- | --- | --- |
-| `access.csv` | `snapshot_start_ns, snapshot_end_ns, start, end, access_rate, access_hz, age` — регионы DAMON и частота обращений к ним по снимкам | `damo record` → `damo report access` |
-| `smaps/<ts_ms>.txt` | Снимки `/proc/<pid>/smaps`: тип отображений и RSS | скрипт |
-| `system.csv` | `ts_ms`, MemFree, MemAvailable, Cached, SwapFree (кБ), PSI some/full avg10, pgfault, pgmajfault, pswpin, pswpout | скрипт |
-| `proc.csv` | `ts_ms, minflt, majflt, rss_kb` — счётчики page faults самого приложения с его старта (включая faults до первого снимка) и его RSS | скрипт, `/proc/<pid>/stat` |
-| `clock.csv` | `local_s, ts_ms` — метки синхронизации: часы, которыми damo ставит время снимков, против ts_ms записи. По ним `access.csv` переводится в шкалу записи | скрипт, tracefs |
-| `syscalls.txt` | Сырые события tracefs: mmap, munmap, brk, mremap, madvise приложения, его потоков и детей | tracefs |
-| `writes.csv` | `ts_ms, start, end, present_pages, dirty_pages, rewritten_pages` по отображениям, если задан `-w`; `rewritten_pages` — лишние faults, которые вызвал сам замер | `qmem-softdirty` |
-| `meta.json` | Режим, команда, pid и `kernel_pid`, версия и опции damo, ядро, время, `start_uptime`, интервалы, причина остановки, потери событий tracefs | скрипт |
-| `damon.data`, `damon.data.kdamonds` | Внутренние файлы damo. Qmem их напрямую не читает | damo |
-
-Все `ts_ms` отсчитываются от старта записи. События tracefs идут по часам `boot` и совмещаются с остальным через `start_uptime`.
+Без источника `damon` приложение запускает сам driver.
 
 ## Тесты
 
-```sh
-make test         # без root: 36 проходят, 3 пропускаются
-sudo make test    # с root, DAMON и tracefs: 39 из 39
-```
-
-| Файл | Что проверяет | Нужен root |
-| --- | --- | --- |
-| `test_record_cli.py` | Аргументы, вызов damo, снимки smaps, `meta.json`, экранирование команды, остановка по Ctrl+C | нет (фейковый damo) |
-| `test_record_normalize.py` | `access.csv`, `--normalize`; настоящий `damo report` на тестовом `damon.data` | нет |
-| `test_record_syscalls.py` | Работа без tracefs, `--no-syscalls`; mmap тестовой нагрузки виден в трассе с pid ядра | для одного теста |
-| `test_record_system.py` | `system.csv` (рост pgfault на 64 МБ записи), опции `-D` | нет |
-| `test_record_attach.py` | `-p`, `-d`, причина остановки, ошибки | нет |
-| `test_softdirty.py` | `qmem-softdirty` отличает запись от чтения на `rw_split`, `-w` в скрипте | нет |
-| `test_overhead.py` | `measure-overhead.sh` | нет |
-| `test_record_integration.py` | Сквозной тест с настоящим DAMON: горячий участок `hot_region` горячее остального и лежит в анонимном отображении; понятная ошибка на слишком короткой команде | да |
-| `test_workload.py` | Тестовые нагрузки | нет |
-
-Тесты для каждой группы шагов коммитились до кода.
-
-Вручную под root проверено ещё:
-- `rw_split` со всеми функциями сразу: область A записана целиком (16384 из 16384 страниц), в B не записано ни одной;
-- `-p -d 4` с настоящим damo: запись остановилась через 4 с, процесс продолжил работать.
-
-## Накладные расходы
-
-Подробно — в [docs/modules/record.md](../docs/modules/record.md#накладные-расходы-r7). Коротко, с настоящим DAMON:
-
-- **фиксированная цена записи** — около 1 с, с трассировкой около 1.4 с. Это запуск damo и обработка после записи; приложение это почти не замедляет;
-- **само приложение** под DAMON замедляется на несколько процентов (`fixed_work` длиной 5.9 с: +0.2–0.3 с сверх фиксированной цены);
-- **снимки smaps и `system.csv`** почти бесплатны;
-- **soft-dirty** дорогой при коротком периоде: каждая запись после сброса даёт лишний page fault. Период стоит брать в несколько секунд.
-
-## Что нашли и исправили по ходу
-
-| Проблема | Как нашли | Исправление |
-| --- | --- | --- |
-| Скрипт замечал завершение приложения только на следующем снимке (+0.9 с при `-i 1000`) | замер R7 | Живость процесса проверяется каждые ≤100 мс |
-| В WSL и контейнерах `set_event_pid` не ловил ничего: tracefs работает с pid ядра, а не с pid внутри namespace | тест под root | pid ядра берётся из события `signal_generate` на безвредном SIGCONT |
-| На слишком короткой команде damo падает и не пишет запись | замер под root | Понятная ошибка |
-| Соседние анонимные mmap ядро сливает в одну VMA, и soft-dirty считался сразу по двум областям | тест R6 | В `rw_split` области разделены страницей-барьером. Учесть в profile: `writes.csv` — по VMA, а не по регионам DAMON |
-
-## Ограничения и что дальше
-
-- **Первые доли секунды не попадают в запись.** Приложение запускает damo, а трассировка и DAMON включаются после этого. Решение — затвор перед `exec` приложения.
-- **Не различаются чтение и запись внутри VMA.** `writes.csv` даёт долю записи по отображению целиком. Альтернатива — экспериментальный режим DAMON `--exp_ops_write_only`.
-- **smaps снимается только для основного процесса,** дочерние процессы в снимки не попадают.
-- **Нужны bash, Python и damo.** Для HMOS понадобится свой бинарник на C.
-- **Следующий модуль — `qmem-profile`:** строит profile из `access.csv`, smaps и `writes.csv`.
+`tests/test_record_*.py`, `tests/test_softdirty.py`: раскладка v2 и `record.json`, `--sources`, заглушки PMU, режимы запуска и подключения, остановка (выход, `-d`, Ctrl+C), метки часов и паузы, tracefs. Тесты с настоящими DAMON и tracefs идут под root (`sudo make test`).

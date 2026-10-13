@@ -111,7 +111,7 @@ flowchart LR
     "damon":  {"version": 1, "files": ["damon/access.csv"], "time_base": "record",
                "options": "..."},
     "smaps":  {"version": 1, "files": ["smaps/"], "interval_ms": 500},
-    "pmu-count": {"version": 0, "status": "unavailable", "reason": "no PMU"}
+    "pmu_count": {"status": "unavailable", "reason": "no hardware PMU"}
   }
 }
 ```
@@ -265,7 +265,7 @@ common/qmem_gt.h
 docs/formats/            # record.md, profile.md — описания форматов
 ```
 
-`verify/` и `tools/` остаются как есть: в работу сейчас не входят.
+`verify`, `mkprofile` и инструменты оценки перенесены в `legacy/`: в работу сейчас не входят. `tools/measure-overhead.sh` остаётся.
 
 ## 7. Заглушки
 

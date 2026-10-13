@@ -2,43 +2,40 @@
 
 Запись нагрузки приложения на память и её воспроизведение без приложения — с теми же побочными эффектами в ядре (page faults, LRU, swap, файловый кэш).
 
+Сейчас идёт работа над **каркасом**: архитектурные шаблоны модулей, форматы и заглушки ([docs/skeleton.md](docs/skeleton.md)). Метрики и точность в этой работе не рассматриваются.
+
+| Модуль | Что сделано | Формат |
+| --- | --- | --- |
+| record — запись | [record/README.md](record/README.md) | [record v2](docs/formats/record.md) |
+| builder — сборка profile | [builder/README.md](builder/README.md) | — |
+| replay — воспроизведение | [replay/README.md](replay/README.md) | [profile v2](docs/formats/profile.md) |
+
+```sh
+make
+sudo record/qmem-record.sh -o out -- ./workloads/hot_region 256 16 10   # записать
+builder/qmem-build.py out -o profile.txt                                # собрать profile
+replay/qmem-replay profile.txt --stats stats.csv                        # воспроизвести
+```
+
+Для записи нужны Linux с DAMON (`CONFIG_DAMON_VADDR`, `CONFIG_DAMON_SYSFS`), [damo](https://github.com/damonitor/damo) и root.
+
+### Документы
+
 - [docs/spec.md](docs/spec.md) — что такое Qmem и зачем
 - [docs/architecture.md](docs/architecture.md) — архитектура и общий план
-- [docs/modules/record.md](docs/modules/record.md) — qmem-record, итерация 1 ([что сделано](record/README.md))
-- [docs/modules/replay.md](docs/modules/replay.md) — qmem-replay, итерация 1 ([что сделано](replay/README.md))
-- [examples/python_phases](examples/python_phases/README.md) — пример настоящей записи
-- [examples/cycle_demo](examples/cycle_demo/README.md) — полный цикл record → replay → verify и как читать каждый файл
-- [docs/proposals/intensity.md](docs/proposals/intensity.md) — интенсивность обращений: исследование, предложение, открытые вопросы (начинать отсюда)
-- [examples/mixed](examples/mixed/README.md) — смесь пяти паттернов на 100 МБ, ~10 Гц на страницу: точные страницы по зонам
-- [examples/gt](examples/gt/README.md) — точность по точным страницам (ground truth) на четырёх синтетических нагрузках
-- [examples/moving_window](examples/moving_window/README.md) — скользящее горячее окно: карта оригинала и replay рядом
-- [examples/random_access](examples/random_access/README.md) — случайный доступ на 32 МБ с детальными метриками и базовой линией шума
+- [docs/skeleton.md](docs/skeleton.md) — каркас: модули, интерфейсы, заглушки, план
+- [docs/proposals/intensity.md](docs/proposals/intensity.md), [docs/proposals/pseudofrequency.md](docs/proposals/pseudofrequency.md) — интенсивность обращений и псевдочастота (на потом)
 
-## Итерация 1: qmem-record
+### Итерация 1 (история)
 
-```sh
-make                                                    # нагрузки и qmem-softdirty
-sudo record/qmem-record.sh -o out -- ./workloads/hot_region 256 16 10
-sudo record/qmem-record.sh -o out2 -p <pid> -d 30 -w 5000  # подключиться на 30 с, с долей записи
-record/qmem-record.sh --normalize out                   # пересобрать access.csv из damon.data
-tools/measure-overhead.sh -n 5 -- ./workloads/fixed_work 512 600
-```
-
-Опции и формат результата — в [docs/modules/record.md](docs/modules/record.md).
-
-Нужны Linux с DAMON (`CONFIG_DAMON_VADDR`, `CONFIG_DAMON_SYSFS`), [damo](https://github.com/damonitor/damo) и root.
-
-## Итерация 1: qmem-replay
-
-```sh
-tools/mkprofile.py out -o profile.txt                   # profile из записи
-sudo record/qmem-record.sh -o again -- replay/qmem-replay profile.txt
-verify/qmem-verify.py out again --check                 # насколько replay похож на оригинал (см. docs/modules/verify.md)
-```
+- [docs/modules/record.md](docs/modules/record.md), [docs/modules/replay.md](docs/modules/replay.md), [docs/modules/verify.md](docs/modules/verify.md) — план и устройство итерации 1
+- [legacy/](legacy/README.md) — verify, mkprofile и инструменты оценки, вне работы
+- Примеры в `examples/` записаны в старом формате (record v1, profile v1); builder и replay их читают
 
 ## Тесты
 
 ```sh
-make test                 # без root: интеграционный тест пропускается
+make test                 # без root: тесты с DAMON и tracefs пропускаются
 sudo make test            # с root и DAMON: все тесты
+make test-legacy          # тесты legacy/
 ```
