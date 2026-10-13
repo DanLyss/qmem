@@ -14,8 +14,10 @@ workloads/%: workloads/%.c common/qmem_gt.h
 record/qmem-softdirty: record/softdirty.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-replay/qmem-replay: replay/replay.c common/qmem_gt.h
-	$(CC) $(CFLAGS) -o $@ $<
+REPLAY_SRC := $(wildcard replay/*.c)
+
+replay/qmem-replay: $(REPLAY_SRC) replay/profile.h common/qmem_gt.h
+	$(CC) $(CFLAGS) -o $@ $(REPLAY_SRC)
 
 test: all
 	python3 -m pytest -v tests --ignore=tests/legacy

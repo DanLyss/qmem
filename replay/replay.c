@@ -1,173 +1,30 @@
 /*
- * qmem-replay: replay a memory access profile (iteration 1).
+ * qmem-replay: replay a memory access profile (docs/formats/profile.md).
  *
- * Reads a text profile (docs/modules/replay.md), maps, unmaps and populates
- * parts of anonymous regions on its timeline and touches their pages at the given
- * rates (walking each range round robin) in 1 ms ticks on absolute deadlines. Work that does not fit into
- * its tick is dropped, not queued, so the replay never drifts.
+ * This file is the scheduler: 1 ms ticks on absolute deadlines, map, unmap
+ * and populate events on the profile's timeline, epochs and their touches.
+ * Work that does not fit into its tick is dropped, not queued, so the
+ * replay never drifts. The other parts are listed in profile.h.
  *
- * usage: qmem-replay <profile.txt> [--seed N] [--stats <file>] [--layout <file>]
+ * usage: qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <inttypes.h>
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "qmem_gt.h"
+#include "profile.h"
 
-struct region {
-	uint64_t size, npages;
-	uint8_t *base;		/* reserved on the first map */
-	uint8_t *mapped;	/* bitmap: page is mapped */
-	uint8_t *touched;	/* bitmap: page was touched since it was mapped */
-};
-
-enum { UNMAP, MAP, POPULATE };
-
-struct event {
-	uint64_t t_ms;
-	int kind;		/* UNMAP, MAP or POPULATE */
-	uint32_t region;
-	uint64_t off, len;
-};
-
-struct access {
-	uint32_t region;
-	uint64_t off, len;
-	double rate;		/* page touches per second */
-	double write_ratio;
-	double carry;		/* fractional touches left from the last tick */
-	uint64_t cursor;	/* next page to touch, relative to the range */
-	int64_t prev;		/* same range in the previous epoch, or -1 */
-};
-
-struct epoch {
-	uint64_t t_ms;
-	uint32_t first, n;	/* range in accesses[] */
-	uint64_t planned, done;
-	double max_lag_ms;
-};
-
-static struct region *regions;
-static struct event *events;
-static struct access *accesses;
-static struct epoch *epochs;
-static uint32_t n_regions, n_events, n_accesses, n_epochs;
-static uint64_t epoch_ms, seed = 42;
-static long page;
-
-static uint64_t rng;
-static uint64_t planned, done, skipped, checksum, lagged_ticks, populated;
+long page;
+uint64_t planned, done, skipped, checksum, populated;
+static uint64_t lagged_ticks;
 static double max_lag_ms;
-
-/* ------------------------------------------------------------ helpers */
-
-static void *grow(void *p, uint32_t n, size_t size)
-{
-	/* double the capacity at powers of two */
-	if (n & (n - 1))
-		return p;
-	p = realloc(p, (n ? 2 * (size_t)n : 1) * size);
-	if (!p) {
-		perror("realloc");
-		exit(1);
-	}
-	return p;
-}
-
-static int line_no;
-
-static void bad(const char *fmt, ...)
-{
-	va_list ap;
-
-	fprintf(stderr, "profile:%d: ", line_no);
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	fputc('\n', stderr);
-	exit(2);
-}
-
-static uint64_t num(const char *s)
-{
-	char *end;
-	uint64_t v;
-
-	if (!s || *s == '-')
-		bad("expected a number");
-	errno = 0;
-	v = strtoull(s, &end, 10);
-	if (errno || *end || end == s)
-		bad("bad number '%s'", s);
-	return v;
-}
-
-static double real(const char *s)
-{
-	char *end;
-	double v;
-
-	if (!s)
-		bad("expected a number");
-	errno = 0;
-	v = strtod(s, &end);
-	if (errno || *end || end == s || v < 0)
-		bad("bad number '%s'", s);
-	return v;
-}
-
-static int bit(const uint8_t *map, uint64_t i)
-{
-	return map[i / 8] >> (i % 8) & 1;
-}
-
-static void set_bits(uint8_t *map, uint64_t from, uint64_t n, int v)
-{
-	for (uint64_t i = from; i < from + n; i++) {
-		if (v)
-			map[i / 8] |= 1 << (i % 8);
-		else
-			map[i / 8] &= ~(1 << (i % 8));
-	}
-}
-
-static uint64_t next_rand(void)
-{
-	/* xorshift64* */
-	rng ^= rng >> 12;
-	rng ^= rng << 25;
-	rng ^= rng >> 27;
-	return rng * 0x2545F4914F6CDD1DULL;
-}
-
-/* A fixed pseudo-random fraction in [0, 1) for each page of each region. */
-static double page_fraction(uint32_t region, uint64_t p)
-{
-	/* splitmix64 */
-	uint64_t z = ((uint64_t)region << 40 ^ p) + 0x9E3779B97F4A7C15ULL;
-
-	z = (z ^ z >> 30) * 0xBF58476D1CE4E5B9ULL;
-	z = (z ^ z >> 27) * 0x94D049BB133111EBULL;
-	z ^= z >> 31;
-	return (z >> 11) * 0x1.0p-53;
-}
-
-static uint64_t now_ns(void)
-{
-	struct timespec ts;
-
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-}
 
 static void sleep_until(uint64_t ns)
 {
@@ -178,129 +35,12 @@ static void sleep_until(uint64_t ns)
 		;
 }
 
-/* ------------------------------------------------------------ profile */
-
-static void check_range(uint32_t r, uint64_t off, uint64_t len, int aligned)
-{
-	if (r >= n_regions)
-		bad("unknown region %" PRIu32, r);
-	if (len == 0 || off + len < off || off + len > regions[r].size)
-		bad("range %" PRIu64 "+%" PRIu64 " outside region %" PRIu32, off, len, r);
-	if (aligned && (off % page || len % page))
-		bad("range %" PRIu64 "+%" PRIu64 " is not page aligned", off, len);
-}
-
-static void load(const char *path)
-{
-	FILE *f = fopen(path, "r");
-	char *line = NULL;
-	size_t cap = 0;
-	int header = 0;
-	uint64_t last_event = 0, last_epoch = 0;
-
-	if (!f) {
-		perror(path);
-		exit(1);
-	}
-	while (getline(&line, &cap, f) >= 0) {
-		char *tok[8], *save, *hash = strchr(line, '#');
-		int n = 0;
-
-		line_no++;
-		if (hash)
-			*hash = 0;
-		for (char *t = strtok_r(line, " \t\r\n", &save); t && n < 8;
-		     t = strtok_r(NULL, " \t\r\n", &save))
-			tok[n++] = t;
-		if (n == 0)
-			continue;
-		for (int i = n; i < 8; i++)
-			tok[i] = NULL;
-
-		if (!header) {
-			if (strcmp(tok[0], "qmem-profile") || !tok[1] || strcmp(tok[1], "1"))
-				bad("expected 'qmem-profile 1'");
-			header = 1;
-		} else if (!strcmp(tok[0], "epoch_ms")) {
-			epoch_ms = num(tok[1]);
-			if (epoch_ms == 0)
-				bad("epoch_ms must be positive");
-		} else if (!strcmp(tok[0], "seed")) {
-			seed = num(tok[1]);
-		} else if (!strcmp(tok[0], "region")) {
-			uint64_t id = num(tok[1]), size = num(tok[2]);
-
-			if (id != n_regions)
-				bad("regions must be numbered 0, 1, ... in order");
-			if (size == 0)
-				bad("empty region");
-			/* optional base in the original record, for verify only */
-			if (tok[3] && (strncmp(tok[3], "0x", 2) || !tok[3][2] ||
-				       tok[3][2 + strspn(tok[3] + 2, "0123456789abcdefABCDEF")]))
-				bad("bad region base '%s'", tok[3]);
-			regions = grow(regions, n_regions, sizeof(*regions));
-			regions[n_regions++] = (struct region){
-				.size = size, .npages = (size + page - 1) / page };
-		} else if (!strcmp(tok[0], "map") || !strcmp(tok[0], "unmap") ||
-			   !strcmp(tok[0], "populate")) {
-			struct event e = { .t_ms = num(tok[1]),
-					   .kind = tok[0][0] == 'm' ? MAP :
-						   tok[0][0] == 'u' ? UNMAP : POPULATE,
-					   .region = num(tok[2]), .off = num(tok[3]),
-					   .len = num(tok[4]) };
-
-			check_range(e.region, e.off, e.len, 1);
-			if (e.t_ms < last_event)
-				bad("map/unmap/populate times must not go back");
-			last_event = e.t_ms;
-			events = grow(events, n_events, sizeof(*events));
-			events[n_events++] = e;
-		} else if (!strcmp(tok[0], "epoch")) {
-			uint64_t t = num(tok[1]);
-
-			if (!epoch_ms)
-				bad("epoch before epoch_ms");
-			if (n_epochs && t <= last_epoch)
-				bad("epoch times must grow");
-			last_epoch = t;
-			epochs = grow(epochs, n_epochs, sizeof(*epochs));
-			epochs[n_epochs++] = (struct epoch){ .t_ms = t, .first = n_accesses };
-		} else if (!strcmp(tok[0], "access")) {
-			struct access a = { .region = num(tok[1]), .off = num(tok[2]),
-					    .len = num(tok[3]), .rate = real(tok[4]),
-					    .write_ratio = real(tok[5]), .prev = -1 };
-
-			if (!n_epochs)
-				bad("access before the first epoch");
-			check_range(a.region, a.off, a.len, 0);
-			if (a.write_ratio > 1)
-				bad("write ratio above 1");
-			accesses = grow(accesses, n_accesses, sizeof(*accesses));
-			accesses[n_accesses++] = a;
-			epochs[n_epochs - 1].n++;
-		} else {
-			bad("unknown keyword '%s'", tok[0]);
-		}
-	}
-	free(line);
-	fclose(f);
-	if (!header)
-		bad("empty profile");
-	if (!epoch_ms)
-		bad("missing epoch_ms");
-}
-
-/* ------------------------------------------------------------ replay */
-
-static uint64_t range_pages(const struct access *a)
-{
-	return (a->off + a->len - 1) / page - a->off / page + 1;
-}
-
+/* Generator state at load time; prev links a range to the same range (with
+ * the same generator) in the previous epoch. */
 static void prepare(void)
 {
-	/* a range walks on from where the same range stopped in the previous
-	 * epoch; a new range starts at a random page */
+	uint64_t rng = seed ? seed : 1;
+
 	for (uint32_t i = 0; i < n_epochs; i++) {
 		struct epoch *e = &epochs[i], *pe = i ? &epochs[i - 1] : NULL;
 
@@ -308,118 +48,17 @@ static void prepare(void)
 			struct access *a = &accesses[j];
 
 			for (uint32_t k = pe ? pe->first : 0; pe && k < pe->first + pe->n; k++)
-				if (accesses[k].region == a->region &&
+				if (accesses[k].region == a->region && accesses[k].gen == a->gen &&
 				    accesses[k].off == a->off && accesses[k].len == a->len)
 					a->prev = k;
-			a->cursor = next_rand() % range_pages(a);
+			/* xorshift64* */
+			rng ^= rng >> 12;
+			rng ^= rng << 25;
+			rng ^= rng >> 27;
+			a->gen->init(a, rng * 0x2545F4914F6CDD1DULL);
 		}
 	}
-
-	for (uint32_t r = 0; r < n_regions; r++) {
-		struct region *g = &regions[r];
-		size_t bytes = (g->npages + 7) / 8;
-
-		g->mapped = calloc(bytes, 1);
-		g->touched = calloc(bytes, 1);
-		/* one more page than needed stays PROT_NONE forever: regions are
-		 * separate mappings in the original, and two reservations side
-		 * by side would let the kernel merge their mapped parts */
-		g->base = mmap(NULL, (g->npages + 1) * page, PROT_NONE,
-			       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-		if (!g->mapped || !g->touched || g->base == MAP_FAILED) {
-			perror("prepare");
-			exit(1);
-		}
-	}
-}
-
-static void apply(const struct event *e)
-{
-	struct region *g = &regions[e->region];
-	void *p;
-
-	if (e->kind == POPULATE) {
-		/* write every mapped, untouched page once: memory the application
-		 * kept resident without DAMON seeing accesses to it */
-		for (uint64_t i = e->off / page; i < (e->off + e->len) / page; i++) {
-			if (!bit(g->mapped, i) || bit(g->touched, i))
-				continue;
-			set_bits(g->touched, i, 1, 1);
-			g->base[i * page] = 1;
-			gt_mark(e->region, i, 1);
-			populated++;
-		}
-		return;
-	}
-	p = mmap(g->base + e->off, e->len,
-		 e->kind == MAP ? PROT_READ | PROT_WRITE : PROT_NONE,
-		 MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED |
-		 (e->kind == MAP ? 0 : MAP_NORESERVE), -1, 0);
-	if (p == MAP_FAILED) {
-		perror("mmap");
-		exit(1);
-	}
-	set_bits(g->mapped, e->off / page, e->len / page, e->kind == MAP);
-	set_bits(g->touched, e->off / page, e->len / page, 0);
-}
-
-/* Touch the next page of the range. Walking the range round robin touches
- * every page at the planned rate; random pages would leave about 1/e of
- * them untouched, and DAMON would see the range cooler than planned. */
-static void touch(struct access *a)
-{
-	struct region *g = &regions[a->region];
-	uint64_t p = a->off / page + a->cursor;
-
-	a->cursor = (a->cursor + 1) % range_pages(a);
-	volatile uint8_t *addr = g->base + p * page;
-
-	if (!bit(g->mapped, p)) {
-		skipped++;
-		return;
-	}
-	checksum = checksum * 31 + p + 1;
-	if (!bit(g->touched, p)) {
-		/* first touch writes: a read would map the shared zero page */
-		set_bits(g->touched, p, 1, 1);
-		*addr = 1;
-		gt_mark(a->region, p, 1);
-	} else if (page_fraction(a->region, p) < a->write_ratio) {
-		/* the same write_ratio share of pages is written every time, so
-		 * the share of dirty pages per period equals write_ratio */
-		*addr += 1;
-		gt_mark(a->region, p, 1);
-	} else {
-		(void)*addr;
-		gt_mark(a->region, p, 0);
-	}
-	done++;
-}
-
-/* Do one tick of the epoch's touches; stop at deadline_ns. Returns 0 if the
- * work did not fit. */
-static int run_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
-{
-	uint64_t before = done;
-	int fits = 1;
-
-	for (uint32_t i = e->first; i < e->first + e->n && fits; i++) {
-		struct access *a = &accesses[i];
-		uint64_t n;
-
-		a->carry += a->rate * tick_ms / 1000.0;
-		n = (uint64_t)a->carry;
-		a->carry -= n;
-		for (uint64_t k = 0; k < n; k++) {
-			if ((k & 1023) == 1023 && now_ns() >= deadline_ns) {
-				fits = 0;
-				break;
-			}
-			touch(a);
-		}
-	}
-	e->done += done - before;
-	return fits;
+	memory_prepare();
 }
 
 static uint64_t start_boottime_ns;
@@ -437,11 +76,11 @@ static void replay(uint64_t *wall_ns)
 
 	if (n_events)
 		end_ms = events[n_events - 1].t_ms;
-	if (n_epochs && epochs[n_epochs - 1].t_ms + epoch_ms > end_ms)
-		end_ms = epochs[n_epochs - 1].t_ms + epoch_ms;
 	for (uint32_t i = 0; i < n_epochs; i++) {
+		if (epochs[i].t_ms + epochs[i].dur_ms > end_ms)
+			end_ms = epochs[i].t_ms + epochs[i].dur_ms;
 		for (uint32_t j = epochs[i].first; j < epochs[i].first + epochs[i].n; j++)
-			epochs[i].planned += (uint64_t)(accesses[j].rate * epoch_ms / 1000.0);
+			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0);
 		planned += epochs[i].planned;
 	}
 
@@ -451,8 +90,7 @@ static void replay(uint64_t *wall_ns)
 
 		clock_gettime(CLOCK_BOOTTIME, &ts);
 		start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-		/* ground truth windows run on profile time */
-		gt.start_boot_ns = start_boottime_ns;
+		memory_start(start_boottime_ns);
 	}
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
 		uint64_t due = start + t * 1000000ULL;
@@ -460,25 +98,26 @@ static void replay(uint64_t *wall_ns)
 
 		sleep_until(due);
 		lag_ms = (now_ns() - due) / 1e6;
-		gt_window(t / gt.window_ms);
+		memory_window(t);
 		while (ei < n_events && events[ei].t_ms <= t)
-			apply(&events[ei++]);
+			memory_apply(&events[ei++]);
 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
 			cur = pi++;
 			for (uint32_t j = epochs[cur].first;
 			     j < epochs[cur].first + epochs[cur].n; j++) {
-				accesses[j].carry = 0;
-				if (accesses[j].prev >= 0)
-					accesses[j].cursor = accesses[accesses[j].prev].cursor;
+				struct access *a = &accesses[j];
+
+				a->carry = 0;
+				a->gen->epoch(a, a->prev >= 0 ? &accesses[a->prev] : NULL);
 			}
 		}
-		if (cur < 0 || t >= epochs[cur].t_ms + epoch_ms)
+		if (cur < 0 || t >= epochs[cur].t_ms + epochs[cur].dur_ms)
 			continue;
 		if (lag_ms > epochs[cur].max_lag_ms)
 			epochs[cur].max_lag_ms = lag_ms;
 		if (lag_ms > max_lag_ms)
 			max_lag_ms = lag_ms;
-		if (!run_tick(&epochs[cur], tick_ms, due + tick_ms * 1000000ULL)) {
+		if (!exec_tick(&epochs[cur], tick_ms, due + tick_ms * 1000000ULL)) {
 			/* behind schedule: drop the missed ticks instead of queueing */
 			uint64_t now_ms = (now_ns() - start) / 1000000ULL;
 			uint64_t next = now_ms / tick_ms * tick_ms;
@@ -491,7 +130,7 @@ static void replay(uint64_t *wall_ns)
 		}
 	}
 	while (ei < n_events)
-		apply(&events[ei++]);
+		memory_apply(&events[ei++]);
 	sleep_until(start + end_ms * 1000000ULL);
 	*wall_ns = now_ns() - start;
 }
@@ -554,7 +193,7 @@ int main(int argc, char **argv)
 	struct rusage ru;
 
 	page = sysconf(_SC_PAGESIZE);
-	gt_init();
+	memory_init();
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
 			char *end;
@@ -579,12 +218,10 @@ int main(int argc, char **argv)
 	load(path);
 	if (seed_set)
 		seed = seed_arg;
-	rng = seed ? seed : 1;
+	exec_init();
 	prepare();
-	for (uint32_t r = 0; r < n_regions; r++)
-		gt_range(regions[r].base, regions[r].npages * page);
 	replay(&wall_ns);
-	gt_finish();
+	memory_finish();
 	if (stats)
 		write_stats(stats);
 	if (layout)
@@ -604,7 +241,7 @@ int main(int argc, char **argv)
 	return 0;
 
 usage:
-	fprintf(stderr, "usage: %s <profile.txt> [--seed N] [--stats <file>]"
+	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
 		" [--layout <file>]\n", argv[0]);
 	return 2;
 }

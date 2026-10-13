@@ -32,7 +32,7 @@ def test_mandatory_unknown_key_is_refused(tmp_path):
     head, _ = whole(4 * MB, 0)
     p = run(tmp_path, head + ['epoch t=0', access(0, 0, 4 * MB, 10, extra='!future=1')])
     assert p.returncode == 2
-    assert 'profile:5:' in p.stderr and 'future' in p.stderr
+    assert 'profile:6:' in p.stderr and 'future' in p.stderr
 
 
 def test_mandatory_known_key_is_fine(tmp_path):
