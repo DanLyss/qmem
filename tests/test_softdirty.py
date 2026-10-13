@@ -4,7 +4,7 @@ import re
 import subprocess
 import time
 
-from conftest import RW_SPLIT, SOFTDIRTY, WRITES_HEADER, run_record
+from conftest import record_json, RW_SPLIT, SOFTDIRTY, WRITES_HEADER, run_record
 
 
 def ranges(stdout):
@@ -85,18 +85,18 @@ def test_record_with_writes(tmp_path, fake_env):
     p = run_record(['-o', out, '-i', '200', '-w', '300', '--',
                     RW_SPLIT, '8', '8', '1.5'], env=fake_env)
     assert p.returncode == 0, p.stderr
-    lines = (out / 'writes.csv').read_text().splitlines()
+    lines = (out / 'softdirty' / 'writes.csv').read_text().splitlines()
     assert lines[0] == WRITES_HEADER
     rows = [[int(x) for x in line.split(',')] for line in lines[1:]]
     assert len(rows) >= 2
     assert all(r[4] <= r[3] for r in rows)
-    meta = json.loads((out / 'meta.json').read_text())
-    assert meta['softdirty_ms'] == 300
+    meta = record_json(out)
+    assert meta['sources']['softdirty']['period_ms'] == 300
 
 
 def test_record_without_writes(tmp_path, fake_env):
     out = tmp_path / 'out'
     p = run_record(['-o', out, '--', 'true'], env=fake_env)
     assert p.returncode == 0, p.stderr
-    assert not (out / 'writes.csv').exists()
-    assert json.loads((out / 'meta.json').read_text())['softdirty_ms'] == 0
+    assert not (out / 'softdirty' / 'writes.csv').exists()
+    assert record_json(out)['sources']['softdirty']['status'] == 'off'

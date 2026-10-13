@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from conftest import (HOT_REGION, damo_calls, kill_matching, process_running,
+from conftest import (record_json, HOT_REGION, damo_calls, kill_matching, process_running,
                       run_record, signal, start_record)
 
 
@@ -52,7 +52,7 @@ def test_refuses_nonempty_output_dir(tmp_path, fake_env):
     p = run_record(['-o', out, '--', 'true'], env=fake_env)
     assert p.returncode != 0
     assert (out / 'keep').read_text() == 'x'
-    assert not (out / 'damon.data').exists()
+    assert not (out / 'damon' / 'damon.data').exists()
 
 
 def test_runs_damo_record_with_access_only(recorded):
@@ -61,9 +61,9 @@ def test_runs_damo_record_with_access_only(recorded):
     records = [c for c in damo_calls(env) if c[:1] == ['record']]
     assert len(records) == 1
     args = records[0]
-    assert args[1:5] == ['--do_record', 'access', '-o', str(out / 'damon.data')]
+    assert args[1:5] == ['--do_record', 'access', '-o', str(out / 'damon' / 'damon.data')]
     assert args[-1].endswith('hot_region 32 4 1.5')
-    assert (out / 'damon.data').is_file()
+    assert (out / 'damon' / 'damon.data').is_file()
 
 
 def test_smaps_snapshots(recorded):
@@ -84,13 +84,13 @@ def test_smaps_snapshots(recorded):
 def test_meta_json(recorded):
     p, out, _ = recorded
     assert p.returncode == 0, p.stderr
-    meta = json.loads((out / 'meta.json').read_text())
-    assert meta['command'].endswith('hot_region 32 4 1.5')
+    meta = record_json(out)
+    assert meta['target']['command'].endswith('hot_region 32 4 1.5')
     assert meta['interval_ms'] == 100
-    assert meta['damo_version'] == '3.3.0'
+    assert meta['sources']['damon']['damo_version'] == '3.3.0'
     assert meta['kernel'] == platform.release()
-    assert meta['end_time'] >= meta['start_time'] > 0
-    assert meta['interrupted'] is False
+    assert meta['time']['end_time'] >= meta['time']['start_time'] > 0
+    assert meta['stop']['interrupted'] is False
 
 
 def test_command_args_are_quoted(tmp_path, fake_env):
@@ -111,9 +111,9 @@ def test_sigint_stops_recording(tmp_path, fake_env):
         os.kill(proc.pid, signal.SIGINT)
         proc.wait(timeout=15)
         assert proc.returncode == 0, proc.stderr.read()
-        assert (out / 'damon.data').is_file()
-        meta = json.loads((out / 'meta.json').read_text())
-        assert meta['interrupted'] is True
+        assert (out / 'damon' / 'damon.data').is_file()
+        meta = record_json(out)
+        assert meta['stop']['interrupted'] is True
         assert len(list((out / 'smaps').iterdir())) >= 3
         time.sleep(0.5)
         assert not process_running('hot_region 16 2 60.' + marker)

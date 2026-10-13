@@ -18,7 +18,7 @@ def test_record_writes_access_csv(tmp_path, fake_env):
     p = run_record(['-o', out, '-i', '100', '--', HOT_REGION, '8', '2', '0.3'],
                    env=fake_env)
     assert p.returncode == 0, p.stderr
-    header, rows = read_csv(out / 'access.csv')
+    header, rows = read_csv(out / 'damon' / 'access.csv')
     assert header == ACCESS_HEADER
     # fake damo's canned report: 2 snapshots x 2 regions
     assert rows == [
@@ -29,7 +29,7 @@ def test_record_writes_access_csv(tmp_path, fake_env):
     ]
     reports = [c for c in damo_calls(fake_env) if c[:2] == ['report', 'access']]
     assert len(reports) == 1
-    assert str(out / 'damon.data') in reports[0]
+    assert str(out / 'damon' / 'damon.data') in reports[0]
     assert '--raw_number' in reports[0]
 
 
@@ -40,11 +40,12 @@ def test_normalize_requires_damon_data(tmp_path, fake_env):
 
 
 def test_normalize_overwrites_access_csv(tmp_path, fake_env):
-    (tmp_path / 'damon.data').write_text('fake')
-    (tmp_path / 'access.csv').write_text('stale\n')
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('fake')
+    (tmp_path / 'damon' / 'access.csv').write_text('stale\n')
     p = run_record(['--normalize', tmp_path], env=fake_env)
     assert p.returncode == 0, p.stderr
-    header, rows = read_csv(tmp_path / 'access.csv')
+    header, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert header == ACCESS_HEADER
     assert len(rows) == 4
 
@@ -52,11 +53,11 @@ def test_normalize_overwrites_access_csv(tmp_path, fake_env):
 @pytest.mark.skipif(not has_damo(), reason='damo is not installed')
 def test_normalize_with_real_damo_report(tmp_path):
     """Real `damo report` on a damon.data written by damo's own classes."""
-    subprocess.run([sys.executable, MKDAMON, tmp_path / 'damon.data'],
+    subprocess.run([sys.executable, MKDAMON, tmp_path / 'damon' / 'damon.data'],
                    check=True)
     p = run_record(['--normalize', tmp_path])
     assert p.returncode == 0, p.stderr
-    header, rows = read_csv(tmp_path / 'access.csv')
+    header, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert header == ACCESS_HEADER
     assert len(rows) == 6
     for i in range(3):
@@ -74,20 +75,22 @@ def test_normalize_maps_damon_time_to_record_time(tmp_path, fake_env):
     """With clock anchors (trace 'local' clock seconds -> ts_ms), DAMON times
     are moved to the record's time base: here the trace clock runs 10 %
     fast and the canned record starts at 5.0 s of it."""
-    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('fake')
     (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n6.1,1000\n')
     p = run_record(['--normalize', tmp_path], env=fake_env)
     assert p.returncode == 0, p.stderr
-    _, rows = read_csv(tmp_path / 'access.csv')
+    _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     starts = sorted({(int(r[0]), int(r[1])) for r in rows})
     assert starts == [(0, 90909091), (90909091, 181818182)]
 
 
 def test_normalize_without_anchors_keeps_damo_time(tmp_path, fake_env):
-    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('fake')
     p = run_record(['--normalize', tmp_path], env=fake_env)
     assert p.returncode == 0, p.stderr
-    _, rows = read_csv(tmp_path / 'access.csv')
+    _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert sorted({int(r[0]) for r in rows}) == [0, 100000000]
 
 
@@ -95,7 +98,8 @@ def test_normalize_finds_pauses(tmp_path, fake_env):
     """A paused VM: wall-clock ts_ms jumps 3.5 s while the trace clock moves
     0.25 s. normalize writes the pause to pauses.csv (the application and
     replay, on monotonic time, never saw it)."""
-    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('fake')
     rows = ['local_s,ts_ms']
     local, ts = 5.0, 0
     for i in range(20):
@@ -116,7 +120,8 @@ def test_normalize_finds_pauses(tmp_path, fake_env):
 
 
 def test_normalize_no_pauses(tmp_path, fake_env):
-    (tmp_path / 'damon.data').write_text('fake')
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('fake')
     (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n5.363,330\n5.726,660\n')
     assert run_record(['--normalize', tmp_path], env=fake_env).returncode == 0
     assert (tmp_path / 'pauses.csv').read_text().splitlines() == ['ts_ms,pause_ms']

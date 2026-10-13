@@ -74,6 +74,11 @@ def start_record(args, env=None):
                             start_new_session=True)
 
 
+def record_json(out):
+    import json
+    return json.loads((Path(out) / 'record.json').read_text())
+
+
 def damo_calls(env):
     import json
     path = Path(env['FAKE_DAMO_LOG'])
@@ -94,5 +99,5 @@ def kill_matching(pattern):
 __all__ = ['ROOT', 'RECORD', 'HOT_REGION', 'MKDAMON', 'RW_SPLIT', 'FIXED_WORK', 'RANDOM_ACCESS', 'SOFTDIRTY',
            'OVERHEAD', 'REPLAY', 'MKPROFILE', 'LEGACY_MKPROFILE', 'VERIFY', 'EXAMPLE', 'ACCESS_HEADER', 'SYSTEM_HEADER', 'WRITES_HEADER', 'PROC_HEADER',
            'has_real_damon', 'has_tracefs', 'has_damo', 'run_record',
-           'start_record', 'damo_calls', 'process_running', 'kill_matching',
+           'start_record', 'record_json', 'damo_calls', 'process_running', 'kill_matching',
            'signal']

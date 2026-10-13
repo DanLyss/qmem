@@ -4,7 +4,7 @@ import os
 import subprocess
 import time
 
-from conftest import (HOT_REGION, damo_calls, kill_matching, process_running,
+from conftest import (record_json, HOT_REGION, damo_calls, kill_matching, process_running,
                       run_record)
 
 
@@ -29,11 +29,11 @@ def test_attach_with_duration(tmp_path, fake_env):
         rec = [c for c in damo_calls(fake_env) if c[:1] == ['record']][0]
         assert rec[-1] == str(app.pid)
         assert len(list((out / 'smaps').iterdir())) >= 5
-        meta = json.loads((out / 'meta.json').read_text())
-        assert meta['mode'] == 'attach'
-        assert meta['pid'] == app.pid
-        assert meta['stop_reason'] == 'duration'
-        assert meta['interrupted'] is False
+        meta = record_json(out)
+        assert meta['target']['mode'] == 'attach'
+        assert meta['target']['pid'] == app.pid
+        assert meta['stop']['reason'] == 'duration'
+        assert meta['stop']['interrupted'] is False
         # attach mode leaves the process running
         assert app.poll() is None
     finally:
@@ -68,9 +68,9 @@ def test_launch_with_duration_stops_application(tmp_path, fake_env):
                         HOT_REGION, '16', '2', secs], env=fake_env, timeout=30)
         assert p.returncode == 0, p.stderr
         assert time.monotonic() - started < 10
-        meta = json.loads((out / 'meta.json').read_text())
-        assert meta['mode'] == 'launch'
-        assert meta['stop_reason'] == 'duration'
+        meta = record_json(out)
+        assert meta['target']['mode'] == 'launch'
+        assert meta['stop']['reason'] == 'duration'
         time.sleep(0.5)
         assert not process_running('hot_region 16 2 ' + secs)
     finally:
@@ -82,6 +82,6 @@ def test_stop_reason_exited(tmp_path, fake_env):
     p = run_record(['-o', out, '--', HOT_REGION, '8', '2', '0.3'],
                    env=fake_env)
     assert p.returncode == 0, p.stderr
-    meta = json.loads((out / 'meta.json').read_text())
-    assert meta['stop_reason'] == 'exited'
-    assert meta['mode'] == 'launch'
+    meta = record_json(out)
+    assert meta['stop']['reason'] == 'exited'
+    assert meta['target']['mode'] == 'launch'

@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from conftest import HOT_REGION, has_real_damon, run_record
+from conftest import record_json, HOT_REGION, has_real_damon, run_record
 
 pytestmark = pytest.mark.skipif(not has_real_damon(),
                                 reason='needs root, DAMON sysfs and damo')
@@ -36,7 +36,7 @@ def test_record_hot_region(tmp_path):
     # in the second half of the run DAMON sees the hot range as hotter than
     # the rest of the mapping
     rows = [line.split(',') for line in
-            (out / 'access.csv').read_text().splitlines()[1:]]
+            (out / 'damon' / 'access.csv').read_text().splitlines()[1:]]
     assert rows
     last_ns = max(int(r[1]) for r in rows)
     hot_rates, cold_rates = [], []
@@ -70,13 +70,13 @@ def test_damon_time_matches_record_time(tmp_path):
     p = run_record(['-o', out, '-i', '200', '--', HOT_REGION, '64', '4', '8'],
                    timeout=120)
     assert p.returncode == 0, p.stderr
-    meta = json.loads((out / 'meta.json').read_text())
-    assert meta['access_time_base'] == 'record'
+    meta = record_json(out)
+    assert meta['sources']['damon']['time_base'] == 'record'
     anchors = (out / 'clock.csv').read_text().splitlines()
     assert anchors[0] == 'local_s,ts_ms' and len(anchors) >= 10
-    rows = [l.split(',') for l in (out / 'access.csv').read_text().splitlines()[1:]]
+    rows = [l.split(',') for l in (out / 'damon' / 'access.csv').read_text().splitlines()[1:]]
     last_end_ms = max(int(r[1]) for r in rows) / 1e6
-    run_ms = (meta['end_time'] - meta['start_time']) * 1000
+    run_ms = (meta['time']['end_time'] - meta['time']['start_time']) * 1000
     assert last_end_ms <= run_ms
     # a snapshot lasts one 100 ms aggregation interval in real time; in the
     # trace clock it may look ~110 ms
