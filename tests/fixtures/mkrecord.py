@@ -6,16 +6,26 @@ PAGE = 4096
 
 
 def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0, proc=None, start_uptime=100.0):
-    """Write a record directory.
+                 softdirty_ms=0, proc=None, start_uptime=100.0, layout='v1'):
+    """Write a record directory: the flat layout of record v1 or, with
+    layout='v2', one subdirectory per source and record.json.
 
     smaps:  {ts_ms: [(start, end, name, rss_kb[, vmflags]), ...]}; name '' is
             anonymous; vmflags defaults to 'rd wr mr mw me ac'
-    access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...]
+    access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...];
+            None (v2 only): no damon source
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
     writes: [(ts_ms, start, end, present_pages, dirty_pages[, rewritten]), ...]
     proc:   [(ts_ms, minflt, majflt, rss_kb), ...]
     """
+    v2 = layout == 'v2'
+
+    def at(source, name):
+        if not v2:
+            return d / name
+        (d / source).mkdir(exist_ok=True)
+        return d / source / name
+
     d.mkdir(parents=True, exist_ok=True)
     (d / 'smaps').mkdir(exist_ok=True)
     for ts, vmas in smaps.items():
@@ -33,34 +43,61 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
                       'VmFlags: ' + flags]
         (d / 'smaps' / ('%d.txt' % ts)).write_text('\n'.join(lines) + '\n')
 
-    rows = ['snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age']
-    for s_ns, e_ns, regions in access:
-        for start, end, rate in regions:
-            rows.append('%d,%d,%d,%d,%f,%f,0' % (s_ns, e_ns, start, end, rate,
-                                                 rate * 2))
-    (d / 'access.csv').write_text('\n'.join(rows) + '\n')
+    if access is not None:
+        rows = ['snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age']
+        for s_ns, e_ns, regions in access:
+            for start, end, rate in regions:
+                rows.append('%d,%d,%d,%d,%f,%f,0' % (s_ns, e_ns, start, end, rate,
+                                                     rate * 2))
+        at('damon', 'access.csv').write_text('\n'.join(rows) + '\n')
+        at('damon', 'damon.data.kdamonds').write_text(json.dumps(
+            [{'contexts': [{'intervals': {'sample_us': sample_us,
+                                          'aggr_us': '100 ms'}}]}]))
 
     rows = ['ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,'
             'psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout']
     for ts, pf, pm, so in system or []:
         rows.append('%d,1000000,1000000,1000,0,0.00,0.00,%d,%d,0,%d' % (ts, pf, pm, so))
-    (d / 'system.csv').write_text('\n'.join(rows) + '\n')
+    at('system', 'system.csv').write_text('\n'.join(rows) + '\n')
 
     if proc is not None:
         rows = ['ts_ms,minflt,majflt,rss_kb'] + ['%d,%d,%d,%d' % r for r in proc]
-        (d / 'proc.csv').write_text('\n'.join(rows) + '\n')
+        at('proc', 'proc.csv').write_text('\n'.join(rows) + '\n')
 
     if writes is not None:
         rows = ['ts_ms,start,end,present_pages,dirty_pages,rewritten_pages']
         rows += ['%d,%d,%d,%d,%d,%d' % (tuple(w) + (0,) * (6 - len(w))) for w in writes]
-        (d / 'writes.csv').write_text('\n'.join(rows) + '\n')
+        at('softdirty', 'writes.csv').write_text('\n'.join(rows) + '\n')
 
-    (d / 'damon.data.kdamonds').write_text(json.dumps(
-        [{'contexts': [{'intervals': {'sample_us': sample_us,
-                                      'aggr_us': '100 ms'}}]}]))
-    (d / 'meta.json').write_text(json.dumps({
-        'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1,
-        'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
-        'interval_ms': 1000, 'softdirty_ms': softdirty_ms,
-        'stop_reason': 'exited'}))
+    if not v2:
+        (d / 'meta.json').write_text(json.dumps({
+            'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1,
+            'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
+            'interval_ms': 1000, 'softdirty_ms': softdirty_ms,
+            'stop_reason': 'exited'}))
+        return d
+
+    def ok(files, **params):
+        return dict(status='ok', version=1, files=files, **params)
+    sources = {name: {'status': 'off'} for name in
+               ('damon', 'smaps', 'proc', 'system', 'softdirty', 'syscalls')}
+    sources['smaps'] = ok(['smaps/'], interval_ms=1000)
+    sources['system'] = ok(['system/system.csv'])
+    if access is not None:
+        sources['damon'] = ok(['damon/access.csv'], damo_version='test', options='',
+                              time_base='record')
+    if proc is not None:
+        sources['proc'] = ok(['proc/proc.csv'])
+    if writes is not None:
+        sources['softdirty'] = ok(['softdirty/writes.csv'], period_ms=softdirty_ms)
+    for name in ('pmu_count', 'pmu_sample'):
+        sources[name] = {'status': 'unavailable', 'reason': 'test'}
+    (d / 'record.json').write_text(json.dumps({
+        'format': 'qmem-record', 'version': 2,
+        'target': {'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1},
+        'time': {'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
+                 'paused_ms': 0},
+        'stop': {'reason': 'exited', 'interrupted': False},
+        'kernel': 'test', 'interval_ms': 1000, 'duration_s': None,
+        'sources': sources}, indent=2))
     return d
