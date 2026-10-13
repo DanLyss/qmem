@@ -37,7 +37,7 @@ def test_damo_options_are_passed(tmp_path, fake_env):
     joined = ' '.join(rec[3:-1])
     assert opts in joined
     assert rec[-1] == 'true'
-    assert record_json(out)['damo_options'] == opts
+    assert record_json(out)['sources']['damon']['options'] == opts
 
 
 def test_proc_csv_counts_faults_since_start(tmp_path, fake_env):

@@ -53,6 +53,7 @@ def test_normalize_overwrites_access_csv(tmp_path, fake_env):
 @pytest.mark.skipif(not has_damo(), reason='damo is not installed')
 def test_normalize_with_real_damo_report(tmp_path):
     """Real `damo report` on a damon.data written by damo's own classes."""
+    (tmp_path / 'damon').mkdir()
     subprocess.run([sys.executable, MKDAMON, tmp_path / 'damon' / 'damon.data'],
                    check=True)
     p = run_record(['--normalize', tmp_path])
