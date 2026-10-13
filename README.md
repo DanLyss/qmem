@@ -23,7 +23,6 @@ replay/qmem-replay profile.txt --stats stats.csv                        # вос
 
 - [docs/spec.md](docs/spec.md) — что такое Qmem и зачем
 - [docs/skeleton.md](docs/skeleton.md) — каркас: модули, интерфейсы, заглушки, план и что дальше
-- [docs/proposals/intensity.md](docs/proposals/intensity.md), [docs/proposals/pseudofrequency.md](docs/proposals/pseudofrequency.md) — интенсивность обращений и псевдочастота (на потом)
 
 ### Итерация 1 (история)
 
