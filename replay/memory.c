@@ -2,9 +2,6 @@
  * memory manager: regions are reserved before the replay, mapped, unmapped
  * and populated on the profile's timeline, and their pages touched. Only
  * anonymous memory (kind=anon); the loader refuses kind=file.
- *
- * The ground truth log (common/qmem_gt.h, QMEM_GT) keeps its state per
- * translation unit, so every call to it is here.
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -12,7 +9,6 @@
 #include <sys/mman.h>
 
 #include "profile.h"
-#include "qmem_gt.h"
 
 static int bit(const uint8_t *map, uint64_t i)
 {
@@ -41,11 +37,6 @@ static double page_fraction(uint32_t region, uint64_t p)
 	return (z >> 11) * 0x1.0p-53;
 }
 
-void memory_init(void)
-{
-	gt_init();
-}
-
 void memory_prepare(void)
 {
 	for (uint32_t r = 0; r < n_regions; r++) {
@@ -63,7 +54,6 @@ void memory_prepare(void)
 			perror("prepare");
 			exit(1);
 		}
-		gt_range(g->base, g->npages * page);
 	}
 }
 
@@ -80,7 +70,6 @@ void memory_apply(const struct event *e)
 				continue;
 			set_bits(g->touched, i, 1, 1);
 			g->base[i * page] = 1;
-			gt_mark(e->region, i, 1);
 			populated++;
 		}
 		return;
@@ -112,31 +101,12 @@ int memory_touch(uint32_t r, uint64_t p, double write_ratio)
 		/* first touch writes: a read would map the shared zero page */
 		set_bits(g->touched, p, 1, 1);
 		*addr = 1;
-		gt_mark(r, p, 1);
 	} else if (page_fraction(r, p) < write_ratio) {
 		/* the same write_ratio share of pages is written every time, so
 		 * the share of dirty pages per period equals write_ratio */
 		*addr += 1;
-		gt_mark(r, p, 1);
 	} else {
 		(void)*addr;
-		gt_mark(r, p, 0);
 	}
 	return 1;
-}
-
-void memory_window(uint64_t t_ms)
-{
-	gt_window(t_ms / gt.window_ms);
-}
-
-void memory_start(uint64_t boottime_ns)
-{
-	/* ground truth windows run on profile time */
-	gt.start_boot_ns = boottime_ns;
-}
-
-void memory_finish(void)
-{
-	gt_finish();
 }

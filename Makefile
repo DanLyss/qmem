@@ -1,14 +1,13 @@
 CC ?= gcc
 CFLAGS ?= -O2 -Wall -Wextra
-CFLAGS += -Icommon
 
-WORKLOADS := workloads/hot_region workloads/rw_split workloads/fixed_work workloads/random_access workloads/moving_window workloads/mixed workloads/randmix
+WORKLOADS := workloads/hot_region workloads/rw_split workloads/fixed_work workloads/random_access workloads/moving_window
 TOOLS := $(if $(wildcard record/softdirty.c),record/qmem-softdirty) \
 	 $(if $(wildcard replay/replay.c),replay/qmem-replay)
 
 all: $(WORKLOADS) $(TOOLS)
 
-workloads/%: workloads/%.c common/qmem_gt.h
+workloads/%: workloads/%.c
 	$(CC) $(CFLAGS) -o $@ $< -lm
 
 record/qmem-softdirty: record/softdirty.c
@@ -16,7 +15,7 @@ record/qmem-softdirty: record/softdirty.c
 
 REPLAY_SRC := $(wildcard replay/*.c)
 
-replay/qmem-replay: $(REPLAY_SRC) replay/profile.h common/qmem_gt.h
+replay/qmem-replay: $(REPLAY_SRC) replay/profile.h
 	$(CC) $(CFLAGS) -o $@ $(REPLAY_SRC)
 
 test: all

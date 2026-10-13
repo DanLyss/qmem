@@ -241,7 +241,7 @@ struct generator_ops {
 qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
 ```
 
-Без изменений; layout и точный лог (`QMEM_GT`) остаются.
+Без изменений: `--stats` — план и сделанное по эпохам, `--layout` — где регионы в этом запуске.
 
 ## 6. Структура репозитория после перехода
 
@@ -261,7 +261,6 @@ replay/
   replay.c               # loader, scheduler
   memory.c  gen_*.c  exec.c
   profile.h              # структуры формата
-common/qmem_gt.h
 docs/formats/            # record.md, profile.md — описания форматов
 ```
 

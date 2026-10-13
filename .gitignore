@@ -3,8 +3,6 @@
 /workloads/fixed_work
 /workloads/random_access
 /workloads/moving_window
-/workloads/mixed
-/workloads/randmix
 /record/qmem-softdirty
 /replay/qmem-replay
 __pycache__/

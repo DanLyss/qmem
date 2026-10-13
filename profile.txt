@@ -1,0 +1,169 @@
+qmem-profile 2
+meta source=out builder=2 record=2 intensity=passthrough write=softdirty timing=roundrobin
+meta epoch_ms=100 seed=42
+
+region id=0 size=135168 kind=anon base=0x623e93e04000
+region id=1 size=67108864 kind=anon base=0x79e5ea200000
+region id=2 size=53248 kind=anon base=0x79e5ee406000
+region id=3 size=12288 kind=anon base=0x79e5ee56a000
+region id=4 size=8192 kind=anon base=0x79e5ee577000
+region id=5 size=135168 kind=anon base=0x7ffcec8bb000
+map t=0 region=0 off=0 len=135168
+map t=0 region=1 off=0 len=67108864
+map t=0 region=2 off=0 len=53248
+map t=0 region=3 off=0 len=12288
+map t=0 region=4 off=0 len=8192
+map t=0 region=5 off=0 len=135168
+populate t=0 region=0 off=0 len=4096
+populate t=0 region=1 off=0 len=67108864
+populate t=0 region=2 off=0 len=20480
+populate t=0 region=3 off=0 len=8192
+populate t=0 region=4 off=0 len=4096
+populate t=0 region=5 off=0 len=16384
+
+epoch t=900 dur=100
+access region=1 off=0 len=56815616 rate=20 write=1 pattern=roundrobin
+access region=1 off=56815616 len=10293248 rate=10 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=65536 len=69632 rate=10 write=1 pattern=roundrobin
+
+epoch t=1000 dur=100
+access region=1 off=0 len=5681152 rate=200 write=1 pattern=roundrobin
+access region=1 off=5681152 len=51134464 rate=30 write=1 pattern=roundrobin
+
+epoch t=1100 dur=100
+access region=1 off=0 len=5681152 rate=190 write=1 pattern=roundrobin
+
+epoch t=1200 dur=100
+access region=1 off=0 len=5681152 rate=200 write=1 pattern=roundrobin
+
+epoch t=1300 dur=100
+access region=1 off=0 len=5681152 rate=190 write=1 pattern=roundrobin
+access region=1 off=5681152 len=6918144 rate=80 write=1 pattern=roundrobin
+
+epoch t=1400 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=1 off=65175552 len=1933312 rate=10 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+
+epoch t=1500 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=5 off=118784 len=16384 rate=50 write=1 pattern=roundrobin
+
+epoch t=1600 dur=100
+access region=1 off=0 len=8445952 rate=180 write=1 pattern=roundrobin
+access region=1 off=66576384 len=532480 rate=10 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=118784 len=16384 rate=40 write=1 pattern=roundrobin
+
+epoch t=1700 dur=100
+access region=1 off=0 len=8445952 rate=170 write=1 pattern=roundrobin
+access region=1 off=66662400 len=446464 rate=30 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=30 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=30 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=30 write=1 pattern=roundrobin
+access region=5 off=122880 len=12288 rate=90 write=1 pattern=roundrobin
+
+epoch t=1800 dur=100
+access region=1 off=0 len=8445952 rate=200 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+access region=5 off=126976 len=8192 rate=20 write=1 pattern=roundrobin
+
+epoch t=1900 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=1 off=67096576 len=12288 rate=20 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=20 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=20 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=20 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=190 write=1 pattern=roundrobin
+
+epoch t=2000 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=2100 dur=100
+access region=1 off=0 len=8445952 rate=200 write=1 pattern=roundrobin
+access region=1 off=67096576 len=12288 rate=10 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=2200 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=1 off=67096576 len=12288 rate=20 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=20 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=20 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=20 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=2300 dur=100
+access region=1 off=0 len=8445952 rate=180 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=180 write=1 pattern=roundrobin
+
+epoch t=2400 dur=100
+access region=1 off=0 len=8445952 rate=180 write=1 pattern=roundrobin
+access region=1 off=67096576 len=12288 rate=30 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=190 write=1 pattern=roundrobin
+
+epoch t=2500 dur=100
+access region=1 off=0 len=8445952 rate=200 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=2600 dur=100
+access region=1 off=0 len=8445952 rate=180 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=40 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=40 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=2700 dur=100
+access region=1 off=0 len=8445952 rate=180 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=190 write=1 pattern=roundrobin
+access region=5 off=126976 len=8192 rate=10 write=1 pattern=roundrobin
+
+epoch t=2800 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=30 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=30 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+access region=5 off=126976 len=8192 rate=10 write=1 pattern=roundrobin
+
+epoch t=2900 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=170 write=1 pattern=roundrobin
+
+epoch t=3000 dur=100
+access region=1 off=0 len=8445952 rate=190 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=3100 dur=100
+access region=1 off=0 len=2531328 rate=130 write=1 pattern=roundrobin
+access region=1 off=2531328 len=5914624 rate=190 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin
+
+epoch t=3200 dur=100
+access region=1 off=0 len=7262208 rate=180 write=1 pattern=roundrobin
+access region=1 off=7262208 len=1183744 rate=140 write=1 pattern=roundrobin
+access region=2 off=0 len=53248 rate=10 write=1 pattern=roundrobin
+access region=3 off=0 len=12288 rate=10 write=1 pattern=roundrobin
+access region=4 off=0 len=8192 rate=10 write=1 pattern=roundrobin
+access region=5 off=122880 len=4096 rate=200 write=1 pattern=roundrobin

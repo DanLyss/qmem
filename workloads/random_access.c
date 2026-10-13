@@ -15,7 +15,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "qmem_gt.h"
 
 static double now(void)
 {
@@ -53,8 +52,6 @@ int main(int argc, char **argv)
 	size_t core_off = (total - core) / 2 / page * page;
 	size_t npages = total / page;
 
-	gt_init();
-	gt_range(mem, total);
 	printf("total 0x%lx 0x%lx\n", (unsigned long)mem, (unsigned long)(mem + total));
 	printf("core 0x%lx 0x%lx\n", (unsigned long)(mem + core_off),
 	       (unsigned long)(mem + core_off + core));
@@ -62,7 +59,6 @@ int main(int argc, char **argv)
 
 	for (size_t off = 0; off < total; off += page) {
 		mem[off] = 1;
-		gt_touch(mem + off, 1);
 	}
 
 	uint64_t rng = 88172645463325252ULL, done = 0;
@@ -71,10 +67,8 @@ int main(int argc, char **argv)
 	uint8_t v = 0;
 
 	while (now() < end) {
-		gt_tick();
 		for (size_t off = core_off; off < core_off + core; off += page) {
 			mem[off] = v;
-			gt_touch(mem + off, 1);
 		}
 		v++;
 		/* random touches to keep up with the requested rate */
@@ -88,11 +82,9 @@ int main(int argc, char **argv)
 				mem[off] = v;
 			else
 				sum += mem[off];
-			gt_touch(mem + off, rng % 10 < 3);
 		}
 	}
 
-	gt_finish();
 
 	return sum == 0xdeadbeef;	/* keep the reads */
 }

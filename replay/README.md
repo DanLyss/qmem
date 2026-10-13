@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `profile.h` | — | Структуры profile и интерфейсы между частями |
 | `loader.c` | loader | Разбор profile v2 и v1; ошибки — код 2 и `profile:<строка>:` |
-| `memory.c` | memory manager | Резерв регионов, map/unmap/populate, битовые карты, касание страницы; точный лог (`QMEM_GT`) |
+| `memory.c` | memory manager | Резерв регионов, map/unmap/populate, битовые карты, касание страницы |
 | `generators.c`, `gen_roundrobin.c`, `gen_random.c` | generators | Какая страница участка следующая |
 | `exec.c` | executors | Касания одного тика; один поток |
 | `replay.c` | scheduler | Тики, события, смена эпох, статистика, `--stats`, `--layout`, сводка |

@@ -90,7 +90,6 @@ static void replay(uint64_t *wall_ns)
 
 		clock_gettime(CLOCK_BOOTTIME, &ts);
 		start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-		memory_start(start_boottime_ns);
 	}
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
 		uint64_t due = start + t * 1000000ULL;
@@ -98,7 +97,6 @@ static void replay(uint64_t *wall_ns)
 
 		sleep_until(due);
 		lag_ms = (now_ns() - due) / 1e6;
-		memory_window(t);
 		while (ei < n_events && events[ei].t_ms <= t)
 			memory_apply(&events[ei++]);
 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
@@ -193,7 +191,6 @@ int main(int argc, char **argv)
 	struct rusage ru;
 
 	page = sysconf(_SC_PAGESIZE);
-	memory_init();
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
 			char *end;
@@ -221,7 +218,6 @@ int main(int argc, char **argv)
 	exec_init();
 	prepare();
 	replay(&wall_ns);
-	memory_finish();
 	if (stats)
 		write_stats(stats);
 	if (layout)

@@ -77,14 +77,10 @@ extern uint64_t planned, done, skipped, checksum, populated;
 /* generators.c */
 const struct generator_ops *generator(const char *name);
 
-/* memory.c (also the only user of common/qmem_gt.h) */
-void memory_init(void);
+/* memory.c */
 void memory_prepare(void);
 void memory_apply(const struct event *e);
 int memory_touch(uint32_t r, uint64_t p, double write_ratio);
-void memory_window(uint64_t t_ms);
-void memory_start(uint64_t boottime_ns);
-void memory_finish(void);
 
 /* exec.c */
 void exec_init(void);
