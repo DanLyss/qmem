@@ -1,0 +1,8 @@
+flowchart LR
+    SM[/"smaps/*.txt"/] --> LC["lifecycle"] --> P1["region, map, unmap"]
+    SM --> RS["resident"] --> P2["populate"]
+    DM[/"damon/access.csv"/] --> IN["intensity"] --> P3["epoch, access: region off len rate"]
+    SM -.->|обрезка по выделенному| IN
+    SD[/"softdirty/writes.csv"/] --> WR["write"] --> P4["access: write"]
+    DM -.->|что затронуто| WR
+    TM["timing"] --> P5["access: pattern"]

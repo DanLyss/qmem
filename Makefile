@@ -21,7 +21,15 @@ replay/qmem-replay: $(REPLAY_SRC) replay/profile.h
 test: all
 	python3 -m pytest -v tests
 
+MMDC ?= mmdc
+DIAGRAMS := $(patsubst docs/diagrams/%.mmd,docs/img/%.png,$(wildcard docs/diagrams/*.mmd))
+
+diagrams: $(DIAGRAMS)
+
+docs/img/%.png: docs/diagrams/%.mmd
+	$(MMDC) -i $< -o $@ -s 2 -b white
+
 clean:
 	rm -f $(WORKLOADS) $(TOOLS)
 
-.PHONY: all test clean
+.PHONY: all test diagrams clean
