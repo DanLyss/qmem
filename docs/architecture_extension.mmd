@@ -1,0 +1,106 @@
+%% How a new record source X goes through every module.
+%% Green: what to add for X. Grey: what is already there and does not change.
+%% Shapes: [rectangle] code, [/parallelogram/] file on disk, [(cylinder)] data in memory.
+flowchart TB
+    classDef new fill:#d9f2d9,stroke:#2e7d32,stroke-width:2px,color:#1b3d1b
+    classDef old fill:#f2f2f2,stroke:#9e9e9e,color:#555
+    classDef opt fill:#fff8d6,stroke:#c9a400,stroke-dasharray:4 3,color:#5a4a00
+
+    K_X["ядро / устройство<br/>откуда берутся данные X<br/>perf, eBPF, /proc, /sys…"]:::old
+
+    %% ------------------------------------------------------------ record
+    subgraph RECORD["1 · record"]
+        direction TB
+        DRV["driver qmem-record.sh<br/>+ имя x в ALL_SOURCES<br/>(и в TICKING, если X снимает по тикам)"]:::new
+        subgraph SRC["sources/"]
+            direction LR
+            S_OLD["damon.sh · smaps.sh · softdirty.sh · …"]:::old
+            S_X["sources/x.sh<br/>src_x_check — можно ли здесь; иначе unavailable + причина<br/>src_x_start · src_x_tick · src_x_stop · src_x_finish<br/>src_x_manifest — version, files, параметры"]:::new
+        end
+        DRV -->|check, start, tick, stop, finish| S_X
+        DRV --> S_OLD
+    end
+
+    K_X --> S_X
+
+    subgraph RDIR["каталог записи out/"]
+        direction LR
+        F_OLD[/"damon/ · smaps/ · softdirty/ · …"/]:::old
+        F_X[/"x/x.csv — файлы X в своей подпапке"/]:::new
+        F_JSON[/"record.json<br/>sources.x: status, version, files, параметры"/]:::new
+    end
+
+    S_X --> F_X
+    S_X -->|манифест| F_JSON
+    S_OLD --> F_OLD
+
+    T_REC["tests/test_record_x.py<br/>файлы на месте, статус ok / unavailable"]:::new
+    F_X -.- T_REC
+
+    DOC_REC[/"docs/formats/record.md<br/>описание x/ и полей sources.x"/]:::new
+    F_X -.- DOC_REC
+
+    %% ------------------------------------------------------------ builder
+    subgraph BUILDER["2 · builder"]
+        direction TB
+        LAYOUT["readers/layout.py<br/>record.path('x', 'x.csv') — без изменений"]:::old
+        R_OLD["readers/smaps.py · damon.py · softdirty.py"]:::old
+        R_X["readers/x.py<br/>файлы X → объекты, время через timebase"]:::new
+        M_OLD[("model: regions · smaps · observations · writes")]:::old
+        M_X[("model.py: новое поле x<br/>в общих координатах: регион + смещение, эпоха")]:::new
+        subgraph EST["estimators/"]
+            direction LR
+            E_OLD["lifecycle · resident · …<br/>не меняются"]:::old
+            E_X["estimators/&lt;вид&gt;_x.py<br/>например intensity_x:<br/>берёт model.x и, если нужно, model.observations<br/>выбор: --intensity x"]:::new
+        end
+        D_PROF[("Profile")]:::old
+        LAYOUT --> R_X
+        LAYOUT --> R_OLD
+        R_OLD --> M_OLD
+        R_X --> M_X
+        M_OLD --> E_OLD
+        M_X --> E_X
+        M_OLD -.->|может использовать| E_X
+        E_OLD --> D_PROF
+        E_X --> D_PROF
+    end
+
+    F_X --> R_X
+    F_JSON --> LAYOUT
+    F_OLD --> R_OLD
+
+    T_BLD["tests/test_build.py<br/>синтетическая запись с x/ → ожидаемые строки profile"]:::new
+    E_X -.- T_BLD
+
+    %% ------------------------------------------------------------ profile
+    subgraph PROF["profile.txt — два варианта"]
+        direction LR
+        P_A[/"A · существующие поля<br/>X только уточняет rate / write / pattern<br/>формат не меняется"/]:::old
+        P_B[/"B · новое поле или тип строки<br/>access … x_key=…  или  строка x …<br/>с ! — если без него replay неверен"/]:::opt
+    end
+
+    D_PROF --> P_A
+    D_PROF --> P_B
+
+    DOC_PROF[/"docs/formats/profile.md<br/>описание нового ключа или строки (только B)"/]:::opt
+    P_B -.- DOC_PROF
+
+    %% ------------------------------------------------------------ replay
+    subgraph REPLAY["3 · replay"]
+        direction TB
+        L_OLD["loader.c — без изменений (вариант A)"]:::old
+        L_X["loader.c: ключ x_key в check_keys<br/>или ветка строки x в parse_line (вариант B)"]:::opt
+        USE_X["где используется:<br/>gen_x.c — новый pattern<br/>или exec.c / memory.c — новое поведение"]:::opt
+        RUN["scheduler · exec · generators · memory<br/>без изменений (вариант A)"]:::old
+        L_OLD --> RUN
+        L_X --> USE_X
+    end
+
+    P_A --> L_OLD
+    P_B --> L_X
+
+    OLD_REPLAY["старый replay с profile варианта B:<br/>неизвестный ключ пропустит,<br/>ключ с ! — откажется, код 2"]:::old
+    P_B -.-> OLD_REPLAY
+
+    T_REP["tests/test_replay*.py<br/>новый ключ разбирается и работает (только B)"]:::opt
+    USE_X -.- T_REP

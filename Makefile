@@ -22,9 +22,9 @@ test: all
 	python3 -m pytest -v tests
 
 MMDC ?= mmdc
-diagrams: docs/architecture.png
+diagrams: docs/architecture.png docs/architecture_extension.png
 
-docs/architecture.png: docs/architecture.mmd
+docs/%.png: docs/%.mmd
 	$(MMDC) -i $< -o $@ -s 2 -b white
 
 clean:
