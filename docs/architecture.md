@@ -5,111 +5,72 @@
 ## Общая схема
 
 ```mermaid
-flowchart LR
-    APP(["приложение"])
+flowchart TB
+    APP(["приложение"]) -.->|обращения к памяти| KERNEL
 
     subgraph KERNEL["ядро Linux"]
+        direction LR
         DAMON["DAMON / kdamond"]
-        PROC["/proc/pid: smaps, stat, pagemap"]
-        SYS["/proc: meminfo, vmstat, PSI"]
+        PROC["/proc/pid<br/>smaps, stat, pagemap"]
+        SYS["/proc<br/>meminfo, vmstat, PSI"]
         TRACE["tracefs"]
     end
 
+    KERNEL --> RECORD
+
     subgraph RECORD["record — record/"]
-        direction TB
-        DRV["driver<br/>qmem-record.sh"]
-        LIB["lib.sh<br/>часы, метки, паузы"]
+        direction LR
+        DRV["driver qmem-record.sh<br/>+ lib.sh: часы, метки, паузы<br/>→ record.json, clock.csv, pauses.csv"]
         subgraph SRC["sources/"]
-            S_DAMON["damon.sh<br/>→ damo"]
-            S_SMAPS["smaps.sh"]
-            S_PROC["proc.sh"]
-            S_SYS["system.sh"]
-            S_SD["softdirty.sh<br/>→ qmem-softdirty"]
-            S_SC["syscalls.sh"]
-            S_PMU["pmu_count.sh<br/>pmu_sample.sh<br/><i>заглушки</i>"]
+            direction TB
+            S_DAMON["damon.sh (damo)<br/>→ damon/access.csv"]
+            S_SMAPS["smaps.sh<br/>→ smaps/*.txt"]
+            S_SD["softdirty.sh (qmem-softdirty)<br/>→ softdirty/writes.csv"]
+            S_REST["proc.sh, system.sh, syscalls.sh<br/>→ proc/, system/, syscalls/"]
+            S_PMU["pmu_count.sh, pmu_sample.sh<br/><i>заглушки</i>"]
         end
-        DRV --> LIB
-        DRV --> SRC
+        DRV -->|check, start, tick, stop, finish| SRC
     end
 
-    subgraph RDIR["каталог записи out/"]
-        direction TB
-        F_JSON[/"record.json"/]
-        F_TIME[/"clock.csv, pauses.csv"/]
-        F_DAMON[/"damon/access.csv"/]
-        F_SMAPS[/"smaps/*.txt"/]
-        F_SD[/"softdirty/writes.csv"/]
-        F_OTHER[/"proc/, system/, syscalls/<br/><i>пока не читаются</i>"/]
-    end
+    RECORD ==> RDIR[/"каталог записи out/ — record v2"/] ==> BUILDER
 
     subgraph BUILDER["builder — builder/"]
-        direction TB
-        LAYOUT["readers/layout.py<br/>где файлы источников"]
-        TBASE["readers/timebase.py<br/>вычет пауз"]
+        direction LR
+        LAYOUT["readers/layout.py<br/>record.json: где файлы"]
         subgraph READERS["readers/"]
-            R_SMAPS["smaps.py"]
-            R_DAMON["damon.py"]
-            R_SD["softdirty.py"]
+            direction TB
+            R_TIME["timebase.py ← pauses.csv"]
+            R_SMAPS["smaps.py ← smaps/"]
+            R_DAMON["damon.py ← damon/"]
+            R_SD["softdirty.py ← softdirty/"]
         end
-        MODEL["model.py<br/>регионы, эпохи, наблюдения"]
+        MODEL["model.py<br/>регионы, эпохи,<br/>наблюдения DAMON"]
         subgraph EST["estimators/"]
-            E_LC["lifecycle"]
-            E_RES["resident"]
-            E_INT["intensity_passthrough<br/><i>заглушка</i>"]
-            E_WR["write_softdirty<br/><i>заглушка</i>"]
-            E_TM["timing_roundrobin<br/><i>заглушка</i>"]
-            E_LC --> E_RES --> E_INT --> E_WR --> E_TM
+            direction TB
+            E_LC["lifecycle"] --> E_RES["resident"] --> E_INT["intensity_passthrough <i>заглушка</i>"] --> E_WR["write_softdirty <i>заглушка</i>"] --> E_TM["timing_roundrobin <i>заглушка</i>"]
         end
         WRITER["profile_v2.py<br/>writer"]
-        LAYOUT --> READERS
-        TBASE --> READERS
-        READERS --> MODEL --> EST --> WRITER
+        LAYOUT --> READERS --> MODEL --> EST --> WRITER
     end
 
-    PROFILE[/"profile.txt"/]
+    BUILDER ==> PROFILE[/"profile.txt — profile v2"/] ==> REPLAY
 
     subgraph REPLAY["replay — replay/"]
-        direction TB
+        direction LR
         LOADER["loader.c<br/>текст → таблицы"]
-        SCHED["replay.c<br/>scheduler: тик 1 мс"]
+        SCHED["replay.c<br/>scheduler, тик 1 мс"]
         EXEC["exec.c<br/>касания тика<br/><i>threads — заглушка</i>"]
-        subgraph GEN["generators"]
-            G_RR["gen_roundrobin.c"]
-            G_RND["gen_random.c<br/>random, poisson<br/><i>заглушки</i>"]
-        end
+        GEN["generators.c<br/>gen_roundrobin.c<br/>gen_random.c <i>заглушки</i>"]
         MEM["memory.c<br/>резерв, map/unmap/populate,<br/>касание страницы"]
         LOADER --> SCHED
-        SCHED -->|события| MEM
         SCHED -->|эпоха| EXEC
+        SCHED -->|события| MEM
         EXEC -->|какая страница| GEN
-        EXEC -->|touch| MEM
+        EXEC -->|касание| MEM
     end
 
-    OUT[/"сводка в stderr<br/>stats.csv, layout.txt"/]
-
-    APP -.->|обращения к памяти| KERNEL
-    DAMON --> S_DAMON
-    PROC --> S_SMAPS & S_PROC & S_SD
-    SYS --> S_SYS
-    TRACE --> S_SC
-    TRACE --> LIB
-
-    S_DAMON --> F_DAMON
-    S_SMAPS --> F_SMAPS
-    S_SD --> F_SD
-    S_PROC & S_SYS & S_SC --> F_OTHER
-    LIB --> F_TIME
-    DRV --> F_JSON
-
-    F_JSON --> LAYOUT
-    F_TIME --> TBASE
-    F_SMAPS --> R_SMAPS
-    F_DAMON --> R_DAMON
-    F_SD --> R_SD
-
-    WRITER --> PROFILE --> LOADER
-    MEM -.->|нагрузка на память| KERNEL
-    SCHED --> OUT
+    REPLAY --> OUT[/"сводка в stderr, stats.csv"/]
+    REPLAY -.->|нагрузка на память| KERNEL2(["ядро Linux"])
 ```
 
 ## Откуда каждое поле profile
