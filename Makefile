@@ -24,8 +24,9 @@ test: all
 MMDC ?= mmdc
 diagrams: docs/architecture.png docs/architecture_extension.png
 
+# render in /tmp: mmdc writes broken files straight onto a WSL /mnt drive
 docs/%.png: docs/%.mmd
-	$(MMDC) -i $< -o $@ -s 2 -b white
+	tmp=$$(mktemp --suffix=.png) && $(MMDC) -i $< -o $$tmp -w 4500 -s 2 -b white && cp $$tmp $@; rm -f $$tmp
 
 clean:
 	rm -f $(WORKLOADS) $(TOOLS)
