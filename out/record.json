@@ -1,0 +1,30 @@
+{
+  "format": "qmem-record",
+  "version": 2,
+  "target": {
+    "mode": "launch",
+    "command": "./workloads/hot_region 64 8 3",
+    "pid": 326042,
+    "kernel_pid": 6829
+  },
+  "time": {
+    "start_time": 1791899753.967007518,
+    "end_time": 1791899758.478242276,
+    "start_uptime": 62420.84,
+    "paused_ms": 0
+  },
+  "stop": {"reason": "exited", "interrupted": false},
+  "kernel": "6.18.35.2-microsoft-standard-WSL2+",
+  "interval_ms": 200,
+  "duration_s": null,
+  "sources": {
+    "damon": {"status": "ok", "version": 1, "files": ["damon/access.csv", "damon/damon.data"], "damo_version": "3.3.0", "options": "", "time_base": "record"},
+    "smaps": {"status": "ok", "version": 1, "files": ["smaps/"], "interval_ms": 200},
+    "proc": {"status": "ok", "version": 1, "files": ["proc/proc.csv"]},
+    "system": {"status": "ok", "version": 1, "files": ["system/system.csv"]},
+    "softdirty": {"status": "off"},
+    "syscalls": {"status": "ok", "version": 1, "files": ["syscalls/syscalls.txt"], "overrun": 0},
+    "pmu_count": {"status": "unavailable", "reason": "no hardware PMU (/sys/bus/event_source/devices has no cpu PMU)"},
+    "pmu_sample": {"status": "unavailable", "reason": "no hardware PMU (/sys/bus/event_source/devices has no cpu PMU)"}
+  }
+}
