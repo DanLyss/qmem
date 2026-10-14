@@ -1,106 +1,170 @@
-%% How a new record source X goes through every module.
-%% Green: what to add for X. Grey: what is already there and does not change.
+%% The architecture diagram with a new record source X laid over it.
+%% Green: new for X. Orange: existing part that changes. Yellow dashed: only if X needs a new profile key (variant B).
 %% Shapes: [rectangle] code, [/parallelogram/] file on disk, [(cylinder)] data in memory.
 flowchart TB
     classDef new fill:#d9f2d9,stroke:#2e7d32,stroke-width:2px,color:#1b3d1b
-    classDef old fill:#f2f2f2,stroke:#9e9e9e,color:#555
-    classDef opt fill:#fff8d6,stroke:#c9a400,stroke-dasharray:4 3,color:#5a4a00
+    classDef chg fill:#ffe6cc,stroke:#e67e22,stroke-width:2px,color:#5a2d00
+    classDef opt fill:#fff8d6,stroke:#c9a400,stroke-width:2px,stroke-dasharray:5 3,color:#5a4a00
+    linkStyle default stroke:#888
 
-    K_X["ядро / устройство<br/>откуда берутся данные X<br/>perf, eBPF, /proc, /sys…"]:::old
+    LEGEND["зелёное — новое для X · оранжевое — существующее, меняется<br/>жёлтое пунктиром — только если X нужен новый ключ в profile (вариант B)"]
+    APP(["приложение"])
+
+    subgraph KERNEL["ядро Linux"]
+        direction LR
+        K_DAMON["DAMON<br/>kdamond"]
+        K_PROC["/proc/pid<br/>smaps · stat · pagemap"]
+        K_SYS["/proc<br/>meminfo · vmstat · PSI"]
+        K_TRACE["tracefs"]
+        K_X["данные X<br/>perf · eBPF · /proc · /sys …"]:::new
+    end
+
+    APP -.->|обращения к памяти| KERNEL
 
     %% ------------------------------------------------------------ record
-    subgraph RECORD["1 · record"]
+    subgraph RECORD["1 · record — record/qmem-record.sh (root)"]
         direction TB
-        DRV["driver qmem-record.sh<br/>+ имя x в ALL_SOURCES<br/>(и в TICKING, если X снимает по тикам)"]:::new
-        subgraph SRC["sources/"]
+        DRV["driver<br/>опции · запуск или -p pid<br/>цикл: тик каждые -i мс · остановка<br/><b>+ x в ALL_SOURCES (и TICKING)</b>"]:::chg
+        LIB["lib.sh<br/>часы: метки ts_ms в tracefs<br/>поиск пауз VM"]
+        subgraph SRC["sources/ — check · start · tick · stop · finish · manifest"]
             direction LR
-            S_OLD["damon.sh · smaps.sh · softdirty.sh · …"]:::old
-            S_X["sources/x.sh<br/>src_x_check — можно ли здесь; иначе unavailable + причина<br/>src_x_start · src_x_tick · src_x_stop · src_x_finish<br/>src_x_manifest — version, files, параметры"]:::new
+            S_DAMON["damon.sh<br/>damo record → report"]
+            S_SMAPS["smaps.sh<br/>копия smaps на тик"]
+            S_SD["softdirty.sh<br/>qmem-softdirty раз в -w мс"]
+            S_PROC["proc.sh · system.sh<br/>строка на тик"]
+            S_SC["syscalls.sh<br/>mmap/munmap/brk… "]
+            S_PMU["pmu_count · pmu_sample<br/><i>заглушки</i>"]
+            S_X["x.sh<br/>src_x_check · start · tick<br/>stop · finish · manifest"]:::new
         end
-        DRV -->|check, start, tick, stop, finish| S_X
-        DRV --> S_OLD
+        DRV --> LIB
+        DRV --> SRC
     end
 
+    KERNEL -->|DAMON · /proc · tracefs| SRC
+
+    %% ------------------------------------------------------------ record dir
+    subgraph RDIR["каталог записи out/ — формат record v2"]
+        direction LR
+        F_JSON[/"record.json<br/>источники: статус, файлы, параметры<br/><b>+ sources.x</b>"/]:::chg
+        F_TIME[/"clock.csv<br/>pauses.csv"/]
+        F_DAMON[/"damon/access.csv<br/>регион · access_rate % · время"/]
+        F_SMAPS[/"smaps/&lt;ts&gt;.txt<br/>отображения · Rss"/]
+        F_SD[/"softdirty/writes.csv<br/>отображение · записано страниц"/]
+        F_REST[/"proc/ · system/ · syscalls/<br/><i>builder пока не читает</i>"/]
+        F_X[/"x/ — файлы X"/]:::new
+    end
+
+    DRV --> F_JSON
+    LIB --> F_TIME
+    S_DAMON --> F_DAMON
+    S_SMAPS --> F_SMAPS
+    S_SD --> F_SD
+    S_PROC --> F_REST
+    S_SC --> F_REST
+    S_X --> F_X
     K_X --> S_X
 
-    subgraph RDIR["каталог записи out/"]
-        direction LR
-        F_OLD[/"damon/ · smaps/ · softdirty/ · …"/]:::old
-        F_X[/"x/x.csv — файлы X в своей подпапке"/]:::new
-        F_JSON[/"record.json<br/>sources.x: status, version, files, параметры"/]:::new
-    end
-
-    S_X --> F_X
-    S_X -->|манифест| F_JSON
-    S_OLD --> F_OLD
-
-    T_REC["tests/test_record_x.py<br/>файлы на месте, статус ok / unavailable"]:::new
-    F_X -.- T_REC
-
-    DOC_REC[/"docs/formats/record.md<br/>описание x/ и полей sources.x"/]:::new
-    F_X -.- DOC_REC
-
     %% ------------------------------------------------------------ builder
-    subgraph BUILDER["2 · builder"]
+    subgraph BUILDER["2 · builder — builder/qmem-build.py"]
         direction TB
-        LAYOUT["readers/layout.py<br/>record.path('x', 'x.csv') — без изменений"]:::old
-        R_OLD["readers/smaps.py · damon.py · softdirty.py"]:::old
-        R_X["readers/x.py<br/>файлы X → объекты, время через timebase"]:::new
-        M_OLD[("model: regions · smaps · observations · writes")]:::old
-        M_X[("model.py: новое поле x<br/>в общих координатах: регион + смещение, эпоха")]:::new
-        subgraph EST["estimators/"]
+        R_LAYOUT["readers/layout.py<br/>по record.json: какие источники есть и где их файлы"]
+        R_TIME["readers/timebase.py<br/>по pauses.csv: вычесть паузы VM из каждой метки"]
+
+        subgraph READ["readers/ — по одному на источник"]
             direction LR
-            E_OLD["lifecycle · resident · …<br/>не меняются"]:::old
-            E_X["estimators/&lt;вид&gt;_x.py<br/>например intensity_x:<br/>берёт model.x и, если нужно, model.observations<br/>выбор: --intensity x"]:::new
+            R_SMAPS["smaps.py"]
+            R_DAMON["damon.py"]
+            R_SD["softdirty.py"]
+            R_X["x.py"]:::new
         end
-        D_PROF[("Profile")]:::old
-        LAYOUT --> R_X
-        LAYOUT --> R_OLD
-        R_OLD --> M_OLD
-        R_X --> M_X
-        M_OLD --> E_OLD
+
+        subgraph RAW["что вернули readers"]
+            direction LR
+            D_SMAPS[("снимки smaps<br/>ts · анонимные интервалы · Rss")]
+            D_DAMON[("снимки DAMON<br/>время · участок · access_rate %<br/>+ интервал выборки")]
+            D_SD[("выборки softdirty<br/>ts · отображение · записано страниц")]
+            D_X[("данные X<br/>время уже без пауз")]:::new
+        end
+
+        subgraph MODEL["model.py — общие координаты: регион + смещение, эпоха · <b>+ поле x</b>"]
+            direction LR
+            M_REG[("regions<br/>объединение анонимных<br/>интервалов всех снимков")]
+            M_SNAP[("smaps<br/>снимки как есть")]
+            M_OBS[("observations<br/>по эпохе: участки DAMON,<br/>обрезанные по выделенному<br/>и разрезанные по регионам")]
+            M_WR[("writes<br/>выборки softdirty как есть")]
+            M_X[("x<br/>в общих координатах:<br/>регион + смещение, эпоха")]:::new
+        end
+
+        subgraph EST["estimators/ — вызываются по порядку 1→5, наполняют один Profile"]
+            direction LR
+            E_LC["1 lifecycle<br/>разница соседних снимков<br/>→ region · map · unmap"]
+            E_RES["2 resident<br/>рост Rss<br/>→ populate"]
+            E_INT["3 intensity_passthrough<br/>rate = access_rate / 100 / интервал<br/>→ epoch · access region off len rate<br/><i>заглушка</i>"]
+            E_WR["4 write_softdirty<br/>записано / затронуто в access<br/>→ access.write<br/><i>заглушка</i>"]
+            E_TM["5 timing_roundrobin<br/>→ access.pattern<br/><i>заглушка</i>"]
+            E_X["&lt;вид&gt;_x, например intensity_x<br/>вместо заглушки своего вида<br/>выбор: --intensity x<br/>→ те же поля или новый ключ"]:::new
+        end
+
+        D_PROF[("Profile в памяти<br/>regions · events · epochs с accesses")]
+        WRITER["profile_v2.py — writer<br/>Profile → текст"]
+
+        R_LAYOUT --> READ
+        R_TIME -.->|время без пауз| READ
+        R_SMAPS --> D_SMAPS
+        R_DAMON --> D_DAMON
+        R_SD --> D_SD
+        R_X --> D_X
+
+        D_SMAPS --> M_REG
+        D_SMAPS --> M_SNAP
+        D_DAMON --> M_OBS
+        M_SNAP -.->|что выделено| M_OBS
+        D_SD --> M_WR
+        D_X --> M_X
+
+        M_REG --> E_LC
+        M_SNAP --> E_RES
+        M_OBS --> E_INT
+        M_WR --> E_WR
         M_X --> E_X
-        M_OLD -.->|может использовать| E_X
-        E_OLD --> D_PROF
-        E_X --> D_PROF
+        M_OBS -.->|может использовать| E_X
+
+        E_LC & E_RES & E_INT & E_WR & E_TM & E_X --> D_PROF --> WRITER
     end
 
+    F_JSON --> R_LAYOUT
+    F_TIME --> R_TIME
+    F_SMAPS --> R_SMAPS
+    F_DAMON --> R_DAMON
+    F_SD --> R_SD
     F_X --> R_X
-    F_JSON --> LAYOUT
-    F_OLD --> R_OLD
 
-    T_BLD["tests/test_build.py<br/>синтетическая запись с x/ → ожидаемые строки profile"]:::new
-    E_X -.- T_BLD
-
-    %% ------------------------------------------------------------ profile
-    subgraph PROF["profile.txt — два варианта"]
-        direction LR
-        P_A[/"A · существующие поля<br/>X только уточняет rate / write / pattern<br/>формат не меняется"/]:::old
-        P_B[/"B · новое поле или тип строки<br/>access … x_key=…  или  строка x …<br/>с ! — если без него replay неверен"/]:::opt
-    end
-
-    D_PROF --> P_A
-    D_PROF --> P_B
-
-    DOC_PROF[/"docs/formats/profile.md<br/>описание нового ключа или строки (только B)"/]:::opt
-    P_B -.- DOC_PROF
+    PROFILE[/"profile.txt — формат profile v2<br/>region · map/unmap/populate · epoch · access rate write pattern<br/><b>B: + ключ x_key=… или строка x …</b>"/]:::opt
+    WRITER --> PROFILE
 
     %% ------------------------------------------------------------ replay
-    subgraph REPLAY["3 · replay"]
+    subgraph REPLAY["3 · replay — replay/qmem-replay (без root)"]
         direction TB
-        L_OLD["loader.c — без изменений (вариант A)"]:::old
-        L_X["loader.c: ключ x_key в check_keys<br/>или ветка строки x в parse_line (вариант B)"]:::opt
-        USE_X["где используется:<br/>gen_x.c — новый pattern<br/>или exec.c / memory.c — новое поведение"]:::opt
-        RUN["scheduler · exec · generators · memory<br/>без изменений (вариант A)"]:::old
-        L_OLD --> RUN
-        L_X --> USE_X
+        LOADER["loader.c<br/>разбор и проверка profile<br/><b>B: + x_key в check_keys / ветка строки x</b>"]:::opt
+        D_TAB[("таблицы: regions · events · epochs · accesses")]
+        SCHED["replay.c — scheduler<br/>prepare: резерв адресов, состояние генераторов от seed<br/>тик 1 мс по абсолютным дедлайнам · смена эпох"]
+        subgraph RUN["в каждом тике"]
+            direction LR
+            EXEC["exec.c — executor<br/>касаний = rate × 1 мс<br/>опоздал — бросить<br/><i>threads — заглушка</i>"]
+            GEN["generators.c<br/>gen_roundrobin.c<br/>gen_random.c <i>заглушки</i><br/>какая страница"]
+            MEM["memory.c<br/>map/unmap/populate<br/>касание: запись или чтение по write"]
+            G_X["gen_x.c — новый pattern<br/>или новое поведение в exec / memory"]:::opt
+            EXEC -->|next| GEN
+            EXEC -->|touch| MEM
+            EXEC -.->|B| G_X
+        end
+        LOADER --> D_TAB --> SCHED
+        SCHED -->|события| MEM
+        SCHED -->|эпоха| EXEC
     end
 
-    P_A --> L_OLD
-    P_B --> L_X
+    PROFILE --> LOADER
 
-    OLD_REPLAY["старый replay с profile варианта B:<br/>неизвестный ключ пропустит,<br/>ключ с ! — откажется, код 2"]:::old
-    P_B -.-> OLD_REPLAY
-
-    T_REP["tests/test_replay*.py<br/>новый ключ разбирается и работает (только B)"]:::opt
-    USE_X -.- T_REP
+    OUT[/"stderr: сводка · --stats stats.csv"/]
+    SCHED --> OUT
+    MEM -.->|нагрузка на память: faults · RSS · грязные страницы| KERNEL2(["ядро Linux"])
