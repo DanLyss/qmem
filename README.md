@@ -22,6 +22,7 @@ replay/qmem-replay profile.txt --stats stats.csv                        # вос
 ### Документы
 
 - [docs/spec.md](docs/spec.md) — что такое Qmem и зачем
+- [docs/architecture.md](docs/architecture.md) — схема модулей и датафлоу
 - [docs/skeleton.md](docs/skeleton.md) — каркас: модули, интерфейсы, заглушки, план и что дальше
 
 ### Итерация 1 (история)
