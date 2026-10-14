@@ -55,29 +55,61 @@ flowchart TB
     %% ------------------------------------------------------------ builder
     subgraph BUILDER["2 · builder — builder/qmem-build.py"]
         direction TB
-        subgraph READERS["readers/ — файлы → объекты, время без пауз"]
+        R_LAYOUT["readers/layout.py<br/>по record.json: какие источники есть и где их файлы"]
+        R_TIME["readers/timebase.py<br/>по pauses.csv: вычесть паузы VM из каждой метки"]
+
+        subgraph READ["readers/ — по одному на источник"]
             direction LR
-            R_LAYOUT["layout.py<br/>где файлы источника"]
-            R_TIME["timebase.py<br/>время записи → время приложения"]
             R_SMAPS["smaps.py"]
             R_DAMON["damon.py"]
             R_SD["softdirty.py"]
         end
-        D_RAW[("снимки smaps · снимки DAMON · выборки softdirty")]
-        MODEL["model.py<br/>регионы из smaps · эпохи по epoch_ms<br/>DAMON обрезан по выделенному и разрезан по регионам"]
-        D_MODEL[("Model: regions · observations по эпохам · writes")]
-        subgraph EST["estimators/ — estimate(model, options, profile)"]
+
+        subgraph RAW["что вернули readers"]
             direction LR
-            E_LC["lifecycle<br/>region · map · unmap"]
-            E_RES["resident<br/>populate"]
-            E_INT["intensity_passthrough<br/>epoch · access · rate<br/><i>заглушка</i>"]
-            E_WR["write_softdirty<br/>access.write<br/><i>заглушка</i>"]
-            E_TM["timing_roundrobin<br/>access.pattern<br/><i>заглушка</i>"]
-            E_LC --> E_RES --> E_INT --> E_WR --> E_TM
+            D_SMAPS[("снимки smaps<br/>ts · анонимные интервалы · Rss")]
+            D_DAMON[("снимки DAMON<br/>время · участок · access_rate %<br/>+ интервал выборки")]
+            D_SD[("выборки softdirty<br/>ts · отображение · записано страниц")]
         end
-        D_PROF[("Profile: regions · events · epochs · accesses")]
-        WRITER["profile_v2.py<br/>writer"]
-        READERS --> D_RAW --> MODEL --> D_MODEL --> EST --> D_PROF --> WRITER
+
+        subgraph MODEL["model.py — общие координаты: регион + смещение, эпоха"]
+            direction LR
+            M_REG[("regions<br/>объединение анонимных<br/>интервалов всех снимков")]
+            M_SNAP[("smaps<br/>снимки как есть")]
+            M_OBS[("observations<br/>по эпохе: участки DAMON,<br/>обрезанные по выделенному<br/>и разрезанные по регионам")]
+            M_WR[("writes<br/>выборки softdirty как есть")]
+        end
+
+        subgraph EST["estimators/ — вызываются по порядку 1→5, наполняют один Profile"]
+            direction LR
+            E_LC["1 lifecycle<br/>разница соседних снимков<br/>→ region · map · unmap"]
+            E_RES["2 resident<br/>рост Rss<br/>→ populate"]
+            E_INT["3 intensity_passthrough<br/>rate = access_rate / 100 / интервал<br/>→ epoch · access region off len rate<br/><i>заглушка</i>"]
+            E_WR["4 write_softdirty<br/>записано / затронуто в access<br/>→ access.write<br/><i>заглушка</i>"]
+            E_TM["5 timing_roundrobin<br/>→ access.pattern<br/><i>заглушка</i>"]
+        end
+
+        D_PROF[("Profile в памяти<br/>regions · events · epochs с accesses")]
+        WRITER["profile_v2.py — writer<br/>Profile → текст"]
+
+        R_LAYOUT --> READ
+        R_TIME -.->|время без пауз| READ
+        R_SMAPS --> D_SMAPS
+        R_DAMON --> D_DAMON
+        R_SD --> D_SD
+
+        D_SMAPS --> M_REG
+        D_SMAPS --> M_SNAP
+        D_DAMON --> M_OBS
+        M_SNAP -.->|что выделено| M_OBS
+        D_SD --> M_WR
+
+        M_REG --> E_LC
+        M_SNAP --> E_RES
+        M_OBS --> E_INT
+        M_WR --> E_WR
+
+        E_LC & E_RES & E_INT & E_WR & E_TM --> D_PROF --> WRITER
     end
 
     F_JSON --> R_LAYOUT
