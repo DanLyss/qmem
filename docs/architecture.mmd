@@ -1,0 +1,115 @@
+%% Qmem: data flow through record, builder and replay, and the parts inside each.
+%% Shapes: [rectangle] code, [/parallelogram/] file on disk, [(cylinder)] data in memory.
+flowchart TB
+    APP(["приложение"])
+
+    subgraph KERNEL["ядро Linux"]
+        direction LR
+        K_DAMON["DAMON<br/>kdamond"]
+        K_PROC["/proc/pid<br/>smaps · stat · pagemap"]
+        K_SYS["/proc<br/>meminfo · vmstat · PSI"]
+        K_TRACE["tracefs"]
+    end
+
+    APP -.->|обращения к памяти| KERNEL
+
+    %% ------------------------------------------------------------ record
+    subgraph RECORD["1 · record — record/qmem-record.sh (root)"]
+        direction TB
+        DRV["driver<br/>опции · запуск или -p pid<br/>цикл: тик каждые -i мс · остановка"]
+        LIB["lib.sh<br/>часы: метки ts_ms в tracefs<br/>поиск пауз VM"]
+        subgraph SRC["sources/ — check · start · tick · stop · finish · manifest"]
+            direction LR
+            S_DAMON["damon.sh<br/>damo record → report"]
+            S_SMAPS["smaps.sh<br/>копия smaps на тик"]
+            S_SD["softdirty.sh<br/>qmem-softdirty раз в -w мс"]
+            S_PROC["proc.sh · system.sh<br/>строка на тик"]
+            S_SC["syscalls.sh<br/>mmap/munmap/brk… "]
+            S_PMU["pmu_count · pmu_sample<br/><i>заглушки</i>"]
+        end
+        DRV --> LIB
+        DRV --> SRC
+    end
+
+    KERNEL -->|DAMON · /proc · tracefs| SRC
+
+    %% ------------------------------------------------------------ record dir
+    subgraph RDIR["каталог записи out/ — формат record v2"]
+        direction LR
+        F_JSON[/"record.json<br/>источники: статус, файлы, параметры"/]
+        F_TIME[/"clock.csv<br/>pauses.csv"/]
+        F_DAMON[/"damon/access.csv<br/>регион · access_rate % · время"/]
+        F_SMAPS[/"smaps/&lt;ts&gt;.txt<br/>отображения · Rss"/]
+        F_SD[/"softdirty/writes.csv<br/>отображение · записано страниц"/]
+        F_REST[/"proc/ · system/ · syscalls/<br/><i>builder пока не читает</i>"/]
+    end
+
+    DRV --> F_JSON
+    LIB --> F_TIME
+    S_DAMON --> F_DAMON
+    S_SMAPS --> F_SMAPS
+    S_SD --> F_SD
+    S_PROC --> F_REST
+    S_SC --> F_REST
+
+    %% ------------------------------------------------------------ builder
+    subgraph BUILDER["2 · builder — builder/qmem-build.py"]
+        direction TB
+        subgraph READERS["readers/ — файлы → объекты, время без пауз"]
+            direction LR
+            R_LAYOUT["layout.py<br/>где файлы источника"]
+            R_TIME["timebase.py<br/>время записи → время приложения"]
+            R_SMAPS["smaps.py"]
+            R_DAMON["damon.py"]
+            R_SD["softdirty.py"]
+        end
+        D_RAW[("снимки smaps · снимки DAMON · выборки softdirty")]
+        MODEL["model.py<br/>регионы из smaps · эпохи по epoch_ms<br/>DAMON обрезан по выделенному и разрезан по регионам"]
+        D_MODEL[("Model: regions · observations по эпохам · writes")]
+        subgraph EST["estimators/ — estimate(model, options, profile)"]
+            direction LR
+            E_LC["lifecycle<br/>region · map · unmap"]
+            E_RES["resident<br/>populate"]
+            E_INT["intensity_passthrough<br/>epoch · access · rate<br/><i>заглушка</i>"]
+            E_WR["write_softdirty<br/>access.write<br/><i>заглушка</i>"]
+            E_TM["timing_roundrobin<br/>access.pattern<br/><i>заглушка</i>"]
+            E_LC --> E_RES --> E_INT --> E_WR --> E_TM
+        end
+        D_PROF[("Profile: regions · events · epochs · accesses")]
+        WRITER["profile_v2.py<br/>writer"]
+        READERS --> D_RAW --> MODEL --> D_MODEL --> EST --> D_PROF --> WRITER
+    end
+
+    F_JSON --> R_LAYOUT
+    F_TIME --> R_TIME
+    F_SMAPS --> R_SMAPS
+    F_DAMON --> R_DAMON
+    F_SD --> R_SD
+
+    PROFILE[/"profile.txt — формат profile v2<br/>region · map/unmap/populate · epoch · access rate write pattern"/]
+    WRITER --> PROFILE
+
+    %% ------------------------------------------------------------ replay
+    subgraph REPLAY["3 · replay — replay/qmem-replay (без root)"]
+        direction TB
+        LOADER["loader.c<br/>разбор и проверка profile"]
+        D_TAB[("таблицы: regions · events · epochs · accesses")]
+        SCHED["replay.c — scheduler<br/>prepare: резерв адресов, состояние генераторов от seed<br/>тик 1 мс по абсолютным дедлайнам · смена эпох"]
+        subgraph RUN["в каждом тике"]
+            direction LR
+            EXEC["exec.c — executor<br/>касаний = rate × 1 мс<br/>опоздал — бросить<br/><i>threads — заглушка</i>"]
+            GEN["generators.c<br/>gen_roundrobin.c<br/>gen_random.c <i>заглушки</i><br/>какая страница"]
+            MEM["memory.c<br/>map/unmap/populate<br/>касание: запись или чтение по write"]
+            EXEC -->|next| GEN
+            EXEC -->|touch| MEM
+        end
+        LOADER --> D_TAB --> SCHED
+        SCHED -->|события| MEM
+        SCHED -->|эпоха| EXEC
+    end
+
+    PROFILE --> LOADER
+
+    OUT[/"stderr: сводка · --stats stats.csv"/]
+    SCHED --> OUT
+    MEM -.->|нагрузка на память: faults · RSS · грязные страницы| KERNEL2(["ядро Linux"])
