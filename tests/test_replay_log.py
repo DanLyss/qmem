@@ -15,8 +15,8 @@ def parse_log(path):
     return out
 
 
-def lines(log, kind, **match):
-    return [kv for t, kv in log if t == kind and all(kv.get(k) == str(v) for k, v in match.items())]
+def lines(log, type_, **match):
+    return [kv for t, kv in log if t == type_ and all(kv.get(k) == str(v) for k, v in match.items())]
 
 
 def run_logged(tmp_path, body, level=None, *args, epoch_ms=100, seed=None):

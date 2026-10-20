@@ -81,7 +81,7 @@ static void replay(uint64_t *wall_ns)
 		if (epochs[i].t_ms + epochs[i].dur_ms > end_ms)
 			end_ms = epochs[i].t_ms + epochs[i].dur_ms;
 		for (uint32_t j = epochs[i].first; j < epochs[i].first + epochs[i].n; j++)
-			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0);
+			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0 + 1e-9);
 		planned += epochs[i].planned;
 	}
 

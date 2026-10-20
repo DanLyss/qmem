@@ -34,8 +34,10 @@ int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline
 		struct access *a = &accesses[i];
 		uint64_t n, k;
 
+		/* the epsilon keeps rounding errors of the running sum from
+		 * losing a touch: 100 x 1.92 adds up to 191.99999… */
 		a->carry += a->rate * tick_ms / 1000.0;
-		n = (uint64_t)a->carry;
+		n = (uint64_t)(a->carry + 1e-9);
 		a->carry -= n;
 		for (k = 0; k < n; k++) {
 			if ((k & 1023) == 1023 && now_ns() >= deadline_ns) {
