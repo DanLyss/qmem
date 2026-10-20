@@ -21,6 +21,12 @@ replay/qmem-replay: $(REPLAY_SRC) replay/profile.h
 test: all
 	python3 -m pytest -v tests
 
+# replay against damoLoad's memtest on all of its configs (about 40 min);
+# needs the submodule: git submodule update --init
+damoload-check: all
+	python3 tools/damoload_check.py third_party/damoLoad/memtest/configs/*.json \
+		--json damoload_report.json
+
 MMDC ?= mmdc
 diagrams: docs/architecture.png docs/architecture_extension.png
 
@@ -31,4 +37,4 @@ docs/%.png: docs/%.mmd
 clean:
 	rm -f $(WORKLOADS) $(TOOLS)
 
-.PHONY: all test diagrams clean
+.PHONY: all test damoload-check diagrams clean

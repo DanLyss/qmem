@@ -65,3 +65,9 @@ Root не нужен. В конце в stderr печатается сводка:
 | `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, доля записи (softdirty), populate, `--layout`, отдельные VMA |
 | `tests/test_replay_v2.py` | Правила совместимости и заглушки |
 | `tests/test_skeleton_e2e.py` | record → build → replay целиком (с настоящим DAMON — под root) |
+| `tests/test_replay_log.py` | Лог шагов `--log`: строки и уровни |
+| `tests/test_replay_algorithm.py` | Алгоритм по логу: события в свой тик, границы эпох, число касаний и перенос остатка, roundrobin и random, постоянный набор записываемых страниц, `unmap`, сброс опоздавшей работы |
+| `tests/test_memtest2profile.py` | Перевод конфига memtest (damoLoad) в profile: частота каждой страницы для всех `spatial` и `temporal` |
+| `tests/test_damoload.py` | replay против memtest на 6 конфигах damoLoad, касание в касание; проверка, что неверный replay ловится |
+
+Сравнение со всеми 101 конфигом damoLoad: `make damoload-check` (около 40 минут, нужен `git submodule update --init`). План и пороги — [docs/replay_testing.md](../docs/replay_testing.md), результаты — [docs/replay_testing_report.md](../docs/replay_testing_report.md).
