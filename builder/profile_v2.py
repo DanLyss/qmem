@@ -57,7 +57,7 @@ class Profile:
 def num(x):
     if isinstance(x, int):
         return str(x)
-    return ('%.3f' % x).rstrip('0').rstrip('.')
+    return ('%.6f' % x).rstrip('0').rstrip('.')
 
 
 def kv(**pairs):
