@@ -1,0 +1,227 @@
+OK    01_single_page_const_low.json  memtest=99 replay=100 (+1.0%)  windows bad 0/100
+OK    02_single_page_const_high.json  memtest=1999 replay=2000 (+0.1%)  windows bad 0/100
+OK    03_two_pages_uniform.json  memtest=999 replay=1000 (+0.1%)  windows bad 0/100
+OK    04_ten_pages_uniform.json  memtest=1499 replay=1500 (+0.1%)  windows bad 0/150
+OK    05_ten_pages_sequential.json  memtest=1499 replay=1500 (+0.1%)  windows bad 0/150
+OK    06_all_pages_simultaneously.json  memtest=4990 replay=5000 (+0.2%)  windows bad 0/100
+OK    07_single_hotspot_one_page.json  memtest=2249 replay=2249 (+0.0%)  windows bad 0/150
+OK    08_hotspot_two_pages.json  memtest=2249 replay=2250 (+0.0%)  windows bad 0/150
+OK    09_ramp_up.json  memtest=1503 replay=1500 (-0.2%)  windows bad 0/150
+FAIL  100_ultimate_100reg_chaos.json  memtest=121855 replay=121267 (-0.5%)  windows bad 8/30000
+      region 24 window 276: memtest 0, replay 4
+      region 26 window 149: memtest 0, replay 3
+      region 28 window 182: memtest 0, replay 3
+      region 65 window 63: memtest 0, replay 4
+      region 65 window 64: memtest 0, replay 3
+      … 3 more windows
+FAIL  101_5500reg_realistic_app.json  memtest=4923953 replay=4925259 (+0.0%)  windows bad 665/3300000
+      region 0 window 3: memtest 18, replay 54
+      region 0 window 187: memtest 0, replay 7
+      region 0 window 188: memtest 0, replay 7
+      region 1 window 0: memtest 21, replay 0
+      region 1 window 1: memtest 22, replay 0
+      … 660 more windows
+OK    10_ramp_down.json  memtest=1497 replay=1500 (+0.2%)  windows bad 0/150
+OK    11_sine_slow.json  memtest=2000 replay=2000 (+0.0%)  windows bad 0/200
+OK    12_sine_fast.json  memtest=2015 replay=2000 (-0.7%)  windows bad 0/200
+OK    13_square_half_duty.json  memtest=1997 replay=2000 (+0.2%)  windows bad 0/200
+OK    14_square_short_burst.json  memtest=196 replay=200 (+2.0%)  windows bad 0/200
+OK    15_steps_three.json  memtest=1004 replay=1000 (-0.4%)  windows bad 0/150
+OK    16_steps_five.json  memtest=2555 replay=2550 (-0.2%)  windows bad 0/250
+OK    17_zipf_steep.json  memtest=2249 replay=2244 (-0.2%)  windows bad 0/150
+OK    18_zipf_shallow.json  memtest=2249 replay=2245 (-0.2%)  windows bad 0/150
+OK    19_gaussian_center.json  memtest=2249 replay=2246 (-0.1%)  windows bad 0/150
+OK    20_gaussian_wide.json  memtest=2249 replay=2247 (-0.1%)  windows bad 0/150
+OK    21_hotspot_sine.json  memtest=2001 replay=2000 (-0.0%)  windows bad 0/200
+OK    22_hotspot_square.json  memtest=1198 replay=1200 (+0.2%)  windows bad 0/200
+OK    23_two_tracks_same_region.json  memtest=3998 replay=3999 (+0.0%)  windows bad 0/200
+OK    24_two_tracks_delayed.json  memtest=3499 replay=3500 (+0.0%)  windows bad 0/200
+OK    25_two_tracks_alternating.json  memtest=2999 replay=2990 (-0.3%)  windows bad 0/200
+OK    26_two_regions_basic.json  memtest=3748 replay=3750 (+0.1%)  windows bad 0/300
+OK    27_large_region_uniform.json  memtest=1499 replay=1500 (+0.1%)  windows bad 0/150
+OK    28_large_region_hotspot.json  memtest=2249 replay=2249 (+0.0%)  windows bad 0/150
+OK    29_gaussian_sine.json  memtest=1642 replay=1640 (-0.1%)  windows bad 0/200
+OK    30_zipf_steps.json  memtest=1802 replay=1794 (-0.4%)  windows bad 0/200
+OK    31_hotspot_extreme.json  memtest=2999 replay=2999 (+0.0%)  windows bad 0/150
+OK    32_hotspot_balanced.json  memtest=2249 replay=2250 (+0.0%)  windows bad 0/150
+OK    33_all_pages_sine.json  memtest=12360 replay=12358 (-0.0%)  windows bad 0/200
+OK    34_all_pages_square.json  memtest=11980 replay=12000 (+0.2%)  windows bad 0/200
+OK    35_moving_hotspot.json  memtest=4498 replay=4500 (+0.0%)  windows bad 0/300
+OK    36_three_regions.json  memtest=6859 replay=6848 (-0.2%)  windows bad 0/600
+OK    37_four_tracks_phase_shift.json  memtest=6400 replay=6400 (+0.0%)  windows bad 0/200
+OK    38_burst_detection_test.json  memtest=3705 replay=3648 (-1.5%)  windows bad 0/300
+OK    39_ramp_with_hotspot.json  memtest=4002 replay=4000 (-0.0%)  windows bad 0/200
+OK    40_cold_to_hot_to_cold.json  memtest=2311 replay=2300 (-0.5%)  windows bad 0/300
+OK    41_two_competing_regions.json  memtest=29970 replay=29999 (+0.1%)  windows bad 0/400
+OK    42_gaussian_moving_center.json  memtest=4499 replay=4491 (-0.2%)  windows bad 0/300
+OK    43_five_tracks_overlap.json  memtest=7498 replay=7493 (-0.1%)  windows bad 0/250
+OK    44_detection_limit_low_hz.json  memtest=351 replay=343 (-2.3%)  windows bad 0/200
+OK    45_many_pages_zipf.json  memtest=2999 replay=2983 (-0.5%)  windows bad 0/200
+OK    46_split_merge_stress.json  memtest=6598 replay=6600 (+0.0%)  windows bad 0/300
+OK    47_sine_vs_square.json  memtest=3796 replay=3800 (+0.1%)  windows bad 0/200
+OK    48_three_regions_complex.json  memtest=18221 replay=18162 (-0.3%)  windows bad 0/750
+OK    49_aggr_interval_blur_test.json  memtest=1984 replay=2000 (+0.8%)  windows bad 0/200
+OK    50_ultimate.json  memtest=24265 replay=24196 (-0.3%)  windows bad 0/1200
+OK    51_100reg_uniform_const.json  memtest=199900 replay=200000 (+0.1%)  windows bad 0/20000
+OK    52_100reg_sine_phase_sweep.json  memtest=159962 replay=160000 (+0.0%)  windows bad 0/20000
+OK    53_100reg_square_antiphase.json  memtest=159823 replay=160000 (+0.1%)  windows bad 0/20000
+OK    54_100reg_ramp_split.json  memtest=299711 replay=300000 (+0.1%)  windows bad 0/30000
+OK    55_100reg_zipf_gradient.json  memtest=199900 replay=198995 (-0.5%)  windows bad 0/20000
+OK    56_100reg_cascade.json  memtest=377239 replay=377250 (+0.0%)  windows bad 0/40000
+OK    57_100reg_cascade_off.json  memtest=377150 replay=377250 (+0.0%)  windows bad 0/40000
+OK    58_100reg_hotspot_ratio_gradient.json  memtest=239883 replay=239913 (+0.0%)  windows bad 0/20000
+OK    59_100reg_steps_4phase.json  memtest=185125 replay=185000 (-0.1%)  windows bad 0/20000
+OK    60_100reg_gauss_centers.json  memtest=239900 replay=239436 (-0.2%)  windows bad 0/20000
+OK    61_100reg_10groups_sine.json  memtest=159960 replay=159950 (-0.0%)  windows bad 0/20000
+OK    62_100reg_half_half_swap.json  memtest=269931 replay=270000 (+0.0%)  windows bad 0/30000
+OK    63_120reg_alternating_spatial.json  memtest=359880 replay=360000 (+0.0%)  windows bad 0/24000
+OK    64_100reg_2tracks_each.json  memtest=319800 replay=320000 (+0.1%)  windows bad 0/20000
+OK    65_100reg_sine_plus_square.json  memtest=167634 replay=165837 (-1.1%)  windows bad 0/20000
+OK    66_150reg_varying_sizes.json  memtest=299850 replay=299963 (+0.0%)  windows bad 0/30000
+OK    67_100reg_burst_duty_sweep.json  memtest=72407 replay=72800 (+0.5%)  windows bad 0/20000
+OK    68_100reg_competing_zipf.json  memtest=359800 replay=359200 (-0.2%)  windows bad 0/20000
+OK    69_100reg_seq_plus_burst.json  memtest=199604 replay=198000 (-0.8%)  windows bad 0/20000
+OK    70_200reg_cold_stress.json  memtest=19800 replay=20000 (+1.0%)  windows bad 0/40000
+OK    71_100reg_hot_warm_cold.json  memtest=189600 replay=189700 (+0.1%)  windows bad 0/20000
+OK    72_100reg_sine_freq_gradient.json  memtest=184339 replay=184079 (-0.1%)  windows bad 0/30000
+OK    73_100reg_random_windows.json  memtest=143503 replay=143520 (+0.0%)  windows bad 0/30000
+OK    74_100reg_ramp_wave.json  memtest=251958 replay=251500 (-0.2%)  windows bad 0/40000
+OK    75_110reg_zipf_all_skews.json  memtest=263890 replay=262933 (-0.4%)  windows bad 0/22000
+OK    76_100reg_tournament_swap.json  memtest=419345 replay=420000 (+0.2%)  windows bad 0/40000
+FAIL  77_100reg_all_pages_burst.json  memtest=149470 replay=149985 (+0.3%)  windows bad 31/20000
+      region 4 window 28: memtest 0, replay 5
+      region 4 window 58: memtest 0, replay 5
+      region 4 window 88: memtest 0, replay 5
+      region 4 window 148: memtest 0, replay 5
+      region 4 window 178: memtest 0, replay 5
+      … 26 more windows
+OK    78_100reg_5temporal_groups.json  memtest=212048 replay=212200 (+0.1%)  windows bad 0/20000
+OK    79_100reg_gauss_shift.json  memtest=359873 replay=359100 (-0.2%)  windows bad 0/30000
+FAIL  80_100reg_3layer.json  memtest=178564 replay=179300 (+0.4%)  windows bad 2/20000
+      region 48 window 49: memtest 2, replay 10
+      region 54 window 127: memtest 2, replay 10
+OK    81_100reg_split_merge_stress.json  memtest=599799 replay=600000 (+0.0%)  windows bad 0/40000
+FAIL  82_100reg_sub_aggr_bursts.json  memtest=18 replay=2000 (+11011.1%)  windows bad 0/20000
+      region 0: page distribution differs, tv 1.000 > 0.050
+      region 1: page distribution differs, tv 1.000 > 0.050
+      region 2: page distribution differs, tv 1.000 > 0.050
+      region 3: page distribution differs, tv 0.950 > 0.050
+      region 4: page distribution differs, tv 1.000 > 0.050
+      region 5: page distribution differs, tv 1.000 > 0.050
+      region 6: page distribution differs, tv 1.000 > 0.050
+      region 7: page distribution differs, tv 0.950 > 0.050
+      region 8: page distribution differs, tv 1.000 > 0.050
+      region 9: page distribution differs, tv 1.000 > 0.050
+      region 10: page distribution differs, tv 1.000 > 0.050
+      region 11: page distribution differs, tv 1.000 > 0.050
+      region 12: page distribution differs, tv 1.000 > 0.050
+      region 13: page distribution differs, tv 1.000 > 0.050
+      region 14: page distribution differs, tv 0.950 > 0.050
+      region 15: page distribution differs, tv 1.000 > 0.050
+      region 16: page distribution differs, tv 1.000 > 0.050
+      region 17: page distribution differs, tv 1.000 > 0.050
+      region 18: page distribution differs, tv 1.000 > 0.050
+      region 19: page distribution differs, tv 1.000 > 0.050
+      region 20: page distribution differs, tv 1.000 > 0.050
+      region 21: page distribution differs, tv 1.000 > 0.050
+      region 22: page distribution differs, tv 1.000 > 0.050
+      region 23: page distribution differs, tv 0.850 > 0.050
+      region 24: page distribution differs, tv 1.000 > 0.050
+      region 25: page distribution differs, tv 1.000 > 0.050
+      region 26: page distribution differs, tv 1.000 > 0.050
+      region 27: page distribution differs, tv 1.000 > 0.050
+      region 28: page distribution differs, tv 1.000 > 0.050
+      region 29: page distribution differs, tv 1.000 > 0.050
+      region 30: page distribution differs, tv 1.000 > 0.050
+      region 31: page distribution differs, tv 1.000 > 0.050
+      region 32: page distribution differs, tv 1.000 > 0.050
+      region 33: page distribution differs, tv 1.000 > 0.050
+      region 34: page distribution differs, tv 1.000 > 0.050
+      region 35: page distribution differs, tv 1.000 > 0.050
+      region 36: page distribution differs, tv 1.000 > 0.050
+      region 37: page distribution differs, tv 1.000 > 0.050
+      region 38: page distribution differs, tv 0.800 > 0.050
+      region 39: page distribution differs, tv 1.000 > 0.050
+      region 40: page distribution differs, tv 1.000 > 0.050
+      region 41: page distribution differs, tv 1.000 > 0.050
+      region 42: page distribution differs, tv 1.000 > 0.050
+      region 43: page distribution differs, tv 0.900 > 0.050
+      region 44: page distribution differs, tv 0.800 > 0.050
+      region 45: page distribution differs, tv 1.000 > 0.050
+      region 46: page distribution differs, tv 1.000 > 0.050
+      region 47: page distribution differs, tv 1.000 > 0.050
+      region 49: page distribution differs, tv 1.000 > 0.050
+      region 50: page distribution differs, tv 1.000 > 0.050
+      region 51: page distribution differs, tv 0.950 > 0.050
+      region 52: page distribution differs, tv 1.000 > 0.050
+      region 53: page distribution differs, tv 1.000 > 0.050
+      region 54: page distribution differs, tv 1.000 > 0.050
+      region 55: page distribution differs, tv 1.000 > 0.050
+      region 56: page distribution differs, tv 1.000 > 0.050
+      region 57: page distribution differs, tv 1.000 > 0.050
+      region 58: page distribution differs, tv 1.000 > 0.050
+      region 59: page distribution differs, tv 1.000 > 0.050
+      region 60: page distribution differs, tv 1.000 > 0.050
+      region 61: page distribution differs, tv 1.000 > 0.050
+      region 62: page distribution differs, tv 1.000 > 0.050
+      region 63: page distribution differs, tv 1.000 > 0.050
+      region 64: page distribution differs, tv 1.000 > 0.050
+      region 65: page distribution differs, tv 1.000 > 0.050
+      region 66: page distribution differs, tv 0.900 > 0.050
+      region 67: page distribution differs, tv 1.000 > 0.050
+      region 68: page distribution differs, tv 1.000 > 0.050
+      region 69: page distribution differs, tv 1.000 > 0.050
+      region 70: page distribution differs, tv 1.000 > 0.050
+      region 71: page distribution differs, tv 1.000 > 0.050
+      region 72: page distribution differs, tv 1.000 > 0.050
+      region 73: page distribution differs, tv 1.000 > 0.050
+      region 74: page distribution differs, tv 1.000 > 0.050
+      region 75: page distribution differs, tv 1.000 > 0.050
+      region 76: page distribution differs, tv 1.000 > 0.050
+      region 77: page distribution differs, tv 1.000 > 0.050
+      region 78: page distribution differs, tv 1.000 > 0.050
+      region 79: page distribution differs, tv 1.000 > 0.050
+      region 80: page distribution differs, tv 1.000 > 0.050
+      region 81: page distribution differs, tv 1.000 > 0.050
+      region 82: page distribution differs, tv 1.000 > 0.050
+      region 83: page distribution differs, tv 0.950 > 0.050
+      region 84: page distribution differs, tv 1.000 > 0.050
+      region 85: page distribution differs, tv 1.000 > 0.050
+      region 86: page distribution differs, tv 1.000 > 0.050
+      region 87: page distribution differs, tv 1.000 > 0.050
+      region 88: page distribution differs, tv 1.000 > 0.050
+      region 89: page distribution differs, tv 1.000 > 0.050
+      region 90: page distribution differs, tv 1.000 > 0.050
+      region 91: page distribution differs, tv 1.000 > 0.050
+      region 92: page distribution differs, tv 1.000 > 0.050
+      region 93: page distribution differs, tv 0.850 > 0.050
+      region 94: page distribution differs, tv 1.000 > 0.050
+      region 95: page distribution differs, tv 1.000 > 0.050
+      region 97: page distribution differs, tv 1.000 > 0.050
+      region 98: page distribution differs, tv 1.000 > 0.050
+      region 99: page distribution differs, tv 1.000 > 0.050
+OK    83_100reg_burst_visibility.json  memtest=52850 replay=53200 (+0.7%)  windows bad 0/20000
+OK    84_100reg_database_sim.json  memtest=401900 replay=401066 (-0.2%)  windows bad 0/30000
+OK    85_100reg_ml_training_sim.json  memtest=269485 replay=268393 (-0.4%)  windows bad 0/30000
+OK    86_100reg_freq_decay.json  memtest=262262 replay=262500 (+0.1%)  windows bad 0/30000
+OK    87_100reg_freq_growth.json  memtest=262997 replay=262500 (-0.2%)  windows bad 0/30000
+FAIL  88_100reg_dominance_swap.json  memtest=301850 replay=307500 (+1.9%)  windows bad 200/30000
+      region 0 window 100: memtest 0, replay 20
+      region 0 window 200: memtest 0, replay 20
+      region 1 window 150: memtest 0, replay 20
+      region 1 window 250: memtest 0, replay 20
+      region 2 window 100: memtest 0, replay 20
+      … 195 more windows
+FAIL  89_200reg_mixed_random.json  memtest=298335 replay=297534 (-0.3%)  windows bad 1/40000
+      region 81 window 192: memtest 0, replay 3
+OK    90_100reg_pingpong_pairs.json  memtest=199821 replay=200000 (+0.1%)  windows bad 0/20000
+OK    91_200reg_4phase_sine.json  memtest=320056 replay=319900 (-0.0%)  windows bad 0/40000
+OK    92_300reg_const_stress.json  memtest=479700 replay=480000 (+0.1%)  windows bad 0/60000
+OK    93_100reg_3gauss_each.json  memtest=599700 replay=598500 (-0.2%)  windows bad 0/20000
+OK    94_100reg_microbench.json  memtest=326575 replay=326375 (-0.1%)  windows bad 0/30000
+OK    95_100reg_multi_freq.json  memtest=291720 replay=290260 (-0.5%)  windows bad 0/30000
+OK    96_100reg_3spatial_rotate.json  memtest=299871 replay=299000 (-0.3%)  windows bad 0/30000
+OK    97_150reg_fire_and_forget.json  memtest=29583 replay=29600 (+0.1%)  windows bad 0/45000
+OK    98_100reg_working_set_expansion.json  memtest=378719 replay=378750 (+0.0%)  windows bad 0/50000
+OK    99_100reg_working_set_shrink.json  memtest=378650 replay=378750 (+0.0%)  windows bad 0/50000
+94 of 101 configs match

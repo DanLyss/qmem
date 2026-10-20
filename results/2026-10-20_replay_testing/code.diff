@@ -1,0 +1,1890 @@
+diff --git a/.gitmodules b/.gitmodules
+new file mode 100644
+index 0000000..30ed6b4
+--- /dev/null
++++ b/.gitmodules
+@@ -0,0 +1,3 @@
++[submodule "third_party/damoLoad"]
++	path = third_party/damoLoad
++	url = https://github.com/DanLyss/damoLoad.git
+diff --git a/Makefile b/Makefile
+index f5f40db..ece4663 100644
+--- a/Makefile
++++ b/Makefile
+@@ -21,8 +21,14 @@ replay/qmem-replay: $(REPLAY_SRC) replay/profile.h
+ test: all
+ 	python3 -m pytest -v tests
+ 
++# replay against damoLoad's memtest on all of its configs (about 40 min);
++# needs the submodule: git submodule update --init
++damoload-check: all
++	python3 tools/damoload_check.py third_party/damoLoad/memtest/configs/*.json \
++		--json damoload_report.json
++
+ MMDC ?= mmdc
+-diagrams: docs/architecture.png docs/architecture_extension.png
++diagrams: docs/architecture.png docs/architecture_extension.png docs/replay_testing.png
+ 
+ # render in /tmp: mmdc writes broken files straight onto a WSL /mnt drive
+ docs/%.png: docs/%.mmd
+@@ -31,4 +37,4 @@ docs/%.png: docs/%.mmd
+ clean:
+ 	rm -f $(WORKLOADS) $(TOOLS)
+ 
+-.PHONY: all test diagrams clean
++.PHONY: all test damoload-check diagrams clean
+diff --git a/builder/profile_v2.py b/builder/profile_v2.py
+index 0d383e5..d942f67 100644
+--- a/builder/profile_v2.py
++++ b/builder/profile_v2.py
+@@ -57,7 +57,7 @@ class Profile:
+ def num(x):
+     if isinstance(x, int):
+         return str(x)
+-    return ('%.3f' % x).rstrip('0').rstrip('.')
++    return ('%.6f' % x).rstrip('0').rstrip('.')
+ 
+ 
+ def kv(**pairs):
+diff --git a/replay/README.md b/replay/README.md
+index 9adc230..2018721 100644
+--- a/replay/README.md
++++ b/replay/README.md
+@@ -13,6 +13,7 @@
+ | `memory.c` | memory manager | Резерв регионов, map/unmap/populate, битовые карты, касание страницы |
+ | `generators.c`, `gen_roundrobin.c`, `gen_random.c` | generators | Какая страница участка следующая |
+ | `exec.c` | executors | Касания одного тика; один поток |
++| `log.c` | — | Лог шагов (`--log`), формат: [docs/formats/replay_log.md](../docs/formats/replay_log.md) |
+ | `replay.c` | scheduler | Тики, события, смена эпох, статистика, `--stats`, `--layout`, сводка |
+ 
+ Сборка: `make`.
+@@ -52,6 +53,7 @@ struct generator_ops {
+ 
+ ```sh
+ replay/qmem-replay profile.txt [--seed N] [--stats stats.csv] [--layout layout.txt]
++                   [--log run.log [--log-level events|ticks|touches]]
+ ```
+ 
+ Root не нужен. В конце в stderr печатается сводка: эпохи, план и сделанные касания, пропущенные, заполненные страницы, отставание, page faults, пиковый RSS, CPU, контрольная сумма.
+@@ -63,3 +65,9 @@ Root не нужен. В конце в stderr печатается сводка:
+ | `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, доля записи (softdirty), populate, `--layout`, отдельные VMA |
+ | `tests/test_replay_v2.py` | Правила совместимости и заглушки |
+ | `tests/test_skeleton_e2e.py` | record → build → replay целиком (с настоящим DAMON — под root) |
++| `tests/test_replay_log.py` | Лог шагов `--log`: строки и уровни |
++| `tests/test_replay_algorithm.py` | Алгоритм по логу: события в свой тик, границы эпох, число касаний и перенос остатка, roundrobin и random, постоянный набор записываемых страниц, `unmap`, сброс опоздавшей работы |
++| `tests/test_memtest2profile.py` | Перевод конфига memtest (damoLoad) в profile: частота каждой страницы для всех `spatial` и `temporal` |
++| `tests/test_damoload.py` | replay против memtest на 6 конфигах damoLoad, касание в касание; проверка, что неверный replay ловится |
++
++Сравнение со всеми 101 конфигом damoLoad: `make damoload-check` (около 40 минут, нужен `git submodule update --init`). План и пороги — [docs/replay_testing.md](../docs/replay_testing.md), результаты — [docs/replay_testing_report.md](../docs/replay_testing_report.md).
+diff --git a/replay/exec.c b/replay/exec.c
+index 72489c7..605d287 100644
+--- a/replay/exec.c
++++ b/replay/exec.c
+@@ -24,19 +24,22 @@ void exec_init(void)
+ 
+ /* Do one tick of the epoch's touches; stop at deadline_ns. Returns 0 if the
+  * work did not fit. */
+-int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
++int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns)
+ {
++	struct epoch *e = &epochs[epoch];
+ 	uint64_t before = done;
+ 	int fits = 1;
+ 
+ 	for (uint32_t i = e->first; i < e->first + e->n && fits; i++) {
+ 		struct access *a = &accesses[i];
+-		uint64_t n;
++		uint64_t n, k;
+ 
++		/* the epsilon keeps rounding errors of the running sum from
++		 * losing a touch: 100 x 1.92 adds up to 191.99999… */
+ 		a->carry += a->rate * tick_ms / 1000.0;
+-		n = (uint64_t)a->carry;
++		n = (uint64_t)(a->carry + 1e-9);
+ 		a->carry -= n;
+-		for (uint64_t k = 0; k < n; k++) {
++		for (k = 0; k < n; k++) {
+ 			if ((k & 1023) == 1023 && now_ns() >= deadline_ns) {
+ 				fits = 0;
+ 				break;
+@@ -44,6 +47,8 @@ int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
+ 			done += memory_touch(a->region, a->off / page + a->gen->next(a),
+ 					     a->write_ratio);
+ 		}
++		if (n)
++			log_tick(tick, epoch, i - e->first, n, k, a->carry);
+ 	}
+ 	e->done += done - before;
+ 	return fits;
+diff --git a/replay/log.c b/replay/log.c
+new file mode 100644
+index 0000000..0116255
+--- /dev/null
++++ b/replay/log.c
+@@ -0,0 +1,189 @@
++/*
++ * log: what replay did, step by step (docs/formats/replay_log.md), for tests
++ * of the algorithm and comparisons with other workload generators.
++ *
++ * Records are kept in memory and written after the run, so writing does not
++ * disturb the timing. With log_level LOG_OFF nothing is recorded.
++ */
++#define _GNU_SOURCE
++#include <inttypes.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include "profile.h"
++
++int log_level = LOG_OFF;
++
++enum { R_EVENT, R_EPOCH, R_DROP, R_TICK, R_TOUCH };
++
++struct rec {
++	uint8_t kind, op;
++	uint32_t a, b;
++	uint64_t v[4];
++	double c;
++};
++
++static struct rec *recs;
++static size_t n_recs, cap_recs;
++static uint64_t start_ns;
++
++static const char *const level_names[] = { "off", "events", "ticks", "touches" };
++
++int log_parse_level(const char *name)
++{
++	for (int i = LOG_EVENTS; i <= LOG_TOUCHES; i++)
++		if (!strcmp(name, level_names[i]))
++			return i;
++	return -1;
++}
++
++static struct rec *add(int kind)
++{
++	if (n_recs == cap_recs) {
++		cap_recs = cap_recs ? 2 * cap_recs : 4096;
++		recs = realloc(recs, cap_recs * sizeof(*recs));
++		if (!recs) {
++			perror("log");
++			exit(1);
++		}
++	}
++	memset(&recs[n_recs], 0, sizeof(*recs));
++	recs[n_recs].kind = kind;
++	return &recs[n_recs++];
++}
++
++void log_start(uint64_t ns)
++{
++	start_ns = ns;
++}
++
++void log_event(const struct event *e, uint64_t tick, uint64_t pages)
++{
++	struct rec *r;
++
++	if (log_level < LOG_EVENTS)
++		return;
++	r = add(R_EVENT);
++	r->op = e->kind;
++	r->a = e->region;
++	r->v[0] = e->t_ms;
++	r->v[1] = tick;
++	r->v[2] = e->off;
++	r->v[3] = e->len;
++	r->c = pages;
++}
++
++void log_epoch(uint32_t idx, int start, uint64_t tick)
++{
++	struct rec *r;
++
++	if (log_level < LOG_EVENTS)
++		return;
++	r = add(R_EPOCH);
++	r->op = start;
++	r->a = idx;
++	r->v[0] = tick;
++}
++
++void log_drop(uint64_t tick, uint64_t skipped_ticks)
++{
++	struct rec *r;
++
++	if (log_level < LOG_EVENTS)
++		return;
++	r = add(R_DROP);
++	r->v[0] = tick;
++	r->v[1] = skipped_ticks;
++}
++
++void log_tick(uint64_t tick, uint32_t epoch, uint32_t access, uint64_t n, uint64_t n_done,
++	      double carry)
++{
++	struct rec *r;
++
++	if (log_level < LOG_TICKS)
++		return;
++	r = add(R_TICK);
++	r->a = epoch;
++	r->b = access;
++	r->v[0] = tick;
++	r->v[1] = n;
++	r->v[2] = n_done;
++	r->c = carry;
++}
++
++void log_touch(uint32_t region, uint64_t p, int op)
++{
++	struct rec *r;
++
++	if (log_level < LOG_TOUCHES)
++		return;
++	r = add(R_TOUCH);
++	r->op = op;
++	r->a = region;
++	r->v[0] = now_ns() - start_ns;
++	r->v[1] = p;
++}
++
++static const char *event_name(int kind)
++{
++	return kind == MAP ? "map" : kind == UNMAP ? "unmap" : "populate";
++}
++
++void log_write(const char *path, uint64_t end_ms, uint64_t lagged_ticks)
++{
++	static const char *const ops[] = { "skip", "r", "w" };
++	FILE *f = fopen(path, "w");
++
++	if (!f) {
++		perror(path);
++		exit(1);
++	}
++	fprintf(f, "start seed=%" PRIu64 " regions=%" PRIu32 " events=%" PRIu32
++		" epochs=%" PRIu32 " end_ms=%" PRIu64 " level=%s\n",
++		seed, n_regions, n_events, n_epochs, end_ms, level_names[log_level]);
++	for (uint32_t i = 0; i < n_regions; i++)
++		fprintf(f, "region id=%" PRIu32 " pages=%" PRIu64 " base=0x%lx\n",
++			i, regions[i].npages, (unsigned long)regions[i].base);
++	for (size_t i = 0; i < n_recs; i++) {
++		const struct rec *r = &recs[i];
++		const struct epoch *e;
++
++		switch (r->kind) {
++		case R_EVENT:
++			fprintf(f, "event kind=%s t=%" PRIu64 " tick=%" PRIu64 " region=%" PRIu32
++				" off=%" PRIu64 " len=%" PRIu64, event_name(r->op), r->v[0],
++				r->v[1], r->a, r->v[2], r->v[3]);
++			if (r->op == POPULATE)
++				fprintf(f, " pages=%.0f", r->c);
++			fputc('\n', f);
++			break;
++		case R_EPOCH:
++			e = &epochs[r->a];
++			fprintf(f, "epoch what=%s idx=%" PRIu32 " t=%" PRIu64 " dur=%" PRIu64
++				" tick=%" PRIu64, r->op ? "start" : "end", r->a, e->t_ms,
++				e->dur_ms, r->v[0]);
++			if (!r->op)
++				fprintf(f, " planned=%" PRIu64 " done=%" PRIu64, e->planned, e->done);
++			fputc('\n', f);
++			break;
++		case R_DROP:
++			fprintf(f, "drop tick=%" PRIu64 " skipped=%" PRIu64 "\n", r->v[0], r->v[1]);
++			break;
++		case R_TICK:
++			fprintf(f, "tick tick=%" PRIu64 " epoch=%" PRIu32 " access=%" PRIu32
++				" n=%" PRIu64 " done=%" PRIu64 " carry=%.4f\n", r->v[0], r->a, r->b,
++				r->v[1], r->v[2], r->c);
++			break;
++		case R_TOUCH:
++			fprintf(f, "touch t_ns=%" PRIu64 " region=%" PRIu32 " page=%" PRIu64
++				" op=%s\n", r->v[0], r->a, r->v[1], ops[r->op]);
++			break;
++		}
++	}
++	fprintf(f, "end planned=%" PRIu64 " done=%" PRIu64 " skipped=%" PRIu64
++		" populated=%" PRIu64 " lagged_ticks=%" PRIu64 "\n",
++		planned, done, skipped, populated, lagged_ticks);
++	fclose(f);
++}
+diff --git a/replay/memory.c b/replay/memory.c
+index c096ad9..58d9fdb 100644
+--- a/replay/memory.c
++++ b/replay/memory.c
+@@ -57,12 +57,15 @@ void memory_prepare(void)
+ 	}
+ }
+ 
+-void memory_apply(const struct event *e)
++/* Returns the number of pages a populate wrote. */
++uint64_t memory_apply(const struct event *e)
+ {
+ 	struct region *g = &regions[e->region];
+ 	void *p;
+ 
+ 	if (e->kind == POPULATE) {
++		uint64_t n = 0;
++
+ 		/* write every mapped, untouched page once: memory the application
+ 		 * kept resident without DAMON seeing accesses to it */
+ 		for (uint64_t i = e->off / page; i < (e->off + e->len) / page; i++) {
+@@ -71,8 +74,9 @@ void memory_apply(const struct event *e)
+ 			set_bits(g->touched, i, 1, 1);
+ 			g->base[i * page] = 1;
+ 			populated++;
++			n++;
+ 		}
+-		return;
++		return n;
+ 	}
+ 	p = mmap(g->base + e->off, e->len,
+ 		 e->kind == MAP ? PROT_READ | PROT_WRITE : PROT_NONE,
+@@ -84,6 +88,7 @@ void memory_apply(const struct event *e)
+ 	}
+ 	set_bits(g->mapped, e->off / page, e->len / page, e->kind == MAP);
+ 	set_bits(g->touched, e->off / page, e->len / page, 0);
++	return 0;
+ }
+ 
+ /* Touch page p of region r. Returns 0 (skipped) if it is not mapped. */
+@@ -94,6 +99,7 @@ int memory_touch(uint32_t r, uint64_t p, double write_ratio)
+ 
+ 	if (!bit(g->mapped, p)) {
+ 		skipped++;
++		log_touch(r, p, TOUCH_SKIP);
+ 		return 0;
+ 	}
+ 	checksum = checksum * 31 + p + 1;
+@@ -101,12 +107,15 @@ int memory_touch(uint32_t r, uint64_t p, double write_ratio)
+ 		/* first touch writes: a read would map the shared zero page */
+ 		set_bits(g->touched, p, 1, 1);
+ 		*addr = 1;
++		log_touch(r, p, TOUCH_WRITE);
+ 	} else if (page_fraction(r, p) < write_ratio) {
+ 		/* the same write_ratio share of pages is written every time, so
+ 		 * the share of dirty pages per period equals write_ratio */
+ 		*addr += 1;
++		log_touch(r, p, TOUCH_WRITE);
+ 	} else {
+ 		(void)*addr;
++		log_touch(r, p, TOUCH_READ);
+ 	}
+ 	return 1;
+ }
+diff --git a/replay/profile.h b/replay/profile.h
+index babb613..ca9932e 100644
+--- a/replay/profile.h
++++ b/replay/profile.h
+@@ -7,6 +7,7 @@
+  *   generators.c  which page of a range is touched next (gen_*.c)
+  *   exec.c        who does the touches of a tick (one thread for now)
+  *   replay.c      the scheduler: ticks, deadlines, epochs, statistics
++ *   log.c         the step log (--log)
+  */
+ #ifndef QMEM_REPLAY_PROFILE_H
+ #define QMEM_REPLAY_PROFILE_H
+@@ -79,12 +80,26 @@ const struct generator_ops *generator(const char *name);
+ 
+ /* memory.c */
+ void memory_prepare(void);
+-void memory_apply(const struct event *e);
++uint64_t memory_apply(const struct event *e);
+ int memory_touch(uint32_t r, uint64_t p, double write_ratio);
+ 
+ /* exec.c */
+ void exec_init(void);
+-int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns);
++int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns);
+ uint64_t now_ns(void);
+ 
++/* log.c */
++enum { LOG_OFF, LOG_EVENTS, LOG_TICKS, LOG_TOUCHES };
++enum { TOUCH_SKIP, TOUCH_READ, TOUCH_WRITE };
++extern int log_level;
++int log_parse_level(const char *name);
++void log_start(uint64_t start_ns);
++void log_event(const struct event *e, uint64_t tick, uint64_t pages);
++void log_epoch(uint32_t idx, int start, uint64_t tick);
++void log_drop(uint64_t tick, uint64_t skipped_ticks);
++void log_tick(uint64_t tick, uint32_t epoch, uint32_t access, uint64_t n, uint64_t n_done,
++	      double carry);
++void log_touch(uint32_t region, uint64_t page, int op);
++void log_write(const char *path, uint64_t end_ms, uint64_t lagged_ticks);
++
+ #endif
+diff --git a/replay/replay.c b/replay/replay.c
+index b6936fa..fce817a 100644
+--- a/replay/replay.c
++++ b/replay/replay.c
+@@ -7,6 +7,7 @@
+  * replay never drifts. The other parts are listed in profile.h.
+  *
+  * usage: qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
++ *                    [--log <file> [--log-level events|ticks|touches]]
+  */
+ #define _GNU_SOURCE
+ #include <errno.h>
+@@ -23,7 +24,7 @@
+ 
+ long page;
+ uint64_t planned, done, skipped, checksum, populated;
+-static uint64_t lagged_ticks;
++static uint64_t lagged_ticks, end_ms;
+ static double max_lag_ms;
+ 
+ static void sleep_until(uint64_t ns)
+@@ -70,9 +71,9 @@ static void replay(uint64_t *wall_ns)
+ 	 * 10 ms ticks the touches came in a burst and half of DAMON's samples
+ 	 * fell into the pause, so replay looked half as hot. */
+ 	uint64_t tick_ms = 1;
+-	uint64_t end_ms = 0, start;
++	uint64_t start;
+ 	uint32_t ei = 0, pi = 0;
+-	int cur = -1;
++	int cur = -1, cur_ended = 0;
+ 
+ 	if (n_events)
+ 		end_ms = events[n_events - 1].t_ms;
+@@ -80,11 +81,12 @@ static void replay(uint64_t *wall_ns)
+ 		if (epochs[i].t_ms + epochs[i].dur_ms > end_ms)
+ 			end_ms = epochs[i].t_ms + epochs[i].dur_ms;
+ 		for (uint32_t j = epochs[i].first; j < epochs[i].first + epochs[i].n; j++)
+-			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0);
++			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0 + 1e-9);
+ 		planned += epochs[i].planned;
+ 	}
+ 
+ 	start = now_ns();
++	log_start(start);
+ 	{
+ 		struct timespec ts;
+ 
+@@ -97,16 +99,32 @@ static void replay(uint64_t *wall_ns)
+ 
+ 		sleep_until(due);
+ 		lag_ms = (now_ns() - due) / 1e6;
+-		while (ei < n_events && events[ei].t_ms <= t)
+-			memory_apply(&events[ei++]);
++		if (cur >= 0 && !cur_ended && t >= epochs[cur].t_ms + epochs[cur].dur_ms) {
++			log_epoch(cur, 0, t);
++			cur_ended = 1;
++		}
++		while (ei < n_events && events[ei].t_ms <= t) {
++			uint64_t n = memory_apply(&events[ei]);
++
++			log_event(&events[ei++], t, n);
++		}
+ 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
++			if (cur >= 0 && !cur_ended)
++				log_epoch(cur, 0, t);
+ 			cur = pi++;
++			cur_ended = 0;
++			log_epoch(cur, 1, t);
+ 			for (uint32_t j = epochs[cur].first;
+ 			     j < epochs[cur].first + epochs[cur].n; j++) {
+ 				struct access *a = &accesses[j];
+ 
+-				a->carry = 0;
+-				a->gen->epoch(a, a->prev >= 0 ? &accesses[a->prev] : NULL);
++				const struct access *prev =
++					a->prev >= 0 ? &accesses[a->prev] : NULL;
++
++				/* the same range goes on with its fraction of a
++				 * touch: short epochs at low rates would lose it */
++				a->carry = prev ? prev->carry : 0;
++				a->gen->epoch(a, prev);
+ 			}
+ 		}
+ 		if (cur < 0 || t >= epochs[cur].t_ms + epochs[cur].dur_ms)
+@@ -115,20 +133,29 @@ static void replay(uint64_t *wall_ns)
+ 			epochs[cur].max_lag_ms = lag_ms;
+ 		if (lag_ms > max_lag_ms)
+ 			max_lag_ms = lag_ms;
+-		if (!exec_tick(&epochs[cur], tick_ms, due + tick_ms * 1000000ULL)) {
++		if (!exec_tick(cur, t, tick_ms, due + tick_ms * 1000000ULL)) {
+ 			/* behind schedule: drop the missed ticks instead of queueing */
+ 			uint64_t now_ms = (now_ns() - start) / 1000000ULL;
+-			uint64_t next = now_ms / tick_ms * tick_ms;
++			uint64_t next = now_ms / tick_ms * tick_ms, skip = 0;
+ 
+ 			lagged_ticks++;
+ 			if (next > t + tick_ms) {
+-				lagged_ticks += (next - t) / tick_ms - 1;
++				skip = (next - t) / tick_ms - 1;
++				lagged_ticks += skip;
++				log_drop(t, skip);
+ 				t = next - tick_ms;
++			} else {
++				log_drop(t, 0);
+ 			}
+ 		}
+ 	}
+-	while (ei < n_events)
+-		memory_apply(&events[ei++]);
++	if (cur >= 0 && !cur_ended)
++		log_epoch(cur, 0, end_ms);
++	while (ei < n_events) {
++		uint64_t n = memory_apply(&events[ei]);
++
++		log_event(&events[ei++], end_ms, n);
++	}
+ 	sleep_until(start + end_ms * 1000000ULL);
+ 	*wall_ns = now_ns() - start;
+ }
+@@ -185,8 +212,9 @@ static void write_stats(const char *path)
+ 
+ int main(int argc, char **argv)
+ {
+-	const char *path = NULL, *stats = NULL, *layout = NULL;
+-	int seed_set = 0;
++	const char *path = NULL, *stats = NULL, *layout = NULL, *log_path = NULL;
++	int level = LOG_EVENTS;
++	int seed_set = 0, level_set = 0;
+ 	uint64_t seed_arg = 0, wall_ns;
+ 	struct rusage ru;
+ 
+@@ -203,14 +231,23 @@ int main(int argc, char **argv)
+ 			stats = argv[++i];
+ 		} else if (!strcmp(argv[i], "--layout") && i + 1 < argc) {
+ 			layout = argv[++i];
++		} else if (!strcmp(argv[i], "--log") && i + 1 < argc) {
++			log_path = argv[++i];
++		} else if (!strcmp(argv[i], "--log-level") && i + 1 < argc) {
++			level = log_parse_level(argv[++i]);
++			if (level < 0)
++				goto usage;
++			level_set = 1;
+ 		} else if (argv[i][0] == '-' || path) {
+ 			goto usage;
+ 		} else {
+ 			path = argv[i];
+ 		}
+ 	}
+-	if (!path)
++	if (!path || (level_set && !log_path))
+ 		goto usage;
++	if (log_path)
++		log_level = level;
+ 
+ 	load(path);
+ 	if (seed_set)
+@@ -222,6 +259,8 @@ int main(int argc, char **argv)
+ 		write_stats(stats);
+ 	if (layout)
+ 		write_layout(layout);
++	if (log_path)
++		log_write(log_path, end_ms, lagged_ticks);
+ 
+ 	getrusage(RUSAGE_SELF, &ru);
+ 	fprintf(stderr, "replay: epochs=%" PRIu32 " planned=%" PRIu64 " done=%" PRIu64
+@@ -237,7 +276,7 @@ int main(int argc, char **argv)
+ 	return 0;
+ 
+ usage:
+-	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
+-		" [--layout <file>]\n", argv[0]);
++	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>] [--layout <file>]"
++		" [--log <file> [--log-level events|ticks|touches]]\n", argv[0]);
+ 	return 2;
+ }
+diff --git a/tests/test_damoload.py b/tests/test_damoload.py
+new file mode 100644
+index 0000000..b4b1733
+--- /dev/null
++++ b/tests/test_damoload.py
+@@ -0,0 +1,137 @@
++"""tools/damoload_check.py: damoLoad's memtest (taken as correct) and
++qmem-replay on the same workload, compared touch by touch. See
++docs/replay_testing.md, section 2.3."""
++import json
++import subprocess
++import sys
++
++import pytest
++
++from conftest import ROOT
++
++sys.path.insert(0, str(ROOT / 'tools'))
++import damoload_check as dc  # noqa: E402
++
++CHECK = ROOT / 'tools' / 'damoload_check.py'
++CONFIGS = ROOT / 'third_party' / 'damoLoad' / 'memtest' / 'configs'
++needs_damoload = pytest.mark.skipif(not CONFIGS.is_dir(),
++                                    reason='damoLoad submodule not checked out')
++MS = 1_000_000
++
++
++# ---------------------------------------------------------------- logs
++
++
++def test_read_gt(tmp_path):
++    p = tmp_path / 'gt.log'
++    p.write_text('# region 0 base=0x7f0000000000 pages=10\n# region 1 base=0x7f1000000000 pages=3\n'
++                 '# ts_ns region page\n1000 0 3\n2000 1 2\n')
++    regions, touches = dc.read_gt(p)
++    assert regions == [10, 3]
++    assert touches == [(1000, 0, 3), (2000, 1, 2)]
++
++
++def test_read_replay_log(tmp_path):
++    p = tmp_path / 'run.log'
++    p.write_text('start seed=1 regions=1 events=1 epochs=1 end_ms=10 level=touches\n'
++                 'region id=0 pages=4 base=0x7f0000000000\n'
++                 'touch t_ns=5 region=0 page=1 op=w\ntouch t_ns=6 region=0 page=2 op=skip\n'
++                 'touch t_ns=7 region=0 page=3 op=r\nend planned=3 done=2 skipped=1 populated=0 '
++                 'lagged_ticks=0\n')
++    touches, end = dc.read_replay_log(p)
++    assert touches == [(5, 0, 1), (7, 0, 3)]            # skipped touches touched nothing
++    assert end['lagged_ticks'] == '0'
++
++
++# ---------------------------------------------------------------- comparison
++
++
++def counts(touches, duration=1.0):
++    return dc.count(touches, t0=0, duration=duration, window_ms=100)
++
++
++def uniform(n_per_page_window, pages=10, windows=10, region=0, jitter=0):
++    out = []
++    for w in range(windows):
++        for p in range(pages):
++            for k in range(n_per_page_window + (jitter if (w + p) % 2 else 0)):
++                out.append(((w * 100 + 1 + k % 90) * MS, region, p))
++    return out
++
++
++def test_same_touches_match():
++    t = uniform(20)
++    r = dc.compare(counts(t), counts(t))
++    assert r['ok'], r
++
++
++def test_noise_within_poisson_matches():
++    r = dc.compare(counts(uniform(20)), counts(uniform(20, jitter=1)))
++    assert r['ok'], r
++
++
++def test_window_total_off_is_caught():
++    ref = uniform(20)
++    got = [x for x in ref if not (300 * MS <= x[0] < 400 * MS)]       # one window empty
++    r = dc.compare(counts(ref), counts(got))
++    assert not r['ok']
++    assert [(b['region'], b['window']) for b in r['bad_windows']] == [(0, 3)]
++
++
++def test_page_distribution_off_is_caught():
++    ref = uniform(20)
++    got = [(t, r, 0 if p < 5 else p) for t, r, p in ref]              # pages 1-4 moved to 0
++    r = dc.compare(counts(ref), counts(got))
++    assert not r['ok']
++    assert r['regions'][0]['tv'] > r['regions'][0]['tv_limit']
++    assert not r['bad_windows']                                        # totals still agree
++
++
++def test_total_off_is_caught():
++    r = dc.compare(counts(uniform(200)), counts(uniform(180)))
++    assert not r['ok']
++    assert abs(r['total_rel'] + 0.1) < 1e-9
++
++
++def test_touches_outside_the_run_are_dropped():
++    c = counts([(-5 * MS, 0, 0), (50 * MS, 0, 1), (1000 * MS, 0, 2)], duration=1.0)
++    assert c['total'] == 1
++
++
++# ---------------------------------------------------------------- end to end
++
++
++def run_check(tmp_path, cfg, *args):
++    out = tmp_path / 'report.json'
++    p = subprocess.run([sys.executable, str(CHECK), str(CONFIGS / cfg), '--duration', '3',
++                        '--json', str(out), '--keep', str(tmp_path / 'work')] + list(args),
++                       capture_output=True, text=True, timeout=300)
++    report = json.loads(out.read_text())[0] if out.exists() else None
++    return p, report
++
++
++@needs_damoload
++@pytest.mark.parametrize('cfg', [
++    '05_ten_pages_sequential.json',       # sequential, const
++    '06_all_pages_simultaneously.json',   # all
++    '08_hotspot_two_pages.json',          # hotspot
++    '23_two_tracks_same_region.json',     # two tracks on one region
++    '36_three_regions.json',              # 3 regions; uniform, hotspot, zipf; sine, square
++    '48_three_regions_complex.json',      # all, gaussian, hotspot; ramp, sine, square
++])
++def test_replay_matches_memtest(tmp_path, cfg):
++    p, report = run_check(tmp_path, cfg)
++    assert p.returncode == 0, p.stdout + p.stderr
++    assert report['ok'], json.dumps(report, indent=1)[:3000]
++    assert report['total_ref'] > 0
++    assert (tmp_path / 'work' / 'gt.log').exists()
++    assert (tmp_path / 'work' / 'replay.log').exists()
++
++
++@needs_damoload
++def test_a_wrong_replay_is_caught(tmp_path):
++    """The check is not blind: replaying 30 % slower must fail."""
++    p, report = run_check(tmp_path, '04_ten_pages_uniform.json', '--scale-rate', '0.7')
++    assert p.returncode == 1, p.stdout + p.stderr
++    assert not report['ok']
++    assert report['total_rel'] < -0.2
+diff --git a/tests/test_memtest2profile.py b/tests/test_memtest2profile.py
+new file mode 100644
+index 0000000..d843dc6
+--- /dev/null
++++ b/tests/test_memtest2profile.py
+@@ -0,0 +1,222 @@
++"""tools/memtest2profile.py: a damoLoad memtest config -> profile v2 with
++the same expected touches per page per second. See docs/replay_testing.md,
++section 2.2."""
++import json
++import math
++import subprocess
++import sys
++
++import pytest
++
++from conftest import ROOT
++
++sys.path.insert(0, str(ROOT / 'builder'))
++import profile_v2  # noqa: E402
++
++M2P = ROOT / 'tools' / 'memtest2profile.py'
++CONFIGS = ROOT / 'third_party' / 'damoLoad' / 'memtest' / 'configs'
++PAGE = 4096
++
++
++def convert(tmp_path, cfg, *args):
++    path = tmp_path / 'cfg.json'
++    path.write_text(json.dumps(cfg))
++    out = tmp_path / 'p.txt'
++    p = subprocess.run([sys.executable, str(M2P), str(path), '-o', str(out)] + list(args),
++                       capture_output=True, text=True, timeout=120)
++    assert p.returncode == 0, p.stderr
++    return profile_v2.read(out)
++
++
++def config(tracks, regions=(10,), duration=2):
++    return {'duration_sec': duration, 'regions': [{'pages': n} for n in regions],
++            'tracks': tracks}
++
++
++def track(spatial, temporal, region=0, **kw):
++    return dict(region=region, spatial=spatial, temporal=temporal, **kw)
++
++
++def rates(prof):
++    """{(epoch t, dur): {(region, page): rate per page}} and the patterns."""
++    out, patterns = {}, set()
++    for ep in prof.epochs:
++        r = out.setdefault((ep.t, ep.dur), {})
++        for a in ep.accesses:
++            assert a.off % PAGE == 0 and a.len % PAGE == 0
++            for p in range(a.off // PAGE, (a.off + a.len) // PAGE):
++                r[(a.region, p)] = r.get((a.region, p), 0) + a.rate
++            patterns.add((a.region, a.pattern))
++            assert a.write == 1
++    return out, patterns
++
++
++def only_epoch(prof):
++    r, _ = rates(prof)
++    assert len(r) == 1, sorted(r)
++    return next(iter(r.items()))
++
++
++def close(a, b, rel=1e-4):
++    return abs(a - b) <= rel * max(abs(b), 1e-9)
++
++
++# ---------------------------------------------------------------- memory
++
++
++def test_regions_are_mapped_and_populated_at_zero(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'const', 'hz': 10})],
++                                     regions=(10, 3)))
++    assert [(r.id, r.size, r.kind) for r in prof.regions] == [(0, 10 * PAGE, 'anon'),
++                                                              (1, 3 * PAGE, 'anon')]
++    ev = sorted((e.kind, e.t, e.region, e.off, e.len) for e in prof.events)
++    assert ev == [('map', 0, 0, 0, 10 * PAGE), ('map', 0, 1, 0, 3 * PAGE),
++                  ('populate', 0, 0, 0, 10 * PAGE), ('populate', 0, 1, 0, 3 * PAGE)]
++
++
++# ---------------------------------------------------------------- spatial
++
++
++def test_uniform(tmp_path):
++    (t, dur), r = only_epoch(convert(tmp_path, config(
++        [track({'type': 'uniform'}, {'type': 'const', 'hz': 100})])))
++    assert (t, dur) == (0, 2000)
++    assert r == {(0, p): 10.0 for p in range(10)}
++    _, patterns = rates(convert(tmp_path, config(
++        [track({'type': 'uniform'}, {'type': 'const', 'hz': 100})])))
++    assert patterns == {(0, 'random')}
++
++
++def test_sequential_and_all_walk_round_robin(tmp_path):
++    prof = convert(tmp_path, config([
++        track({'type': 'sequential'}, {'type': 'const', 'hz': 100}, region=0),
++        track({'type': 'all'}, {'type': 'const', 'hz': 7}, region=1)], regions=(10, 4)))
++    (_, _), r = only_epoch(prof)
++    assert r == {**{(0, p): 10.0 for p in range(10)}, **{(1, p): 7.0 for p in range(4)}}
++    assert rates(prof)[1] == {(0, 'roundrobin'), (1, 'roundrobin')}
++
++
++def test_hotspot(tmp_path):
++    prof = convert(tmp_path, config([track(
++        {'type': 'hotspot', 'hot_pages': [0, 1], 'hot_ratio': 0.9},
++        {'type': 'const', 'hz': 100})]))
++    (_, _), r = only_epoch(prof)
++    assert all(close(r[(0, p)], 45.0) for p in (0, 1))
++    assert all(close(r[(0, p)], 100 * 0.1 / 8) for p in range(2, 10))
++    # one line for the hot pages, one for the cold ones (the last cold page
++    # differs from the others only by rounding)
++    assert [(a.off // PAGE, a.len // PAGE) for a in prof.epochs[0].accesses] == [(0, 2), (2, 8)]
++
++
++def test_zipf(tmp_path):
++    (_, _), r = only_epoch(convert(tmp_path, config(
++        [track({'type': 'zipf', 's': 1.0}, {'type': 'const', 'hz': 100})], regions=(4,))))
++    h = sum(1 / k for k in range(1, 5))
++    for p in range(4):
++        assert close(r[(0, p)], 100 / (p + 1) / h), p
++
++
++def test_gaussian(tmp_path):
++    (_, _), r = only_epoch(convert(tmp_path, config(
++        [track({'type': 'gaussian', 'center': 5.0, 'sigma': 1.5}, {'type': 'const', 'hz': 100})])))
++
++    def cdf(x):
++        return 0.5 * (1 + math.erf((x - 5.0) / (1.5 * math.sqrt(2))))
++    for p in range(10):
++        lo = 0.0 if p == 0 else cdf(p - 0.5)
++        hi = 1.0 if p == 9 else cdf(p + 0.5)
++        assert close(r.get((0, p), 0), 100 * (hi - lo), rel=1e-3), p
++    assert close(sum(r.values()), 100)
++
++
++def test_unknown_spatial_is_uniform_like_memtest(tmp_path):
++    (_, _), r = only_epoch(convert(tmp_path, config(
++        [track({'type': 'mystery'}, {'type': 'const', 'hz': 50})], regions=(5,))))
++    assert r == {(0, p): 10.0 for p in range(5)}
++
++
++# ---------------------------------------------------------------- temporal
++
++
++def test_steps_merge_into_epochs(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'steps', 'steps': [
++        {'hz': 50, 'duration_sec': 1}, {'hz': 200, 'duration_sec': 0.5}]})]))
++    r, _ = rates(prof)
++    # the last step holds after its end, as in memtest
++    assert r == {(0, 1000): {(0, p): 5.0 for p in range(10)},
++                 (1000, 1000): {(0, p): 20.0 for p in range(10)}}
++
++
++def test_square(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {
++        'type': 'square', 'on_hz': 200, 'duty': 0.3, 'period_sec': 1.0})]))
++    r, _ = rates(prof)
++    assert sorted(r) == [(0, 300), (1000, 300)]          # silent epochs left out
++    assert all(v == 20.0 for e in r.values() for v in e.values())
++
++
++def test_square_phase(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {
++        'type': 'square', 'on_hz': 200, 'duty': 0.5, 'period_sec': 1.0,
++        'phase_rad': math.pi / 2})]))
++    # a quarter period ahead: on in [0, 250) and [750, 1250) ...
++    assert sorted(rates(prof)[0]) == [(0, 250), (750, 500), (1750, 250)]
++
++
++def test_ramp_and_sine_follow_the_curve(tmp_path):
++    prof = convert(tmp_path, config([
++        track({'type': 'uniform'}, {'type': 'ramp', 'start_hz': 0, 'end_hz': 200}, region=0),
++        track({'type': 'uniform'}, {'type': 'sine', 'base_hz': 50, 'amplitude': 80,
++                                    'period_sec': 1.0}, region=1)], regions=(10, 10)),
++        '--epoch-ms', '10')
++    r, _ = rates(prof)
++    for (t, dur), pages in r.items():
++        mid = (t + dur / 2) / 1000
++        if (0, 0) in pages:
++            assert abs(pages[(0, 0)] * 10 - 200 * mid / 2) < 2
++        if (1, 0) in pages:
++            want = max(0.0, 50 + 80 * math.sin(2 * math.pi * mid))
++            assert abs(pages[(1, 0)] * 10 - want) < 8      # clamping inside an epoch
++    # sine below zero: silent stretches, no epochs for region 1 there
++    quiet = [t for (t, dur), p in r.items() if (1, 0) not in p]
++    assert quiet
++
++
++def test_track_window(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'const', 'hz': 100},
++                                           start_sec=0.5, end_sec=1.25)]))
++    assert sorted(rates(prof)[0]) == [(500, 750)]
++
++
++def test_tracks_add_up(tmp_path):
++    (_, _), r = only_epoch(convert(tmp_path, config([
++        track({'type': 'uniform'}, {'type': 'const', 'hz': 100}),
++        track({'type': 'all'}, {'type': 'const', 'hz': 3})])))
++    assert r == {(0, p): 13.0 for p in range(10)}
++
++
++def test_duration_option_cuts_the_config(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'const', 'hz': 100})],
++                                    duration=30), '--duration', '1.5')
++    assert sorted(rates(prof)[0]) == [(0, 1500)]
++
++
++def test_meta(tmp_path):
++    prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'const', 'hz': 1})]),
++                   '--epoch-ms', '20', '--seed', '5')
++    assert prof.meta['epoch_ms'] == '20' and prof.meta['seed'] == '5'
++    assert prof.meta['source'] == 'memtest:cfg'
++
++
++# ---------------------------------------------------------------- shipped configs
++
++
++@pytest.mark.skipif(not CONFIGS.is_dir(), reason='damoLoad submodule not checked out')
++def test_every_shipped_config_converts(tmp_path):
++    for cfg in sorted(CONFIGS.glob('*.json')):
++        out = tmp_path / (cfg.stem + '.txt')
++        p = subprocess.run([sys.executable, str(M2P), str(cfg), '-o', str(out),
++                            '--duration', '1'], capture_output=True, text=True, timeout=300)
++        assert p.returncode == 0, (cfg.name, p.stderr)
++        prof = profile_v2.read(out)
++        assert len(prof.regions) == len(json.loads(cfg.read_text())['regions']), cfg.name
+diff --git a/tests/test_replay_algorithm.py b/tests/test_replay_algorithm.py
+new file mode 100644
+index 0000000..3fdf1eb
+--- /dev/null
++++ b/tests/test_replay_algorithm.py
+@@ -0,0 +1,261 @@
++"""The replay algorithm step by step, checked through its log (--log): events
++at their tick, epoch boundaries, how many touches and which pages, the write
++share, unmapped pages, dropped work. Nothing here is about how close a
++replay is to an original. See docs/replay_testing.md, section 1.2."""
++from collections import Counter, defaultdict
++
++from test_replay import MB, PAGE, access, epochs, ev, region, run_replay, write_profile
++from test_replay_log import lines, parse_log, run_logged
++
++MS = 1_000_000
++
++
++def touches(log):
++    return [(int(t['t_ns']), int(t['region']), int(t['page']), t['op'])
++            for t in lines(log, 'touch')]
++
++
++def ticks(log):
++    return [{k: (float(v) if k == 'carry' else int(v)) for k, v in t.items()}
++            for t in lines(log, 'tick')]
++
++
++# ---------------------------------------------------------------- events
++
++
++def test_events_at_their_tick_in_order(tmp_path):
++    body = [region(0, MB), region(1, MB),
++            ev('map', 0, 0, 0, MB), ev('map', 0, 1, 0, MB // 2),
++            ev('unmap', 137, 0, 0, MB // 2), ev('map', 250, 0, 0, MB // 2),
++            ev('unmap', 400, 1, 0, MB // 2)]
++    log, _ = run_logged(tmp_path, body)
++    got = [(e['kind'], int(e['t']), int(e['tick']), int(e['region'])) for e in lines(log, 'event')]
++    assert got == [('map', 0, 0, 0), ('map', 0, 0, 1), ('unmap', 137, 137, 0),
++                   ('map', 250, 250, 0), ('unmap', 400, 400, 1)]
++
++
++def test_no_touch_lands_before_its_map(tmp_path):
++    pages = 64
++    body = [region(0, pages * PAGE), ev('map', 50, 0, 0, pages * PAGE)] + \
++        epochs(0, 200, 100, [access(0, 0, pages * PAGE, 50, write=0)])
++    log, _ = run_logged(tmp_path, body, 'touches')
++    tt = touches(log)
++    assert all(op == 'skip' for t, _, _, op in tt if t < 50 * MS)
++    mapped = [x for x in tt if x[0] >= 50 * MS]
++    assert mapped and all(op != 'skip' for *_, op in mapped)
++    # the first touch of every page after its map writes (a read would map
++    # the shared zero page)
++    first = {}
++    for _, _, p, op in mapped:
++        first.setdefault(p, op)
++    assert set(first.values()) == {'w'}
++
++
++def test_populate_writes_mapped_untouched_pages_once(tmp_path):
++    pages = 256
++    size = pages * PAGE
++    body = [region(0, size), ev('map', 0, 0, 0, size // 2),
++            ev('populate', 10, 0, 0, size),                 # only the mapped half
++            ev('populate', 20, 0, 0, size),                 # nothing left to write
++            ev('map', 30, 0, size // 2, size // 2),
++            ev('populate', 40, 0, 0, size),                 # the newly mapped half
++            ev('unmap', 50, 0, 0, size), ev('map', 60, 0, 0, size),
++            ev('populate', 70, 0, 0, size)]                 # everything again
++    log, _ = run_logged(tmp_path, body)
++    pop = [int(e['pages']) for e in lines(log, 'event', kind='populate')]
++    assert pop == [pages // 2, 0, pages // 2, pages]
++
++
++# ---------------------------------------------------------------- epochs
++
++
++def test_touches_stay_inside_epochs(tmp_path):
++    pages = 64
++    acc = [access(0, 0, pages * PAGE, 100)]
++    body = [region(0, pages * PAGE), ev('map', 0, 0, 0, pages * PAGE)] + \
++        ['epoch t=0 dur=50'] + acc + ['epoch t=100 dur=100'] + acc + ['epoch t=300 dur=20'] + acc
++    log, _ = run_logged(tmp_path, body, 'touches')
++    active = [range(0, 50), range(100, 200), range(300, 320)]
++    tk = [t['tick'] for t in ticks(log)]
++    assert tk and all(any(x in r for r in active) for x in tk)
++    for t, *_ in touches(log):
++        ms = t / MS
++        assert any(r.start <= ms < r.stop + 2 for r in active), ms
++    starts = [(int(e['idx']), int(e['tick'])) for e in lines(log, 'epoch', what='start')]
++    ends = [(int(e['idx']), int(e['tick'])) for e in lines(log, 'epoch', what='end')]
++    assert starts == [(0, 0), (1, 100), (2, 300)]
++    assert ends == [(0, 50), (1, 200), (2, 320)]
++
++
++def test_touch_count_and_carry(tmp_path):
++    """256 pages at 5.859375 touches per page per second: 1500 per second, so
++    1.5 touches per 1 ms tick: n alternates 1 and 2 through the carry."""
++    pages = 256
++    body = [region(0, pages * PAGE), ev('map', 0, 0, 0, pages * PAGE)] + \
++        epochs(0, 300, 100, [access(0, 0, pages * PAGE, 5.859375)])
++    log, _ = run_logged(tmp_path, body, 'ticks')
++    by_epoch = defaultdict(list)
++    for t in ticks(log):
++        by_epoch[t['epoch']].append(t)
++    assert sorted(by_epoch) == [0, 1, 2]
++    for e, tt in by_epoch.items():
++        assert len(tt) == 100                         # every tick has work
++        assert sum(t['n'] for t in tt) == 150         # rate x pages x dur
++        carry = 0.0                                   # 150 per epoch: nothing left over
++        for t in tt:
++            want = carry + 1.5
++            assert t['n'] == int(want)
++            assert abs(t['carry'] - (want - int(want))) < 1e-3
++            assert t['done'] == t['n']
++            carry = t['carry']
++    for e in lines(log, 'epoch', what='end'):
++        assert e['planned'] == e['done'] == '150'
++
++
++def test_slow_access_over_short_epochs_is_not_lost(tmp_path):
++    """40 touches per second over 100 epochs of 10 ms: 0.4 touches per epoch.
++    The fraction left at the end of an epoch goes on into the same range's
++    next epoch; resetting it lost every touch (found against damoLoad)."""
++    body = [region(0, PAGE), ev('map', 0, 0, 0, PAGE)] + \
++        epochs(0, 1000, 10, [access(0, 0, PAGE, 40)], dur=10)
++    log, _ = run_logged(tmp_path, body, 'ticks', epoch_ms=10)
++    total = sum(t['done'] for t in ticks(log))
++    assert abs(total - 40) <= 1
++
++
++def test_several_accesses_in_an_epoch(tmp_path):
++    size = 4 * MB
++    a, b = (0, 64 * PAGE), (512 * PAGE, 64 * PAGE)
++    body = [region(0, size), ev('map', 0, 0, 0, size)] + \
++        epochs(0, 200, 100, [access(0, a[0], a[1], 10), access(0, b[0], b[1], 30)])
++    log, _ = run_logged(tmp_path, body, 'touches')
++    sums = Counter()
++    for t in ticks(log):
++        sums[t['access']] += t['done']
++    assert sums == {0: 2 * 64, 1: 6 * 64}             # rate x pages x 0.2 s
++    pages = Counter('a' if p < 64 else 'b' if 512 <= p < 576 else '?'
++                    for _, _, p, _ in touches(log))
++    assert pages == {'a': 2 * 64, 'b': 6 * 64}
++
++
++# ---------------------------------------------------------------- generators
++
++
++def page_runs(log):
++    return [p for _, _, p, _ in touches(log)]
++
++
++def test_roundrobin_walks_in_a_circle_and_continues(tmp_path):
++    pages, off = 100, 7
++    body = [region(0, 128 * PAGE), ev('map', 0, 0, 0, 128 * PAGE)] + \
++        epochs(0, 300, 100, [access(0, off * PAGE, pages * PAGE, 13)])
++    log, _ = run_logged(tmp_path, body, 'touches')
++    seq = page_runs(log)
++    assert len(seq) == 3 * 130
++    assert all(off <= p < off + pages for p in seq)
++    # one circle across all three epochs: the next epoch goes on from the
++    # page after the last one
++    for x, y in zip(seq, seq[1:]):
++        assert y - off == (x - off + 1) % pages
++
++
++def start_pages(tmp_path, seed, name):
++    body = [region(0, 4 * MB), ev('map', 0, 0, 0, 4 * MB)] + \
++        epochs(0, 100, 100, [access(0, 0, 2 * MB, 5), access(0, 2 * MB, 2 * MB, 5)])
++    d = tmp_path / name
++    d.mkdir()
++    log, _ = run_logged(d, body, 'touches', seed=seed)
++    first = {}
++    for _, _, p, _ in touches(log):
++        first.setdefault(p >= 512, p)
++    return first[False], first[True]
++
++
++def test_roundrobin_start_depends_on_seed(tmp_path):
++    a, b, c = start_pages(tmp_path, 1, 'a'), start_pages(tmp_path, 1, 'b'), \
++        start_pages(tmp_path, 2, 'c')
++    assert a == b
++    assert a != c
++
++
++def test_random_pages_are_uniform_in_range(tmp_path):
++    pages, off = 64, 32
++    body = [region(0, 128 * PAGE), ev('map', 0, 0, 0, 128 * PAGE)] + \
++        epochs(0, 500, 100, [access(0, off * PAGE, pages * PAGE, 500, extra='pattern=random')])
++    log, _ = run_logged(tmp_path, body, 'touches')
++    seq = page_runs(log)
++    n = len(seq)
++    assert n == 500 * pages // 2
++    assert all(off <= p < off + pages for p in seq)
++    counts = Counter(seq)
++    expected = n / pages
++    chi2 = sum((counts[p] - expected) ** 2 / expected for p in range(off, off + pages))
++    assert chi2 < 150                                # 63 degrees of freedom
++    consecutive = sum(y == x + 1 for x, y in zip(seq, seq[1:]))
++    assert consecutive < n * 0.1                     # not a walk
++
++
++# ---------------------------------------------------------------- writes
++
++
++def test_write_share_is_a_fixed_set_of_pages(tmp_path):
++    pages = 1024
++    size = pages * PAGE
++    body = [region(0, size), ev('map', 0, 0, 0, size)] + \
++        epochs(0, 1000, 100, [access(0, 0, size, 20, write=0.25)])
++    log, _ = run_logged(tmp_path, body, 'touches')
++    ops = defaultdict(list)
++    for _, _, p, op in touches(log):
++        ops[p].append(op)
++    assert len(ops) == pages
++    assert all(o[0] == 'w' for o in ops.values())   # first touch writes
++    written = {p for p, o in ops.items() if 'w' in o[1:]}
++    assert abs(len(written) / pages - 0.25) < 0.05
++    # the same pages every time: a written page is always written, the
++    # others are always read
++    for p, o in ops.items():
++        assert set(o[1:]) == ({'w'} if p in written else {'r'})
++
++
++def test_unmapped_pages_are_skipped_and_remap_writes_again(tmp_path):
++    pages = 64
++    size = pages * PAGE
++    body = [region(0, size), ev('map', 0, 0, 0, size), ev('unmap', 100, 0, 0, size),
++            ev('map', 200, 0, 0, size)] + \
++        epochs(0, 300, 100, [access(0, 0, size, 40, write=0)])
++    log, p = run_logged(tmp_path, body, 'touches')
++    tt = touches(log)
++    before = [x for x in tt if x[0] < 100 * MS]
++    gap = [x for x in tt if 100 * MS <= x[0] < 200 * MS]
++    after = [x for x in tt if x[0] >= 200 * MS]
++    assert before and gap and after
++    assert all(op != 'skip' for *_, op in before)
++    assert all(op == 'skip' for *_, op in gap)
++    assert all(op != 'skip' for *_, op in after)
++    first = {}
++    for _, _, pg, op in after:
++        first.setdefault(pg, op)
++    assert set(first.values()) == {'w'}
++    assert lines(log, 'end')[0]['skipped'] == str(len(gap))
++
++
++# ---------------------------------------------------------------- overload
++
++
++def test_dropped_work_is_not_done_later(tmp_path):
++    size = 64 * MB
++    body = [region(0, size), ev('map', 0, 0, 0, size)] + \
++        epochs(0, 300, 100, [access(0, 0, size, 20000)])
++    log, _ = run_logged(tmp_path, body, 'ticks')
++    drops = [(int(d['tick']), int(d['skipped'])) for d in lines(log, 'drop')]
++    assert drops
++    skipped = set()
++    for t, k in drops:
++        skipped.update(range(t + 1, t + 1 + k))
++    tk = ticks(log)
++    assert not skipped & {t['tick'] for t in tk}     # no work in a skipped tick
++    assert any(t['done'] < t['n'] for t in tk)       # the late tick stopped short
++    for e in lines(log, 'epoch', what='end'):
++        assert int(e['done']) < int(e['planned'])
++    end = lines(log, 'end')[0]
++    assert int(end['lagged_ticks']) >= len(drops)
+diff --git a/tests/test_replay_log.py b/tests/test_replay_log.py
+new file mode 100644
+index 0000000..541086d
+--- /dev/null
++++ b/tests/test_replay_log.py
+@@ -0,0 +1,94 @@
++"""qmem-replay --log: the step log (docs/formats/replay_log.md), its lines and
++levels. What the log says about the algorithm is checked in
++test_replay_algorithm.py."""
++from test_replay import (MB, PAGE, access, epochs, ev, region, run_replay, summary,
++                         whole, write_profile)
++
++
++def parse_log(path):
++    """[(type, {key: value})] in file order; numbers stay strings."""
++    out = []
++    for line in path.read_text().splitlines():
++        f = line.split()
++        if f:
++            out.append((f[0], dict(x.split('=', 1) for x in f[1:])))
++    return out
++
++
++def lines(log, type_, **match):
++    return [kv for t, kv in log if t == type_ and all(kv.get(k) == str(v) for k, v in match.items())]
++
++
++def run_logged(tmp_path, body, level=None, *args, epoch_ms=100, seed=None):
++    log = tmp_path / 'run.log'
++    extra = ['--log', log] + (['--log-level', level] if level else [])
++    p = run_replay(write_profile(tmp_path / 'p.txt', body, epoch_ms=epoch_ms, seed=seed),
++                   *extra, *args)
++    assert p.returncode == 0, p.stderr
++    return parse_log(log), p
++
++
++def small(rate=10, size=MB, t1=200):
++    head, acc = whole(size, rate)
++    return head + epochs(0, t1, 100, acc)
++
++
++def test_no_log_without_option(tmp_path):
++    p = run_replay(write_profile(tmp_path / 'p.txt', small()))
++    assert p.returncode == 0, p.stderr
++    assert not (tmp_path / 'run.log').exists()
++
++
++def test_bad_level(tmp_path):
++    prof = write_profile(tmp_path / 'p.txt', small())
++    assert run_replay(prof, '--log', tmp_path / 'l', '--log-level', 'loud').returncode == 2
++    assert run_replay(prof, '--log-level', 'events').returncode == 2      # level without --log
++
++
++def test_events_level(tmp_path):
++    log, p = run_logged(tmp_path, small(), seed=7)
++    kinds = [t for t, _ in log]
++    assert kinds[0] == 'start' and kinds[-1] == 'end'
++    assert 'tick' not in kinds and 'touch' not in kinds
++    start = log[0][1]
++    assert start == {'seed': '7', 'regions': '1', 'events': '1', 'epochs': '2',
++                     'end_ms': '200', 'level': 'events'}
++    reg = lines(log, 'region')
++    assert len(reg) == 1 and reg[0]['id'] == '0' and reg[0]['pages'] == str(MB // PAGE)
++    assert int(reg[0]['base'], 16) % PAGE == 0
++    assert [e['kind'] for e in lines(log, 'event')] == ['map']
++    assert len(lines(log, 'epoch', what='start')) == 2
++    assert len(lines(log, 'epoch', what='end')) == 2
++
++
++def test_end_matches_summary(tmp_path):
++    log, p = run_logged(tmp_path, small())
++    end, s = log[-1][1], summary(p.stderr)
++    for k in ('planned', 'done', 'skipped', 'populated', 'lagged_ticks'):
++        assert end[k] == s[k], k
++
++
++def test_ticks_level(tmp_path):
++    log, _ = run_logged(tmp_path, small(), 'ticks')
++    ticks = lines(log, 'tick')
++    assert ticks and 'touch' not in [t for t, _ in log]
++    for k in ('tick', 'epoch', 'access', 'n', 'done', 'carry'):
++        assert k in ticks[0]
++
++
++def test_touches_level(tmp_path):
++    log, p = run_logged(tmp_path, small(), 'touches')
++    touches = lines(log, 'touch')
++    assert len(touches) == int(summary(p.stderr)['done'])
++    assert {t['op'] for t in touches} <= {'w', 'r', 'skip'}
++    ts = [int(t['t_ns']) for t in touches]
++    assert ts == sorted(ts) and 0 <= ts[0] < ts[-1] < 1e9
++
++
++def test_order_is_chronological(tmp_path):
++    body = [region(0, MB), ev('map', 0, 0, 0, MB), ev('unmap', 150, 0, 0, MB)] + \
++        epochs(0, 200, 100, [access(0, 0, MB, 10)])
++    log, _ = run_logged(tmp_path, body)
++    seq = [(t, kv.get('kind') or kv.get('what')) for t, kv in log if t in ('event', 'epoch')]
++    assert seq == [('event', 'map'), ('epoch', 'start'), ('epoch', 'end'), ('epoch', 'start'),
++                   ('event', 'unmap'), ('epoch', 'end')]
+diff --git a/third_party/damoLoad b/third_party/damoLoad
+new file mode 160000
+index 0000000..83763e9
+--- /dev/null
++++ b/third_party/damoLoad
+@@ -0,0 +1 @@
++Subproject commit 83763e96be8bfaefd3fd3f6f604cb5c3a7301bbd
+diff --git a/tools/damoload_check.py b/tools/damoload_check.py
+new file mode 100644
+index 0000000..0baa86a
+--- /dev/null
++++ b/tools/damoload_check.py
+@@ -0,0 +1,282 @@
++#!/usr/bin/env python3
++"""Compare qmem-replay with damoLoad's memtest on the same workload.
++
++usage: damoload_check.py <config.json>... [--duration S] [--window-ms 100]
++                         [--epoch-ms 10] [--keep DIR] [--json FILE]
++
++memtest (damoLoad, taken as correct) runs the config and logs every touch
++(gt.log). The same config becomes a profile (memtest2profile.py), and
++qmem-replay runs it with --log-level touches. Both logs become counts of
++touches per region, window and page, which are compared:
++
++  window totals  per region and window: |replay - memtest| <= 4 sqrt(memtest) + 2
++  pages          per region over the run: total variation distance of the page
++                 distributions <= 0.05 + 3 x its expected sampling noise
++  total          |replay - memtest| <= 2 % of memtest + 4 sqrt(memtest)
++
++Exit code 0 if every config matches, 1 if not. See docs/replay_testing.md,
++section 2.3.
++"""
++import argparse
++import json
++import math
++import os
++import shutil
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++from collections import Counter
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent.parent
++sys.path.insert(0, str(ROOT / 'tools'))
++sys.path.insert(0, str(ROOT / 'builder'))
++import memtest2profile as m2p  # noqa: E402
++import profile_v2 as pf  # noqa: E402
++
++DAMOLOAD = Path(os.environ.get('QMEM_DAMOLOAD', ROOT / 'third_party' / 'damoLoad'))
++MEMTEST = DAMOLOAD / 'memtest' / 'build' / 'memtest'
++REPLAY = ROOT / 'replay' / 'qmem-replay'
++GT_CAPACITY = 10_000_000          # memtest drops touches beyond this
++
++
++# ---------------------------------------------------------------- logs
++
++
++def read_gt(path):
++    """memtest's gt.log -> ([pages of each region], [(ts_ns, region, page)])."""
++    regions, touches = [], []
++    with open(path) as f:
++        for line in f:
++            if line.startswith('# region'):
++                regions.append(int(line.split('pages=')[1]))
++            elif line[:1].isdigit():
++                ts, r, p = line.split()
++                touches.append((int(ts), int(r), int(p)))
++    return regions, touches
++
++
++def read_replay_log(path):
++    """qmem-replay --log-level touches -> ([(t_ns, region, page)], end line).
++    Touches of unmapped pages (op=skip) touched nothing and are left out."""
++    touches, end = [], {}
++    with open(path) as f:
++        for line in f:
++            if line.startswith('touch '):
++                kv = dict(x.split('=', 1) for x in line.split()[1:])
++                if kv['op'] != 'skip':
++                    touches.append((int(kv['t_ns']), int(kv['region']), int(kv['page'])))
++            elif line.startswith('end '):
++                end = dict(x.split('=', 1) for x in line.split()[1:])
++    return touches, end
++
++
++def count(touches, t0, duration, window_ms):
++    """Touches in [t0, t0 + duration) as counts per (region, window) and per
++    (region, page)."""
++    win, pages, total = Counter(), Counter(), 0
++    end = t0 + int(duration * 1e9)
++    w_ns = window_ms * 1_000_000
++    for ts, r, p in touches:
++        if t0 <= ts < end:
++            win[(r, (ts - t0) // w_ns)] += 1
++            pages[(r, p)] += 1
++            total += 1
++    return {'windows': win, 'pages': pages, 'total': total,
++            'n_windows': math.ceil(duration * 1000 / window_ms)}
++
++
++# ---------------------------------------------------------------- comparison
++
++
++def compare(ref, got, tv_base=0.05):
++    """ref: memtest's counts, got: replay's. -> report dict with 'ok'."""
++    report = {'total_ref': ref['total'], 'total_got': got['total']}
++    b, a = ref['total'], got['total']
++    report['total_rel'] = (a - b) / b if b else (0.0 if not a else math.inf)
++    total_ok = abs(a - b) <= 0.02 * b + 4 * math.sqrt(b)
++
++    bad = []
++    regions = sorted({r for r, _ in ref['windows']} | {r for r, _ in got['windows']})
++    for r in regions:
++        for w in range(ref['n_windows']):
++            b, a = ref['windows'].get((r, w), 0), got['windows'].get((r, w), 0)
++            if abs(a - b) > 4 * math.sqrt(b) + 2:
++                bad.append({'region': r, 'window': w, 'ref': b, 'got': a})
++    report['windows_checked'] = len(regions) * ref['n_windows']
++    report['bad_windows'] = bad
++
++    per_region = {}
++    for r in sorted({r for r, _ in ref['pages']} | {r for r, _ in got['pages']}):
++        pr = {p: n for (rr, p), n in ref['pages'].items() if rr == r}
++        pg = {p: n for (rr, p), n in got['pages'].items() if rr == r}
++        nr, ng = sum(pr.values()), sum(pg.values())
++        if not nr or not ng:
++            per_region[r] = {'tv': 1.0 if nr != ng else 0.0, 'tv_limit': tv_base,
++                             'ref': nr, 'got': ng}
++            continue
++        keys = set(pr) | set(pg)
++        tv = 0.5 * sum(abs(pr.get(k, 0) / nr - pg.get(k, 0) / ng) for k in keys)
++        # expected distance of two samples of the same distribution:
++        # E|diff_k| = sqrt(2/pi) * sigma_k, sigma_k^2 = p_k (1 - p_k) (1/nr + 1/ng)
++        noise = 0.5 * sum(math.sqrt(2 / math.pi * (pr.get(k, 0) / nr) * (1 - pr.get(k, 0) / nr)
++                                    * (1 / nr + 1 / ng)) for k in keys)
++        per_region[r] = {'tv': tv, 'tv_limit': tv_base + 3 * noise, 'ref': nr, 'got': ng}
++    report['regions'] = per_region
++    pages_ok = all(x['tv'] <= x['tv_limit'] for x in per_region.values())
++
++    report['ok'] = total_ok and not bad and pages_ok
++    return report
++
++
++# ---------------------------------------------------------------- running
++
++
++def build_memtest():
++    if not MEMTEST.exists():
++        subprocess.run(['make', '-C', str(MEMTEST.parent.parent)], check=True,
++                       stdout=subprocess.DEVNULL)
++
++
++def run_memtest(cfg_path, gt_path):
++    """Run memtest --auto; returns its time 0 (CLOCK_MONOTONIC ns): the moment
++    it was told to start."""
++    p = subprocess.Popen([str(MEMTEST), '--auto', str(cfg_path), str(gt_path)],
++                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
++    for line in p.stdout:
++        if line.startswith('# READY'):
++            break
++    else:
++        raise RuntimeError('memtest did not get ready: ' + p.stderr.read())
++    t0 = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
++    p.send_signal(signal.SIGUSR1)
++    out, err = p.communicate(timeout=3600)
++    if p.returncode != 0:
++        raise RuntimeError('memtest failed: ' + err)
++    return t0
++
++
++def check(cfg_file, args, work):
++    cfg = json.loads(Path(cfg_file).read_text())
++    if args.duration:
++        cfg = m2p.cut(cfg, args.duration)
++    duration = m2p.num(cfg, 'duration_sec', 0)
++    cfg_path = work / 'config.json'
++    cfg_path.write_text(json.dumps(cfg, indent=1))
++
++    prof = m2p.build(cfg, Path(cfg_file).stem, args.epoch_ms, args.seed)
++    if args.scale_rate != 1.0:                               # self-test of the check
++        for ep in prof.epochs:
++            for a in ep.accesses:
++                a.rate *= args.scale_rate
++    prof_path = work / 'profile.txt'
++    pf.write(prof_path, prof)
++
++    gt_path = work / 'gt.log'
++    t0 = run_memtest(cfg_path, gt_path)
++    _, gt = read_gt(gt_path)
++
++    log_path = work / 'replay.log'
++    p = subprocess.run([str(REPLAY), str(prof_path), '--log', str(log_path),
++                        '--log-level', 'touches'], capture_output=True, text=True,
++                       timeout=3600)
++    if p.returncode != 0:
++        raise RuntimeError('qmem-replay failed: ' + p.stderr)
++    rp, end = read_replay_log(log_path)
++
++    ref = count(gt, t0, duration, args.window_ms)
++    got = count(rp, 0, duration, args.window_ms)
++    report = compare(ref, got)
++    write_tables(work / 'comparison.txt', ref, got, args.window_ms)
++    report.update(config=Path(cfg_file).name, duration=duration,
++                  replay_lagged_ticks=int(end.get('lagged_ticks', 0)),
++                  memtest_log_full=len(gt) >= GT_CAPACITY,
++                  memtest_after_end=len(gt) - ref['total'])
++    return report
++
++
++def write_tables(path, ref, got, window_ms):
++    """What was compared, side by side: touches per page and per window."""
++    regions = sorted({r for r, _ in ref['pages']} | {r for r, _ in got['pages']})
++    out = ['touches per page over the run', '', 'region  page   memtest   replay']
++    for r in regions:
++        pages = sorted({p for rr, p in ref['pages'] if rr == r} |
++                       {p for rr, p in got['pages'] if rr == r})
++        for p in pages:
++            out.append('%6d %5d %9d %8d' % (r, p, ref['pages'].get((r, p), 0),
++                                            got['pages'].get((r, p), 0)))
++    out += ['', 'touches per window of %d ms' % window_ms, '',
++            'region  window_ms   memtest   replay']
++    for r in regions:
++        for w in range(ref['n_windows']):
++            out.append('%6d %10d %9d %8d' % (r, w * window_ms, ref['windows'].get((r, w), 0),
++                                             got['windows'].get((r, w), 0)))
++    Path(path).write_text('\n'.join(out) + '\n')
++
++
++def describe(r):
++    lines = ['%s  %s  memtest=%d replay=%d (%+.1f%%)  windows bad %d/%d' % (
++        'OK  ' if r['ok'] else 'FAIL', r['config'], r['total_ref'], r['total_got'],
++        100 * r['total_rel'], len(r['bad_windows']), r['windows_checked'])]
++    for reg, x in r['regions'].items():
++        if x['tv'] > x['tv_limit']:
++            lines.append('      region %s: page distribution differs, tv %.3f > %.3f'
++                         % (reg, x['tv'], x['tv_limit']))
++    for b in r['bad_windows'][:5]:
++        lines.append('      region %(region)s window %(window)s: memtest %(ref)s, replay %(got)s' % b)
++    if len(r['bad_windows']) > 5:
++        lines.append('      … %d more windows' % (len(r['bad_windows']) - 5))
++    if r['replay_lagged_ticks']:
++        lines.append('      replay fell behind: %d ticks dropped' % r['replay_lagged_ticks'])
++    if r['memtest_log_full']:
++        lines.append('      memtest log full (%d touches): it dropped the rest' % GT_CAPACITY)
++    return '\n'.join(lines)
++
++
++def main():
++    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    ap.add_argument('configs', nargs='+')
++    ap.add_argument('--duration', type=float, help='use only the first S seconds')
++    ap.add_argument('--window-ms', type=int, default=100)
++    ap.add_argument('--epoch-ms', type=int, default=10)
++    ap.add_argument('--seed', type=int, default=42)
++    ap.add_argument('--keep', help='keep the files of a run here (one config only, '
++                    'or a subdirectory per config)')
++    ap.add_argument('--json', help='write the reports here')
++    ap.add_argument('--scale-rate', type=float, default=1.0, help=argparse.SUPPRESS)
++    args = ap.parse_args()
++
++    build_memtest()
++    reports = []
++    for cfg in args.configs:
++        if args.keep:
++            work = Path(args.keep)
++            if len(args.configs) > 1:
++                work = work / Path(cfg).stem
++            work.mkdir(parents=True, exist_ok=True)
++            tmp = None
++        else:
++            tmp = tempfile.mkdtemp(prefix='damoload-')
++            work = Path(tmp)
++        try:
++            r = check(cfg, args, work)
++        except Exception as e:                                   # noqa: BLE001
++            r = {'config': Path(cfg).name, 'ok': False, 'error': str(e)}
++        finally:
++            if tmp:
++                shutil.rmtree(tmp, ignore_errors=True)
++        reports.append(r)
++        print(describe(r) if 'error' not in r else 'FAIL  %s  error: %s' % (r['config'], r['error']),
++              flush=True)
++
++    if args.json:
++        Path(args.json).write_text(json.dumps(reports, indent=1, default=str))
++    ok = sum(r['ok'] for r in reports)
++    print('%d of %d configs match' % (ok, len(reports)))
++    sys.exit(0 if ok == len(reports) else 1)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/tools/memtest2profile.py b/tools/memtest2profile.py
+new file mode 100644
+index 0000000..f88b0f8
+--- /dev/null
++++ b/tools/memtest2profile.py
+@@ -0,0 +1,258 @@
++#!/usr/bin/env python3
++"""Turn a damoLoad memtest workload config into a qmem profile v2.
++
++usage: memtest2profile.py <config.json> -o <profile> [--epoch-ms 10]
++                          [--duration S] [--seed 42]
++
++Every memtest spatial selector picks pages with known probabilities, so the
++expected touches of each page per second are known exactly:
++
++    rate(page, t) = sum over the region's tracks of  hz_track(t) * P_track(page)
++                    (spatial=all: hz_track(t) for every page)
++
++The profile gives each page that rate, averaged over each epoch. Pages next
++to each other with the same rate share one access line; epochs in a row
++with the same rates are merged. memtest writes every touch, so write=1;
++random selectors replay with pattern=random, sequential and all with
++roundrobin. The formulas follow memtest's own code (damoLoad memtest/src).
++See docs/replay_testing.md, section 2.2.
++"""
++import argparse
++import json
++import math
++import sys
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'builder'))
++import profile_v2 as pf  # noqa: E402
++
++PAGE = 4096
++SUBSTEPS = 20           # samples of hz(t) per epoch for the epoch's average
++RANDOM = {'uniform', 'hotspot', 'zipf', 'gaussian'}
++
++
++def num(obj, key, default):
++    v = obj.get(key, default) if isinstance(obj, dict) else default
++    return float(v) if v is not None else default
++
++
++# ---------------------------------------------------------------- temporal
++
++
++def temporal(spec, track_dur):
++    """hz as a function of the time since the track's start (memtest's
++    build_temporal: same defaults)."""
++    spec = spec or {}
++    kind = spec.get('type')
++    if kind == 'sine':
++        base, amp = num(spec, 'base_hz', 50), num(spec, 'amplitude', 30)
++        period, phase = num(spec, 'period_sec', 2.0), num(spec, 'phase_rad', 0.0)
++        return lambda t: max(0.0, base + amp * math.sin(2 * math.pi * t / period + phase))
++    if kind == 'square':
++        on, duty = num(spec, 'on_hz', 200), num(spec, 'duty', 0.5)
++        period, phase = num(spec, 'period_sec', 1.0), num(spec, 'phase_rad', 0.0)
++        shift = phase / (2 * math.pi) * period
++        return lambda t: on if math.fmod(t + shift, period) / period < duty else 0.0
++    if kind == 'ramp':
++        a, b = num(spec, 'start_hz', 0), num(spec, 'end_hz', 200)
++        total = num(spec, 'total_sec', track_dur)
++        return lambda t: a + (b - a) * min(1.0, max(0.0, t / total))
++    if kind == 'steps':
++        steps = [(num(s, 'hz', 0), num(s, 'duration_sec', 1.0)) for s in spec.get('steps') or []]
++        if not steps:
++            return lambda t: 0.0
++
++        def f(t):
++            elapsed = 0.0
++            for hz, d in steps:
++                elapsed += d
++                if t < elapsed:
++                    return hz
++            return steps[-1][0]
++        return f
++    return lambda t, hz=num(spec, 'hz', 100): hz            # const and unknown types
++
++
++# ---------------------------------------------------------------- spatial
++
++
++def from_cdf(cdf):
++    """Page probabilities of memtest's cdf walk, whose last entry is forced to 1."""
++    cdf = list(cdf)
++    cdf[-1] = 1.0
++    return [c - (cdf[i - 1] if i else 0.0) for i, c in enumerate(cdf)]
++
++
++def spatial(spec, n):
++    """(probability of each page per touch, or None for 'all', random?)."""
++    spec = spec or {}
++    kind = spec.get('type')
++    if kind == 'sequential':
++        return [1.0 / n] * n, False
++    if kind == 'all':
++        return None, False
++    if kind == 'hotspot':
++        hot = [int(h) for h in spec.get('hot_pages') or []]
++        ratio = num(spec, 'hot_ratio', 0.8)
++        n_cold = n - len(hot)
++        prob = [(1 - ratio) / n_cold if n_cold > 0 else 0.0] * n
++        for h in hot:
++            if 0 <= h < n:
++                prob[h] = ratio / len(hot)
++        cdf, cum = [], 0.0
++        for p in prob:
++            cum += p
++            cdf.append(cum)
++        return from_cdf(cdf), True
++    if kind == 'zipf':
++        s = num(spec, 's', 1.0)
++        norm = sum(1 / k ** s for k in range(1, n + 1))
++        cdf, cum = [], 0.0
++        for k in range(1, n + 1):
++            cum += 1 / k ** s / norm
++            cdf.append(cum)
++        return from_cdf(cdf), True
++    if kind == 'gaussian':
++        c, sigma = num(spec, 'center', n / 2.0), num(spec, 'sigma', 1.0)
++
++        def phi(x):
++            return 0.5 * (1 + math.erf((x - c) / (sigma * math.sqrt(2))))
++        # page = clamp(round(c + sigma * z)): everything below 0.5 is page 0,
++        # everything from n - 1.5 up is the last page
++        prob = []
++        for p in range(n):
++            lo = 0.0 if p == 0 else phi(p - 0.5)
++            hi = 1.0 if p == n - 1 else phi(p + 0.5)
++            prob.append(hi - lo)
++        return prob, True
++    return [1.0 / n] * n, True                               # uniform and unknown types
++
++
++# ---------------------------------------------------------------- config
++
++
++def cut(cfg, duration):
++    """The config limited to its first <duration> seconds."""
++    cfg = json.loads(json.dumps(cfg))
++    full = num(cfg, 'duration_sec', 0)
++    cfg['duration_sec'] = min(full, duration) if full else duration
++    tracks = []
++    for t in cfg.get('tracks') or []:
++        start = num(t, 'start_sec', 0.0)
++        end = num(t, 'end_sec', full)
++        if start >= duration:
++            continue
++        # keep the track's own length: ramp and steps are timed by it
++        t.setdefault('end_sec', end)
++        if t['temporal'].get('type') == 'ramp':
++            t['temporal'].setdefault('total_sec', end - start)
++        t['end_sec'] = min(end, duration)
++        tracks.append(t)
++    cfg['tracks'] = tracks
++    return cfg
++
++
++def tracks_of(cfg):
++    duration = num(cfg, 'duration_sec', 0)
++    regions = [int(num(r, 'pages', 10)) for r in cfg.get('regions') or []]
++    out = []
++    for t in cfg.get('tracks') or []:
++        r = int(num(t, 'region', 0))
++        if not 0 <= r < len(regions):
++            r = 0                                            # as memtest does
++        start, end = num(t, 'start_sec', 0.0), num(t, 'end_sec', duration)
++        prob, rnd = spatial(t.get('spatial'), regions[r])
++        out.append(dict(region=r, start=start, end=end, hz=temporal(t.get('temporal'), end - start),
++                        prob=prob, random=rnd))
++    return duration, regions, out
++
++
++def epoch_rates(tracks, regions, t0, t1):
++    """{region: (per-page rates, random?)} averaged over [t0, t1) seconds."""
++    out = {}
++    for tr in tracks:
++        # the part of the epoch where the track runs (memtest: start <= t <= end)
++        lo, hi = max(t0, tr['start']), min(t1, tr['end'])
++        if hi <= lo:
++            continue
++        step = (t1 - t0) / SUBSTEPS
++        total = 0.0
++        for k in range(SUBSTEPS):
++            t = t0 + (k + 0.5) * step
++            if lo <= t < hi or (t == hi == tr['end']):
++                total += tr['hz'](t - tr['start'])
++        hz = total / SUBSTEPS
++        if hz <= 0:
++            continue
++        n = regions[tr['region']]
++        rates, rnd = out.setdefault(tr['region'], ([0.0] * n, False))
++        if tr['prob'] is None:
++            for p in range(n):
++                rates[p] += hz
++        else:
++            for p in range(n):
++                rates[p] += hz * tr['prob'][p]
++        out[tr['region']] = (rates, rnd or tr['random'])
++    return out
++
++
++def build(cfg, name, epoch_ms, seed):
++    duration, regions, tracks = tracks_of(cfg)
++    prof = pf.Profile(meta={'source': 'memtest:' + name, 'builder': 'memtest2profile',
++                            'epoch_ms': epoch_ms, 'seed': seed})
++    for i, n in enumerate(regions):
++        prof.regions.append(pf.Region(i, n * PAGE))
++        prof.events.append(pf.Event('map', 0, i, 0, n * PAGE))
++        prof.events.append(pf.Event('populate', 0, i, 0, n * PAGE))
++
++    last_key, last = None, None
++    for k in range(int(round(duration * 1000 / epoch_ms))):
++        t0, t1 = k * epoch_ms / 1000, (k + 1) * epoch_ms / 1000
++        rates = epoch_rates(tracks, regions, t0, t1)
++        key = tuple(sorted((r, tuple(v), rnd) for r, (v, rnd) in rates.items()))
++        if not rates:
++            last_key, last = None, None
++            continue
++        if key == last_key and last.t + last.dur == k * epoch_ms:
++            last.dur += epoch_ms
++            continue
++        ep = pf.Epoch(k * epoch_ms, epoch_ms)
++        for r in sorted(rates):
++            v, rnd = rates[r]
++            p = 0
++            while p < len(v):
++                q = p
++                # equal up to rounding (memtest's last cdf entry is forced to 1)
++                while q + 1 < len(v) and abs(v[q + 1] - v[p]) <= 1e-9 * v[p]:
++                    q += 1
++                if v[p] > 0:
++                    ep.accesses.append(pf.Access(r, p * PAGE, (q - p + 1) * PAGE, rate=v[p],
++                                                 write=1.0,
++                                                 pattern='random' if rnd else 'roundrobin'))
++                p = q + 1
++        prof.epochs.append(ep)
++        last_key, last = key, ep
++    return prof
++
++
++def main():
++    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    ap.add_argument('config')
++    ap.add_argument('-o', '--output', required=True)
++    ap.add_argument('--epoch-ms', type=int, default=10)
++    ap.add_argument('--duration', type=float, help='use only the first S seconds')
++    ap.add_argument('--seed', type=int, default=42)
++    args = ap.parse_args()
++    if args.epoch_ms <= 0:
++        ap.error('--epoch-ms must be positive')
++    cfg = json.loads(Path(args.config).read_text())
++    if args.duration:
++        cfg = cut(cfg, args.duration)
++    prof = build(cfg, Path(args.config).stem, args.epoch_ms, args.seed)
++    pf.write(args.output, prof)
++    print('memtest2profile: %d regions, %d epochs' % (len(prof.regions), len(prof.epochs)),
++          file=sys.stderr)
++
++
++if __name__ == '__main__':
++    main()
