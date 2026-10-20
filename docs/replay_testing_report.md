@@ -12,6 +12,14 @@
   - четыре — особенности самого memtest: он не всегда исполняет собственный конфиг;
   - два — единичные окна на очень низких частотах.
 
+## Схема
+
+Что добавлено (зелёное) и как идут данные. Синее — damoLoad, красное — найденные ошибки и вопросы.
+
+![Проверка replay](replay_testing.png)
+
+Исходник: [replay_testing.mmd](replay_testing.mmd).
+
 ## 1. Лог replay
 
 `qmem-replay profile.txt --log run.log --log-level events|ticks|touches`. Формат описан в [formats/replay_log.md](formats/replay_log.md).

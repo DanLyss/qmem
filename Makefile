@@ -28,7 +28,7 @@ damoload-check: all
 		--json damoload_report.json
 
 MMDC ?= mmdc
-diagrams: docs/architecture.png docs/architecture_extension.png
+diagrams: docs/architecture.png docs/architecture_extension.png docs/replay_testing.png
 
 # render in /tmp: mmdc writes broken files straight onto a WSL /mnt drive
 docs/%.png: docs/%.mmd
