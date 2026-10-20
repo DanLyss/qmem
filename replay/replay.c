@@ -118,8 +118,13 @@ static void replay(uint64_t *wall_ns)
 			     j < epochs[cur].first + epochs[cur].n; j++) {
 				struct access *a = &accesses[j];
 
-				a->carry = 0;
-				a->gen->epoch(a, a->prev >= 0 ? &accesses[a->prev] : NULL);
+				const struct access *prev =
+					a->prev >= 0 ? &accesses[a->prev] : NULL;
+
+				/* the same range goes on with its fraction of a
+				 * touch: short epochs at low rates would lose it */
+				a->carry = prev ? prev->carry : 0;
+				a->gen->epoch(a, prev);
 			}
 		}
 		if (cur < 0 || t >= epochs[cur].t_ms + epochs[cur].dur_ms)

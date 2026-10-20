@@ -101,7 +101,7 @@ def test_touch_count_and_carry(tmp_path):
     for e, tt in by_epoch.items():
         assert len(tt) == 100                         # every tick has work
         assert sum(t['n'] for t in tt) == 150         # rate x pages x dur
-        carry = 0.0                                   # reset at the epoch start
+        carry = 0.0                                   # 150 per epoch: nothing left over
         for t in tt:
             want = carry + 1.5
             assert t['n'] == int(want)
@@ -110,6 +110,17 @@ def test_touch_count_and_carry(tmp_path):
             carry = t['carry']
     for e in lines(log, 'epoch', what='end'):
         assert e['planned'] == e['done'] == '150'
+
+
+def test_slow_access_over_short_epochs_is_not_lost(tmp_path):
+    """40 touches per second over 100 epochs of 10 ms: 0.4 touches per epoch.
+    The fraction left at the end of an epoch goes on into the same range's
+    next epoch; resetting it lost every touch (found against damoLoad)."""
+    body = [region(0, PAGE), ev('map', 0, 0, 0, PAGE)] + \
+        epochs(0, 1000, 10, [access(0, 0, PAGE, 40)], dur=10)
+    log, _ = run_logged(tmp_path, body, 'ticks', epoch_ms=10)
+    total = sum(t['done'] for t in ticks(log))
+    assert abs(total - 40) <= 1
 
 
 def test_several_accesses_in_an_epoch(tmp_path):
