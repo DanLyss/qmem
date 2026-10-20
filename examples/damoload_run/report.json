@@ -1,0 +1,23 @@
+[
+ {
+  "total_ref": 449,
+  "total_got": 450,
+  "total_rel": 0.0022271714922048997,
+  "windows_checked": 30,
+  "bad_windows": [],
+  "regions": {
+   "0": {
+    "tv": 0.045711457560009924,
+    "tv_limit": 0.19766092731601298,
+    "ref": 449,
+    "got": 450
+   }
+  },
+  "ok": true,
+  "config": "08_hotspot_two_pages.json",
+  "duration": 3.0,
+  "replay_lagged_ticks": 0,
+  "memtest_log_full": false,
+  "memtest_after_end": 0
+ }
+]

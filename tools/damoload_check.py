@@ -189,11 +189,31 @@ def check(cfg_file, args, work):
     ref = count(gt, t0, duration, args.window_ms)
     got = count(rp, 0, duration, args.window_ms)
     report = compare(ref, got)
+    write_tables(work / 'comparison.txt', ref, got, args.window_ms)
     report.update(config=Path(cfg_file).name, duration=duration,
                   replay_lagged_ticks=int(end.get('lagged_ticks', 0)),
                   memtest_log_full=len(gt) >= GT_CAPACITY,
                   memtest_after_end=len(gt) - ref['total'])
     return report
+
+
+def write_tables(path, ref, got, window_ms):
+    """What was compared, side by side: touches per page and per window."""
+    regions = sorted({r for r, _ in ref['pages']} | {r for r, _ in got['pages']})
+    out = ['touches per page over the run', '', 'region  page   memtest   replay']
+    for r in regions:
+        pages = sorted({p for rr, p in ref['pages'] if rr == r} |
+                       {p for rr, p in got['pages'] if rr == r})
+        for p in pages:
+            out.append('%6d %5d %9d %8d' % (r, p, ref['pages'].get((r, p), 0),
+                                            got['pages'].get((r, p), 0)))
+    out += ['', 'touches per window of %d ms' % window_ms, '',
+            'region  window_ms   memtest   replay']
+    for r in regions:
+        for w in range(ref['n_windows']):
+            out.append('%6d %10d %9d %8d' % (r, w * window_ms, ref['windows'].get((r, w), 0),
+                                             got['windows'].get((r, w), 0)))
+    Path(path).write_text('\n'.join(out) + '\n')
 
 
 def describe(r):

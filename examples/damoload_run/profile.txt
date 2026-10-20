@@ -1,0 +1,11 @@
+qmem-profile 2
+meta source=memtest:08_hotspot_two_pages builder=memtest2profile
+meta epoch_ms=10 seed=42
+
+region id=0 size=40960 kind=anon base=0x0
+map t=0 region=0 off=0 len=40960
+populate t=0 region=0 off=0 len=40960
+
+epoch t=0 dur=3000
+access region=0 off=0 len=8192 rate=67.5 write=1 pattern=random
+access region=0 off=8192 len=32768 rate=1.875 write=1 pattern=random

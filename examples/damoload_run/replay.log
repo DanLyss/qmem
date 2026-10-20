@@ -1,0 +1,907 @@
+start seed=42 regions=1 events=2 epochs=1 end_ms=3000 level=touches
+region id=0 pages=10 base=0x7b4f1a7fa000
+event kind=map t=0 tick=0 region=0 off=0 len=40960
+event kind=populate t=0 tick=0 region=0 off=0 len=40960 pages=10
+epoch what=start idx=0 t=0 dur=3000 tick=0
+touch t_ns=7126532 region=0 page=1 op=w
+tick tick=7 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=14073926 region=0 page=0 op=w
+tick tick=14 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=22070295 region=0 page=0 op=w
+tick tick=22 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=29123638 region=0 page=1 op=w
+tick tick=29 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=37210361 region=0 page=1 op=w
+tick tick=37 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=44207381 region=0 page=0 op=w
+tick tick=44 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=51086596 region=0 page=0 op=w
+tick tick=51 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=59153818 region=0 page=1 op=w
+tick tick=59 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=66082577 region=0 page=0 op=w
+tick tick=66 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=66082923 region=0 page=7 op=w
+tick tick=66 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=74180012 region=0 page=0 op=w
+tick tick=74 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=81192238 region=0 page=0 op=w
+tick tick=81 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=88087180 region=0 page=1 op=w
+tick tick=88 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=96156855 region=0 page=1 op=w
+tick tick=96 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=103080659 region=0 page=0 op=w
+tick tick=103 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=111083622 region=0 page=0 op=w
+tick tick=111 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=118097634 region=0 page=0 op=w
+tick tick=118 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=125072275 region=0 page=0 op=w
+tick tick=125 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=133104449 region=0 page=1 op=w
+tick tick=133 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=133105030 region=0 page=2 op=w
+tick tick=133 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=140175181 region=0 page=0 op=w
+tick tick=140 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=148118857 region=0 page=1 op=w
+tick tick=148 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=155122507 region=0 page=1 op=w
+tick tick=155 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=162131211 region=0 page=1 op=w
+tick tick=162 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=170237905 region=0 page=1 op=w
+tick tick=170 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=177092494 region=0 page=0 op=w
+tick tick=177 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=185112774 region=0 page=1 op=w
+tick tick=185 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=192110683 region=0 page=0 op=w
+tick tick=192 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=199195336 region=0 page=1 op=w
+tick tick=199 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=199195669 region=0 page=3 op=w
+tick tick=199 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=207270707 region=0 page=1 op=w
+tick tick=207 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=214092430 region=0 page=0 op=w
+tick tick=214 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=222095967 region=0 page=0 op=w
+tick tick=222 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=229199302 region=0 page=1 op=w
+tick tick=229 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=237118548 region=0 page=0 op=w
+tick tick=237 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=244196021 region=0 page=1 op=w
+tick tick=244 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=251184550 region=0 page=0 op=w
+tick tick=251 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=259175695 region=0 page=1 op=w
+tick tick=259 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=266133921 region=0 page=0 op=w
+tick tick=266 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=266134441 region=0 page=5 op=w
+tick tick=266 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=274076824 region=0 page=1 op=w
+tick tick=274 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=281090776 region=0 page=0 op=w
+tick tick=281 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=288130083 region=0 page=1 op=w
+tick tick=288 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=296290000 region=0 page=0 op=w
+tick tick=296 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=303144502 region=0 page=1 op=w
+tick tick=303 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=311109582 region=0 page=0 op=w
+tick tick=311 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=318223066 region=0 page=0 op=w
+tick tick=318 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=325073357 region=0 page=1 op=w
+tick tick=325 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=333092059 region=0 page=1 op=w
+tick tick=333 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=333092386 region=0 page=3 op=w
+tick tick=333 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=340107404 region=0 page=0 op=w
+tick tick=340 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=348218015 region=0 page=1 op=w
+tick tick=348 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=355151801 region=0 page=1 op=w
+tick tick=355 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=362110740 region=0 page=0 op=w
+tick tick=362 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=370209241 region=0 page=0 op=w
+tick tick=370 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=377125094 region=0 page=0 op=w
+tick tick=377 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=385111682 region=0 page=0 op=w
+tick tick=385 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=392191828 region=0 page=1 op=w
+tick tick=392 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=399074393 region=0 page=1 op=w
+tick tick=399 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=399074644 region=0 page=3 op=w
+tick tick=399 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=407111724 region=0 page=0 op=w
+tick tick=407 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=414275185 region=0 page=1 op=w
+tick tick=414 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=422142399 region=0 page=1 op=w
+tick tick=422 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=429165314 region=0 page=0 op=w
+tick tick=429 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=437135046 region=0 page=0 op=w
+tick tick=437 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=444118701 region=0 page=0 op=w
+tick tick=444 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=451234939 region=0 page=1 op=w
+tick tick=451 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=459113698 region=0 page=0 op=w
+tick tick=459 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=466068771 region=0 page=1 op=w
+tick tick=466 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=466069062 region=0 page=5 op=w
+tick tick=466 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=474089243 region=0 page=0 op=w
+tick tick=474 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=481094913 region=0 page=1 op=w
+tick tick=481 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=488107399 region=0 page=0 op=w
+tick tick=488 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=496109309 region=0 page=0 op=w
+tick tick=496 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=503231299 region=0 page=1 op=w
+tick tick=503 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=511258498 region=0 page=0 op=w
+tick tick=511 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=518089499 region=0 page=0 op=w
+tick tick=518 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=525118821 region=0 page=1 op=w
+tick tick=525 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=533270838 region=0 page=1 op=w
+tick tick=533 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=533271537 region=0 page=7 op=w
+tick tick=533 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=540123078 region=0 page=1 op=w
+tick tick=540 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=548173440 region=0 page=0 op=w
+tick tick=548 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=555161237 region=0 page=0 op=w
+tick tick=555 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=562176980 region=0 page=0 op=w
+tick tick=562 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=570105635 region=0 page=0 op=w
+tick tick=570 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=577109056 region=0 page=0 op=w
+tick tick=577 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=585114812 region=0 page=0 op=w
+tick tick=585 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=592116354 region=0 page=0 op=w
+tick tick=592 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=599105618 region=0 page=0 op=w
+tick tick=599 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=599106120 region=0 page=8 op=w
+tick tick=599 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=607129224 region=0 page=1 op=w
+tick tick=607 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=614116509 region=0 page=1 op=w
+tick tick=614 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=622104638 region=0 page=1 op=w
+tick tick=622 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=629110945 region=0 page=1 op=w
+tick tick=629 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=637079767 region=0 page=1 op=w
+tick tick=637 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=644176140 region=0 page=0 op=w
+tick tick=644 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=651208285 region=0 page=0 op=w
+tick tick=651 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=659101727 region=0 page=0 op=w
+tick tick=659 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=666116058 region=0 page=1 op=w
+tick tick=666 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=666116723 region=0 page=7 op=w
+tick tick=666 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=674225616 region=0 page=0 op=w
+tick tick=674 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=681089797 region=0 page=0 op=w
+tick tick=681 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=688094018 region=0 page=0 op=w
+tick tick=688 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=696102954 region=0 page=0 op=w
+tick tick=696 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=703114518 region=0 page=0 op=w
+tick tick=703 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=711109153 region=0 page=1 op=w
+tick tick=711 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=718182243 region=0 page=1 op=w
+tick tick=718 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=725207464 region=0 page=0 op=w
+tick tick=725 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=733325823 region=0 page=0 op=w
+tick tick=733 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=733326489 region=0 page=5 op=w
+tick tick=733 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=740195268 region=0 page=0 op=w
+tick tick=740 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=748121772 region=0 page=0 op=w
+tick tick=748 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=755156569 region=0 page=1 op=w
+tick tick=755 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=762214689 region=0 page=0 op=w
+tick tick=762 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=770254373 region=0 page=0 op=w
+tick tick=770 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=777221380 region=0 page=0 op=w
+tick tick=777 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=785123464 region=0 page=0 op=w
+tick tick=785 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=792254290 region=0 page=1 op=w
+tick tick=792 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=799214634 region=0 page=1 op=w
+tick tick=799 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=799215378 region=0 page=2 op=w
+tick tick=799 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=807219808 region=0 page=0 op=w
+tick tick=807 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=814154700 region=0 page=0 op=w
+tick tick=814 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=822121598 region=0 page=0 op=w
+tick tick=822 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=829085224 region=0 page=1 op=w
+tick tick=829 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=837072571 region=0 page=0 op=w
+tick tick=837 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=844217718 region=0 page=1 op=w
+tick tick=844 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=851097944 region=0 page=1 op=w
+tick tick=851 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=859077862 region=0 page=1 op=w
+tick tick=859 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=866113088 region=0 page=0 op=w
+tick tick=866 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=866113703 region=0 page=6 op=w
+tick tick=866 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=874105068 region=0 page=1 op=w
+tick tick=874 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=881163617 region=0 page=0 op=w
+tick tick=881 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=888159757 region=0 page=1 op=w
+tick tick=888 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=896085013 region=0 page=1 op=w
+tick tick=896 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=903087943 region=0 page=0 op=w
+tick tick=903 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=911141187 region=0 page=0 op=w
+tick tick=911 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=918186709 region=0 page=0 op=w
+tick tick=918 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=925109918 region=0 page=0 op=w
+tick tick=925 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=933109600 region=0 page=0 op=w
+tick tick=933 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=933110153 region=0 page=9 op=w
+tick tick=933 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=940146908 region=0 page=0 op=w
+tick tick=940 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=948222536 region=0 page=1 op=w
+tick tick=948 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=955150675 region=0 page=1 op=w
+tick tick=955 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=962122355 region=0 page=0 op=w
+tick tick=962 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=970135015 region=0 page=0 op=w
+tick tick=970 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=977084166 region=0 page=1 op=w
+tick tick=977 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=985146411 region=0 page=1 op=w
+tick tick=985 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=992077659 region=0 page=0 op=w
+tick tick=992 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=999208859 region=0 page=0 op=w
+tick tick=999 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=999209352 region=0 page=2 op=w
+tick tick=999 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=1007207839 region=0 page=1 op=w
+tick tick=1007 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=1014083259 region=0 page=0 op=w
+tick tick=1014 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=1022212166 region=0 page=0 op=w
+tick tick=1022 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=1029096534 region=0 page=0 op=w
+tick tick=1029 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=1037308894 region=0 page=1 op=w
+tick tick=1037 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=1044202206 region=0 page=1 op=w
+tick tick=1044 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=1051093910 region=0 page=0 op=w
+tick tick=1051 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=1059302363 region=0 page=1 op=w
+tick tick=1059 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=1066188814 region=0 page=1 op=w
+tick tick=1066 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=1066189250 region=0 page=9 op=w
+tick tick=1066 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=1074133776 region=0 page=1 op=w
+tick tick=1074 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=1081147385 region=0 page=0 op=w
+tick tick=1081 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=1088154309 region=0 page=0 op=w
+tick tick=1088 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=1096104331 region=0 page=0 op=w
+tick tick=1096 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=1103278558 region=0 page=0 op=w
+tick tick=1103 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=1111145705 region=0 page=1 op=w
+tick tick=1111 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=1118081589 region=0 page=1 op=w
+tick tick=1118 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=1125087257 region=0 page=1 op=w
+tick tick=1125 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=1133212612 region=0 page=1 op=w
+tick tick=1133 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=1133213269 region=0 page=2 op=w
+tick tick=1133 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=1140220826 region=0 page=1 op=w
+tick tick=1140 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=1148199048 region=0 page=0 op=w
+tick tick=1148 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=1155183123 region=0 page=1 op=w
+tick tick=1155 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=1162159301 region=0 page=1 op=w
+tick tick=1162 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=1170099999 region=0 page=1 op=w
+tick tick=1170 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=1177091077 region=0 page=1 op=w
+tick tick=1177 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=1185121228 region=0 page=0 op=w
+tick tick=1185 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=1192085110 region=0 page=1 op=w
+tick tick=1192 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=1199099260 region=0 page=1 op=w
+tick tick=1199 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=1199099969 region=0 page=8 op=w
+tick tick=1199 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=1207132638 region=0 page=0 op=w
+tick tick=1207 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=1214104857 region=0 page=1 op=w
+tick tick=1214 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=1222124102 region=0 page=1 op=w
+tick tick=1222 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=1229070495 region=0 page=0 op=w
+tick tick=1229 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=1237181417 region=0 page=1 op=w
+tick tick=1237 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=1244119439 region=0 page=1 op=w
+tick tick=1244 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=1251092444 region=0 page=1 op=w
+tick tick=1251 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=1259199134 region=0 page=1 op=w
+tick tick=1259 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=1266101425 region=0 page=1 op=w
+tick tick=1266 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=1266101679 region=0 page=6 op=w
+tick tick=1266 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=1274114699 region=0 page=1 op=w
+tick tick=1274 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=1281139859 region=0 page=1 op=w
+tick tick=1281 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=1288086278 region=0 page=0 op=w
+tick tick=1288 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=1296229466 region=0 page=0 op=w
+tick tick=1296 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=1303121557 region=0 page=0 op=w
+tick tick=1303 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=1311114038 region=0 page=1 op=w
+tick tick=1311 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=1318238996 region=0 page=0 op=w
+tick tick=1318 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=1325234338 region=0 page=1 op=w
+tick tick=1325 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=1333106387 region=0 page=0 op=w
+tick tick=1333 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=1333106837 region=0 page=4 op=w
+tick tick=1333 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=1340204646 region=0 page=0 op=w
+tick tick=1340 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=1348075468 region=0 page=1 op=w
+tick tick=1348 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=1355144032 region=0 page=0 op=w
+tick tick=1355 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=1362106840 region=0 page=0 op=w
+tick tick=1362 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=1370149921 region=0 page=1 op=w
+tick tick=1370 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=1377204595 region=0 page=0 op=w
+tick tick=1377 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=1385083008 region=0 page=1 op=w
+tick tick=1385 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=1392113604 region=0 page=0 op=w
+tick tick=1392 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=1399311089 region=0 page=1 op=w
+tick tick=1399 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=1399311633 region=0 page=7 op=w
+tick tick=1399 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=1407131996 region=0 page=1 op=w
+tick tick=1407 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=1414235468 region=0 page=0 op=w
+tick tick=1414 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=1422171534 region=0 page=0 op=w
+tick tick=1422 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=1429102290 region=0 page=1 op=w
+tick tick=1429 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=1437086460 region=0 page=0 op=w
+tick tick=1437 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=1444088011 region=0 page=0 op=w
+tick tick=1444 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=1451084988 region=0 page=1 op=w
+tick tick=1451 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=1459127755 region=0 page=0 op=w
+tick tick=1459 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=1466077166 region=0 page=0 op=w
+tick tick=1466 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=1466077630 region=0 page=4 op=w
+tick tick=1466 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=1474158750 region=0 page=0 op=w
+tick tick=1474 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=1481113221 region=0 page=1 op=w
+tick tick=1481 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=1488088880 region=0 page=0 op=w
+tick tick=1488 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=1496243171 region=0 page=0 op=w
+tick tick=1496 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=1503111621 region=0 page=1 op=w
+tick tick=1503 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=1511122896 region=0 page=1 op=w
+tick tick=1511 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=1518096953 region=0 page=0 op=w
+tick tick=1518 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=1525107403 region=0 page=0 op=w
+tick tick=1525 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=1533107739 region=0 page=0 op=w
+tick tick=1533 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=1533108280 region=0 page=8 op=w
+tick tick=1533 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=1540185720 region=0 page=1 op=w
+tick tick=1540 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=1548174974 region=0 page=1 op=w
+tick tick=1548 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=1555226545 region=0 page=0 op=w
+tick tick=1555 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=1562086345 region=0 page=0 op=w
+tick tick=1562 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=1570267900 region=0 page=0 op=w
+tick tick=1570 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=1577189928 region=0 page=0 op=w
+tick tick=1577 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=1585131289 region=0 page=0 op=w
+tick tick=1585 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=1592205802 region=0 page=0 op=w
+tick tick=1592 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=1599186242 region=0 page=1 op=w
+tick tick=1599 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=1599186771 region=0 page=5 op=w
+tick tick=1599 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=1607136804 region=0 page=1 op=w
+tick tick=1607 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=1614137986 region=0 page=1 op=w
+tick tick=1614 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=1622081108 region=0 page=1 op=w
+tick tick=1622 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=1629067603 region=0 page=0 op=w
+tick tick=1629 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=1637100010 region=0 page=0 op=w
+tick tick=1637 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=1644067803 region=0 page=1 op=w
+tick tick=1644 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=1651071151 region=0 page=1 op=w
+tick tick=1651 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=1659224682 region=0 page=0 op=w
+tick tick=1659 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=1666073196 region=0 page=0 op=w
+tick tick=1666 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=1666073749 region=0 page=5 op=w
+tick tick=1666 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=1674538262 region=0 page=1 op=w
+tick tick=1674 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=1681111269 region=0 page=0 op=w
+tick tick=1681 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=1688299270 region=0 page=1 op=w
+tick tick=1688 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=1696093906 region=0 page=0 op=w
+tick tick=1696 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=1703112214 region=0 page=1 op=w
+tick tick=1703 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=1711241134 region=0 page=0 op=w
+tick tick=1711 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=1718091938 region=0 page=1 op=w
+tick tick=1718 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=1725196858 region=0 page=1 op=w
+tick tick=1725 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=1733377754 region=0 page=0 op=w
+tick tick=1733 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=1733378173 region=0 page=2 op=w
+tick tick=1733 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=1740182644 region=0 page=1 op=w
+tick tick=1740 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=1748269076 region=0 page=0 op=w
+tick tick=1748 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=1755169844 region=0 page=1 op=w
+tick tick=1755 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=1762275721 region=0 page=1 op=w
+tick tick=1762 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=1770252769 region=0 page=0 op=w
+tick tick=1770 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=1777292097 region=0 page=0 op=w
+tick tick=1777 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=1785131240 region=0 page=1 op=w
+tick tick=1785 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=1792289893 region=0 page=1 op=w
+tick tick=1792 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=1799201597 region=0 page=0 op=w
+tick tick=1799 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=1799202582 region=0 page=9 op=w
+tick tick=1799 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=1807242732 region=0 page=1 op=w
+tick tick=1807 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=1814120004 region=0 page=0 op=w
+tick tick=1814 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=1822242136 region=0 page=0 op=w
+tick tick=1822 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=1829119627 region=0 page=1 op=w
+tick tick=1829 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=1837113133 region=0 page=0 op=w
+tick tick=1837 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=1844189739 region=0 page=1 op=w
+tick tick=1844 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=1851182540 region=0 page=0 op=w
+tick tick=1851 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=1859144449 region=0 page=1 op=w
+tick tick=1859 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=1866096613 region=0 page=0 op=w
+tick tick=1866 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=1866097345 region=0 page=3 op=w
+tick tick=1866 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=1874248833 region=0 page=1 op=w
+tick tick=1874 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=1881088786 region=0 page=0 op=w
+tick tick=1881 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=1888086268 region=0 page=0 op=w
+tick tick=1888 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=1896279004 region=0 page=1 op=w
+tick tick=1896 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=1903127565 region=0 page=0 op=w
+tick tick=1903 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=1911190878 region=0 page=0 op=w
+tick tick=1911 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=1918120170 region=0 page=0 op=w
+tick tick=1918 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=1925193091 region=0 page=1 op=w
+tick tick=1925 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=1933121408 region=0 page=0 op=w
+tick tick=1933 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=1933122072 region=0 page=3 op=w
+tick tick=1933 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=1940161723 region=0 page=0 op=w
+tick tick=1940 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=1948090909 region=0 page=0 op=w
+tick tick=1948 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=1955129134 region=0 page=1 op=w
+tick tick=1955 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=1962231896 region=0 page=0 op=w
+tick tick=1962 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=1970163620 region=0 page=1 op=w
+tick tick=1970 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=1977163959 region=0 page=1 op=w
+tick tick=1977 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=1985098294 region=0 page=0 op=w
+tick tick=1985 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=1992595691 region=0 page=0 op=w
+tick tick=1992 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=1999120587 region=0 page=0 op=w
+tick tick=1999 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=1999121015 region=0 page=6 op=w
+tick tick=1999 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=2007191812 region=0 page=0 op=w
+tick tick=2007 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=2014181447 region=0 page=1 op=w
+tick tick=2014 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=2022125395 region=0 page=1 op=w
+tick tick=2022 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=2029096803 region=0 page=1 op=w
+tick tick=2029 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=2037090785 region=0 page=0 op=w
+tick tick=2037 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=2044103675 region=0 page=0 op=w
+tick tick=2044 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=2051097730 region=0 page=1 op=w
+tick tick=2051 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=2059085993 region=0 page=0 op=w
+tick tick=2059 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=2066071068 region=0 page=0 op=w
+tick tick=2066 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=2066071462 region=0 page=3 op=w
+tick tick=2066 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=2074099964 region=0 page=0 op=w
+tick tick=2074 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=2081136553 region=0 page=1 op=w
+tick tick=2081 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=2088276978 region=0 page=1 op=w
+tick tick=2088 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=2096231945 region=0 page=1 op=w
+tick tick=2096 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=2103226433 region=0 page=1 op=w
+tick tick=2103 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=2111171465 region=0 page=0 op=w
+tick tick=2111 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=2118134298 region=0 page=0 op=w
+tick tick=2118 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=2125196033 region=0 page=0 op=w
+tick tick=2125 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=2133149331 region=0 page=0 op=w
+tick tick=2133 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=2133150000 region=0 page=6 op=w
+tick tick=2133 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=2140134792 region=0 page=1 op=w
+tick tick=2140 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=2148278488 region=0 page=0 op=w
+tick tick=2148 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=2155223172 region=0 page=0 op=w
+tick tick=2155 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=2162148267 region=0 page=0 op=w
+tick tick=2162 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=2170218044 region=0 page=1 op=w
+tick tick=2170 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=2177122361 region=0 page=1 op=w
+tick tick=2177 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=2185153387 region=0 page=0 op=w
+tick tick=2185 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=2192216305 region=0 page=1 op=w
+tick tick=2192 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=2199122879 region=0 page=0 op=w
+tick tick=2199 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=2199123406 region=0 page=7 op=w
+tick tick=2199 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=2207098881 region=0 page=1 op=w
+tick tick=2207 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=2214114950 region=0 page=1 op=w
+tick tick=2214 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=2222100425 region=0 page=0 op=w
+tick tick=2222 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=2229161388 region=0 page=1 op=w
+tick tick=2229 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=2237170938 region=0 page=1 op=w
+tick tick=2237 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=2244072718 region=0 page=1 op=w
+tick tick=2244 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=2251121139 region=0 page=0 op=w
+tick tick=2251 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=2259093963 region=0 page=0 op=w
+tick tick=2259 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=2266124654 region=0 page=0 op=w
+tick tick=2266 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=2266125548 region=0 page=7 op=w
+tick tick=2266 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=2274224462 region=0 page=0 op=w
+tick tick=2274 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=2281067950 region=0 page=0 op=w
+tick tick=2281 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=2288074435 region=0 page=0 op=w
+tick tick=2288 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=2296149516 region=0 page=1 op=w
+tick tick=2296 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=2303068406 region=0 page=0 op=w
+tick tick=2303 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=2311114733 region=0 page=1 op=w
+tick tick=2311 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=2318177202 region=0 page=1 op=w
+tick tick=2318 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=2325181319 region=0 page=1 op=w
+tick tick=2325 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=2333212763 region=0 page=0 op=w
+tick tick=2333 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=2333213395 region=0 page=2 op=w
+tick tick=2333 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=2340134967 region=0 page=0 op=w
+tick tick=2340 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=2348078526 region=0 page=0 op=w
+tick tick=2348 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=2355122453 region=0 page=0 op=w
+tick tick=2355 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=2362254461 region=0 page=0 op=w
+tick tick=2362 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=2370132599 region=0 page=1 op=w
+tick tick=2370 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=2377138786 region=0 page=1 op=w
+tick tick=2377 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=2385074361 region=0 page=1 op=w
+tick tick=2385 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=2392067998 region=0 page=0 op=w
+tick tick=2392 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=2399114660 region=0 page=1 op=w
+tick tick=2399 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=2399115128 region=0 page=6 op=w
+tick tick=2399 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=2407083717 region=0 page=0 op=w
+tick tick=2407 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=2414205588 region=0 page=0 op=w
+tick tick=2414 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=2422113677 region=0 page=1 op=w
+tick tick=2422 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=2429091426 region=0 page=1 op=w
+tick tick=2429 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=2437090590 region=0 page=1 op=w
+tick tick=2437 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=2444073174 region=0 page=1 op=w
+tick tick=2444 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=2451190571 region=0 page=0 op=w
+tick tick=2451 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=2459089588 region=0 page=0 op=w
+tick tick=2459 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=2466071388 region=0 page=0 op=w
+tick tick=2466 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=2466071769 region=0 page=6 op=w
+tick tick=2466 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=2474106780 region=0 page=1 op=w
+tick tick=2474 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=2481107410 region=0 page=1 op=w
+tick tick=2481 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=2488081466 region=0 page=0 op=w
+tick tick=2488 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=2496097035 region=0 page=0 op=w
+tick tick=2496 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=2503206132 region=0 page=0 op=w
+tick tick=2503 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=2511170079 region=0 page=1 op=w
+tick tick=2511 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=2518101977 region=0 page=0 op=w
+tick tick=2518 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=2525142271 region=0 page=1 op=w
+tick tick=2525 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=2533071959 region=0 page=1 op=w
+tick tick=2533 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=2533072314 region=0 page=4 op=w
+tick tick=2533 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=2540111717 region=0 page=0 op=w
+tick tick=2540 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=2548103555 region=0 page=0 op=w
+tick tick=2548 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=2555179533 region=0 page=0 op=w
+tick tick=2555 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=2562184973 region=0 page=0 op=w
+tick tick=2562 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=2570108935 region=0 page=1 op=w
+tick tick=2570 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=2577164034 region=0 page=1 op=w
+tick tick=2577 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=2585129328 region=0 page=1 op=w
+tick tick=2585 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=2592082584 region=0 page=0 op=w
+tick tick=2592 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=2599080440 region=0 page=0 op=w
+tick tick=2599 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=2599081026 region=0 page=7 op=w
+tick tick=2599 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=2607082572 region=0 page=0 op=w
+tick tick=2607 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=2614080322 region=0 page=1 op=w
+tick tick=2614 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=2622150468 region=0 page=0 op=w
+tick tick=2622 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=2629102074 region=0 page=0 op=w
+tick tick=2629 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=2637142969 region=0 page=0 op=w
+tick tick=2637 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=2644113683 region=0 page=1 op=w
+tick tick=2644 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=2651258510 region=0 page=1 op=w
+tick tick=2651 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=2659092077 region=0 page=1 op=w
+tick tick=2659 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=2666217326 region=0 page=0 op=w
+tick tick=2666 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=2666217987 region=0 page=9 op=w
+tick tick=2666 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=2674097393 region=0 page=1 op=w
+tick tick=2674 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=2681099461 region=0 page=0 op=w
+tick tick=2681 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=2688089856 region=0 page=1 op=w
+tick tick=2688 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=2696266463 region=0 page=0 op=w
+tick tick=2696 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=2703170473 region=0 page=1 op=w
+tick tick=2703 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=2711232625 region=0 page=1 op=w
+tick tick=2711 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=2718187370 region=0 page=0 op=w
+tick tick=2718 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=2725130430 region=0 page=1 op=w
+tick tick=2725 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=2733102221 region=0 page=1 op=w
+tick tick=2733 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=2733102766 region=0 page=3 op=w
+tick tick=2733 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=2740179833 region=0 page=1 op=w
+tick tick=2740 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=2748223768 region=0 page=1 op=w
+tick tick=2748 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=2755140672 region=0 page=1 op=w
+tick tick=2755 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=2762119025 region=0 page=1 op=w
+tick tick=2762 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=2770110096 region=0 page=1 op=w
+tick tick=2770 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=2777163714 region=0 page=0 op=w
+tick tick=2777 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=2785085053 region=0 page=0 op=w
+tick tick=2785 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=2792092760 region=0 page=0 op=w
+tick tick=2792 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=2799076698 region=0 page=0 op=w
+tick tick=2799 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=2799077072 region=0 page=3 op=w
+tick tick=2799 epoch=0 access=1 n=1 done=1 carry=0.0000
+touch t_ns=2807100675 region=0 page=0 op=w
+tick tick=2807 epoch=0 access=0 n=1 done=1 carry=0.0800
+touch t_ns=2814076472 region=0 page=1 op=w
+tick tick=2814 epoch=0 access=0 n=1 done=1 carry=0.0250
+touch t_ns=2822086102 region=0 page=0 op=w
+tick tick=2822 epoch=0 access=0 n=1 done=1 carry=0.1050
+touch t_ns=2829121435 region=0 page=0 op=w
+tick tick=2829 epoch=0 access=0 n=1 done=1 carry=0.0500
+touch t_ns=2837065762 region=0 page=0 op=w
+tick tick=2837 epoch=0 access=0 n=1 done=1 carry=0.1300
+touch t_ns=2844122619 region=0 page=0 op=w
+tick tick=2844 epoch=0 access=0 n=1 done=1 carry=0.0750
+touch t_ns=2851088479 region=0 page=1 op=w
+tick tick=2851 epoch=0 access=0 n=1 done=1 carry=0.0200
+touch t_ns=2859074455 region=0 page=1 op=w
+tick tick=2859 epoch=0 access=0 n=1 done=1 carry=0.1000
+touch t_ns=2866087764 region=0 page=1 op=w
+tick tick=2866 epoch=0 access=0 n=1 done=1 carry=0.0450
+touch t_ns=2866088511 region=0 page=8 op=w
+tick tick=2866 epoch=0 access=1 n=1 done=1 carry=0.0050
+touch t_ns=2874116102 region=0 page=1 op=w
+tick tick=2874 epoch=0 access=0 n=1 done=1 carry=0.1250
+touch t_ns=2881151362 region=0 page=1 op=w
+tick tick=2881 epoch=0 access=0 n=1 done=1 carry=0.0700
+touch t_ns=2888078770 region=0 page=1 op=w
+tick tick=2888 epoch=0 access=0 n=1 done=1 carry=0.0150
+touch t_ns=2896115989 region=0 page=1 op=w
+tick tick=2896 epoch=0 access=0 n=1 done=1 carry=0.0950
+touch t_ns=2903077963 region=0 page=0 op=w
+tick tick=2903 epoch=0 access=0 n=1 done=1 carry=0.0400
+touch t_ns=2911105711 region=0 page=0 op=w
+tick tick=2911 epoch=0 access=0 n=1 done=1 carry=0.1200
+touch t_ns=2918081152 region=0 page=0 op=w
+tick tick=2918 epoch=0 access=0 n=1 done=1 carry=0.0650
+touch t_ns=2925105930 region=0 page=1 op=w
+tick tick=2925 epoch=0 access=0 n=1 done=1 carry=0.0100
+touch t_ns=2933109452 region=0 page=0 op=w
+tick tick=2933 epoch=0 access=0 n=1 done=1 carry=0.0900
+touch t_ns=2933109949 region=0 page=6 op=w
+tick tick=2933 epoch=0 access=1 n=1 done=1 carry=0.0100
+touch t_ns=2940081778 region=0 page=1 op=w
+tick tick=2940 epoch=0 access=0 n=1 done=1 carry=0.0350
+touch t_ns=2948269925 region=0 page=0 op=w
+tick tick=2948 epoch=0 access=0 n=1 done=1 carry=0.1150
+touch t_ns=2955069714 region=0 page=1 op=w
+tick tick=2955 epoch=0 access=0 n=1 done=1 carry=0.0600
+touch t_ns=2962104338 region=0 page=1 op=w
+tick tick=2962 epoch=0 access=0 n=1 done=1 carry=0.0050
+touch t_ns=2970080355 region=0 page=1 op=w
+tick tick=2970 epoch=0 access=0 n=1 done=1 carry=0.0850
+touch t_ns=2977133791 region=0 page=1 op=w
+tick tick=2977 epoch=0 access=0 n=1 done=1 carry=0.0300
+touch t_ns=2985083355 region=0 page=0 op=w
+tick tick=2985 epoch=0 access=0 n=1 done=1 carry=0.1100
+touch t_ns=2992080679 region=0 page=0 op=w
+tick tick=2992 epoch=0 access=0 n=1 done=1 carry=0.0550
+touch t_ns=2999113911 region=0 page=0 op=w
+tick tick=2999 epoch=0 access=0 n=1 done=1 carry=0.0000
+touch t_ns=2999114346 region=0 page=4 op=w
+tick tick=2999 epoch=0 access=1 n=1 done=1 carry=0.0000
+epoch what=end idx=0 t=0 dur=3000 tick=3000 planned=450 done=450
+end planned=450 done=450 skipped=0 populated=10 lagged_ticks=0
