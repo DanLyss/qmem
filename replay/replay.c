@@ -7,6 +7,7 @@
  * replay never drifts. The other parts are listed in profile.h.
  *
  * usage: qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
+ *                    [--log <file> [--log-level events|ticks|touches]]
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -23,7 +24,7 @@
 
 long page;
 uint64_t planned, done, skipped, checksum, populated;
-static uint64_t lagged_ticks;
+static uint64_t lagged_ticks, end_ms;
 static double max_lag_ms;
 
 static void sleep_until(uint64_t ns)
@@ -70,9 +71,9 @@ static void replay(uint64_t *wall_ns)
 	 * 10 ms ticks the touches came in a burst and half of DAMON's samples
 	 * fell into the pause, so replay looked half as hot. */
 	uint64_t tick_ms = 1;
-	uint64_t end_ms = 0, start;
+	uint64_t start;
 	uint32_t ei = 0, pi = 0;
-	int cur = -1;
+	int cur = -1, cur_ended = 0;
 
 	if (n_events)
 		end_ms = events[n_events - 1].t_ms;
@@ -85,6 +86,7 @@ static void replay(uint64_t *wall_ns)
 	}
 
 	start = now_ns();
+	log_start(start);
 	{
 		struct timespec ts;
 
@@ -97,10 +99,21 @@ static void replay(uint64_t *wall_ns)
 
 		sleep_until(due);
 		lag_ms = (now_ns() - due) / 1e6;
-		while (ei < n_events && events[ei].t_ms <= t)
-			memory_apply(&events[ei++]);
+		if (cur >= 0 && !cur_ended && t >= epochs[cur].t_ms + epochs[cur].dur_ms) {
+			log_epoch(cur, 0, t);
+			cur_ended = 1;
+		}
+		while (ei < n_events && events[ei].t_ms <= t) {
+			uint64_t n = memory_apply(&events[ei]);
+
+			log_event(&events[ei++], t, n);
+		}
 		while (pi < n_epochs && epochs[pi].t_ms <= t) {
+			if (cur >= 0 && !cur_ended)
+				log_epoch(cur, 0, t);
 			cur = pi++;
+			cur_ended = 0;
+			log_epoch(cur, 1, t);
 			for (uint32_t j = epochs[cur].first;
 			     j < epochs[cur].first + epochs[cur].n; j++) {
 				struct access *a = &accesses[j];
@@ -115,20 +128,29 @@ static void replay(uint64_t *wall_ns)
 			epochs[cur].max_lag_ms = lag_ms;
 		if (lag_ms > max_lag_ms)
 			max_lag_ms = lag_ms;
-		if (!exec_tick(&epochs[cur], tick_ms, due + tick_ms * 1000000ULL)) {
+		if (!exec_tick(cur, t, tick_ms, due + tick_ms * 1000000ULL)) {
 			/* behind schedule: drop the missed ticks instead of queueing */
 			uint64_t now_ms = (now_ns() - start) / 1000000ULL;
-			uint64_t next = now_ms / tick_ms * tick_ms;
+			uint64_t next = now_ms / tick_ms * tick_ms, skip = 0;
 
 			lagged_ticks++;
 			if (next > t + tick_ms) {
-				lagged_ticks += (next - t) / tick_ms - 1;
+				skip = (next - t) / tick_ms - 1;
+				lagged_ticks += skip;
+				log_drop(t, skip);
 				t = next - tick_ms;
+			} else {
+				log_drop(t, 0);
 			}
 		}
 	}
-	while (ei < n_events)
-		memory_apply(&events[ei++]);
+	if (cur >= 0 && !cur_ended)
+		log_epoch(cur, 0, end_ms);
+	while (ei < n_events) {
+		uint64_t n = memory_apply(&events[ei]);
+
+		log_event(&events[ei++], end_ms, n);
+	}
 	sleep_until(start + end_ms * 1000000ULL);
 	*wall_ns = now_ns() - start;
 }
@@ -185,8 +207,9 @@ static void write_stats(const char *path)
 
 int main(int argc, char **argv)
 {
-	const char *path = NULL, *stats = NULL, *layout = NULL;
-	int seed_set = 0;
+	const char *path = NULL, *stats = NULL, *layout = NULL, *log_path = NULL;
+	int level = LOG_EVENTS;
+	int seed_set = 0, level_set = 0;
 	uint64_t seed_arg = 0, wall_ns;
 	struct rusage ru;
 
@@ -203,14 +226,23 @@ int main(int argc, char **argv)
 			stats = argv[++i];
 		} else if (!strcmp(argv[i], "--layout") && i + 1 < argc) {
 			layout = argv[++i];
+		} else if (!strcmp(argv[i], "--log") && i + 1 < argc) {
+			log_path = argv[++i];
+		} else if (!strcmp(argv[i], "--log-level") && i + 1 < argc) {
+			level = log_parse_level(argv[++i]);
+			if (level < 0)
+				goto usage;
+			level_set = 1;
 		} else if (argv[i][0] == '-' || path) {
 			goto usage;
 		} else {
 			path = argv[i];
 		}
 	}
-	if (!path)
+	if (!path || (level_set && !log_path))
 		goto usage;
+	if (log_path)
+		log_level = level;
 
 	load(path);
 	if (seed_set)
@@ -222,6 +254,8 @@ int main(int argc, char **argv)
 		write_stats(stats);
 	if (layout)
 		write_layout(layout);
+	if (log_path)
+		log_write(log_path, end_ms, lagged_ticks);
 
 	getrusage(RUSAGE_SELF, &ru);
 	fprintf(stderr, "replay: epochs=%" PRIu32 " planned=%" PRIu64 " done=%" PRIu64
@@ -237,7 +271,7 @@ int main(int argc, char **argv)
 	return 0;
 
 usage:
-	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
-		" [--layout <file>]\n", argv[0]);
+	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>] [--layout <file>]"
+		" [--log <file> [--log-level events|ticks|touches]]\n", argv[0]);
 	return 2;
 }

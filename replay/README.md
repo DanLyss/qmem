@@ -13,6 +13,7 @@
 | `memory.c` | memory manager | Резерв регионов, map/unmap/populate, битовые карты, касание страницы |
 | `generators.c`, `gen_roundrobin.c`, `gen_random.c` | generators | Какая страница участка следующая |
 | `exec.c` | executors | Касания одного тика; один поток |
+| `log.c` | — | Лог шагов (`--log`), формат: [docs/formats/replay_log.md](../docs/formats/replay_log.md) |
 | `replay.c` | scheduler | Тики, события, смена эпох, статистика, `--stats`, `--layout`, сводка |
 
 Сборка: `make`.
@@ -52,6 +53,7 @@ struct generator_ops {
 
 ```sh
 replay/qmem-replay profile.txt [--seed N] [--stats stats.csv] [--layout layout.txt]
+                   [--log run.log [--log-level events|ticks|touches]]
 ```
 
 Root не нужен. В конце в stderr печатается сводка: эпохи, план и сделанные касания, пропущенные, заполненные страницы, отставание, page faults, пиковый RSS, CPU, контрольная сумма.

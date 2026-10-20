@@ -7,6 +7,7 @@
  *   generators.c  which page of a range is touched next (gen_*.c)
  *   exec.c        who does the touches of a tick (one thread for now)
  *   replay.c      the scheduler: ticks, deadlines, epochs, statistics
+ *   log.c         the step log (--log)
  */
 #ifndef QMEM_REPLAY_PROFILE_H
 #define QMEM_REPLAY_PROFILE_H
@@ -79,12 +80,26 @@ const struct generator_ops *generator(const char *name);
 
 /* memory.c */
 void memory_prepare(void);
-void memory_apply(const struct event *e);
+uint64_t memory_apply(const struct event *e);
 int memory_touch(uint32_t r, uint64_t p, double write_ratio);
 
 /* exec.c */
 void exec_init(void);
-int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns);
+int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns);
 uint64_t now_ns(void);
+
+/* log.c */
+enum { LOG_OFF, LOG_EVENTS, LOG_TICKS, LOG_TOUCHES };
+enum { TOUCH_SKIP, TOUCH_READ, TOUCH_WRITE };
+extern int log_level;
+int log_parse_level(const char *name);
+void log_start(uint64_t start_ns);
+void log_event(const struct event *e, uint64_t tick, uint64_t pages);
+void log_epoch(uint32_t idx, int start, uint64_t tick);
+void log_drop(uint64_t tick, uint64_t skipped_ticks);
+void log_tick(uint64_t tick, uint32_t epoch, uint32_t access, uint64_t n, uint64_t n_done,
+	      double carry);
+void log_touch(uint32_t region, uint64_t page, int op);
+void log_write(const char *path, uint64_t end_ms, uint64_t lagged_ticks);
 
 #endif

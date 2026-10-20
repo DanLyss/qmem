@@ -57,12 +57,15 @@ void memory_prepare(void)
 	}
 }
 
-void memory_apply(const struct event *e)
+/* Returns the number of pages a populate wrote. */
+uint64_t memory_apply(const struct event *e)
 {
 	struct region *g = &regions[e->region];
 	void *p;
 
 	if (e->kind == POPULATE) {
+		uint64_t n = 0;
+
 		/* write every mapped, untouched page once: memory the application
 		 * kept resident without DAMON seeing accesses to it */
 		for (uint64_t i = e->off / page; i < (e->off + e->len) / page; i++) {
@@ -71,8 +74,9 @@ void memory_apply(const struct event *e)
 			set_bits(g->touched, i, 1, 1);
 			g->base[i * page] = 1;
 			populated++;
+			n++;
 		}
-		return;
+		return n;
 	}
 	p = mmap(g->base + e->off, e->len,
 		 e->kind == MAP ? PROT_READ | PROT_WRITE : PROT_NONE,
@@ -84,6 +88,7 @@ void memory_apply(const struct event *e)
 	}
 	set_bits(g->mapped, e->off / page, e->len / page, e->kind == MAP);
 	set_bits(g->touched, e->off / page, e->len / page, 0);
+	return 0;
 }
 
 /* Touch page p of region r. Returns 0 (skipped) if it is not mapped. */
@@ -94,6 +99,7 @@ int memory_touch(uint32_t r, uint64_t p, double write_ratio)
 
 	if (!bit(g->mapped, p)) {
 		skipped++;
+		log_touch(r, p, TOUCH_SKIP);
 		return 0;
 	}
 	checksum = checksum * 31 + p + 1;
@@ -101,12 +107,15 @@ int memory_touch(uint32_t r, uint64_t p, double write_ratio)
 		/* first touch writes: a read would map the shared zero page */
 		set_bits(g->touched, p, 1, 1);
 		*addr = 1;
+		log_touch(r, p, TOUCH_WRITE);
 	} else if (page_fraction(r, p) < write_ratio) {
 		/* the same write_ratio share of pages is written every time, so
 		 * the share of dirty pages per period equals write_ratio */
 		*addr += 1;
+		log_touch(r, p, TOUCH_WRITE);
 	} else {
 		(void)*addr;
+		log_touch(r, p, TOUCH_READ);
 	}
 	return 1;
 }

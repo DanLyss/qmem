@@ -24,19 +24,20 @@ void exec_init(void)
 
 /* Do one tick of the epoch's touches; stop at deadline_ns. Returns 0 if the
  * work did not fit. */
-int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
+int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns)
 {
+	struct epoch *e = &epochs[epoch];
 	uint64_t before = done;
 	int fits = 1;
 
 	for (uint32_t i = e->first; i < e->first + e->n && fits; i++) {
 		struct access *a = &accesses[i];
-		uint64_t n;
+		uint64_t n, k;
 
 		a->carry += a->rate * tick_ms / 1000.0;
 		n = (uint64_t)a->carry;
 		a->carry -= n;
-		for (uint64_t k = 0; k < n; k++) {
+		for (k = 0; k < n; k++) {
 			if ((k & 1023) == 1023 && now_ns() >= deadline_ns) {
 				fits = 0;
 				break;
@@ -44,6 +45,8 @@ int exec_tick(struct epoch *e, uint64_t tick_ms, uint64_t deadline_ns)
 			done += memory_touch(a->region, a->off / page + a->gen->next(a),
 					     a->write_ratio);
 		}
+		if (n)
+			log_tick(tick, epoch, i - e->first, n, k, a->carry);
 	}
 	e->done += done - before;
 	return fits;
