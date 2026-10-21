@@ -108,8 +108,7 @@ flowchart LR
   "time": {"start_time": 1791554595.73, "start_uptime": 16772.57, "end_time": 1791554604.85,
            "paused_ms": 0, "pauses": "pauses.csv"},
   "sources": {
-    "damon":  {"version": 1, "files": ["damon/access.csv"], "time_base": "record",
-               "options": "..."},
+    "damon":  {"version": 1, "files": ["damon/access.csv"], "time_base": "record"},
     "smaps":  {"version": 1, "files": ["smaps/"], "interval_ms": 500},
     "pmu_count": {"status": "unavailable", "reason": "no hardware PMU"}
   }

@@ -12,7 +12,7 @@ usage() {
 	usage: measure-overhead.sh [-n <runs>] [-r "<qmem-record options>"] -- <command> [args...]
 
 	  -n <runs>     runs of each kind (default 5)
-	  -r <options>  extra qmem-record.sh options, e.g. "-i 500 -w 2000"
+	  -r <options>  extra qmem-record.sh options, e.g. "-i 500"
 	EOF
 	exit 2
 }

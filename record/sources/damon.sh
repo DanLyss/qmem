@@ -4,6 +4,9 @@
 # In launch mode damo starts the command itself (src_damon_launch), so the
 # driver finds the application among damo's children.
 
+# damo command; tests point it elsewhere
+read -ra DAMO <<< "${QMEM_DAMO:-damo}"
+
 DAMON_PID=
 DAMON_RC=0
 DAMON_TIME_BASE=damo
@@ -16,12 +19,8 @@ src_damon_check() {
 }
 
 _damon_run() {
-	local opts
-
 	mkdir -p "$OUT/damon"
-	read -ra opts <<< "$DAMO_OPTIONS"
-	"${DAMO[@]}" record --do_record access "${opts[@]}" \
-		-o "$OUT/damon/damon.data" "$1" &
+	"${DAMO[@]}" record --do_record access -o "$OUT/damon/damon.data" "$1" &
 	DAMON_PID=$!
 }
 
@@ -125,7 +124,6 @@ src_damon_normalize() {
 
 src_damon_manifest() {
 	printf '"version": 1, "files": ["damon/access.csv", "damon/damon.data"], '
-	printf '"damo_version": %s, "options": %s, "time_base": "%s"' \
-		"$(json_str "$("${DAMO[@]}" version 2>/dev/null)")" "$(json_str "$DAMO_OPTIONS")" \
-		"$DAMON_TIME_BASE"
+	printf '"damo_version": %s, "time_base": "%s"' \
+		"$(json_str "$("${DAMO[@]}" version 2>/dev/null)")" "$DAMON_TIME_BASE"
 }

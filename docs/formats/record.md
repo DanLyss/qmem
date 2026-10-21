@@ -11,7 +11,7 @@
   smaps/             # источник smaps
   proc/              # источник proc
   system/            # источник system
-  softdirty/         # источник softdirty (только с -w)
+  softdirty/         # источник softdirty
   syscalls/          # источник syscalls
   pmu_count/         # заглушка
   pmu_sample/        # заглушка
@@ -31,7 +31,6 @@
   "stop": {"reason": "exited", "interrupted": false},
   "kernel": "6.18.35.2-microsoft-standard-WSL2+",
   "interval_ms": 1000,
-  "duration_s": null,
   "sources": {
     "damon":     {"status": "ok", "version": 1, "files": ["damon/access.csv"], ...},
     "pmu_count": {"status": "unavailable", "reason": "no PMU (perf_event_open: hardware events)"}
@@ -44,7 +43,7 @@
 | `target.mode` | `launch` (запустили сами) или `attach` (`-p`) |
 | `target.kernel_pid` | pid, под которым процесс известен ядру (отличается внутри pid namespace) |
 | `time.start_uptime` | `/proc/uptime` в момент старта — для совмещения с часами `boot` |
-| `stop.reason` | `exited`, `interrupted` или `duration` |
+| `stop.reason` | `exited` (приложение завершилось) или `interrupted` (Ctrl+C) |
 | `sources.<имя>.status` | `ok`, `unavailable` (проверка не прошла, источник пропущен), `off` (выключен опцией) или `stub` (заглушка, данных нет) |
 | `sources.<имя>.version` | версия формата файлов источника |
 | `sources.<имя>.files` | файлы источника, относительно каталога записи |
@@ -60,7 +59,7 @@
 | `damon/access.csv` | `snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age` — регионы DAMON по снимкам. Время в шкале записи (если есть `clock.csv`), адреса — виртуальные адреса процесса, `access_rate` — % проверок с «да» |
 | `damon/damon.data`, `damon/damon.data.kdamonds` | файлы damo, напрямую не читаются |
 
-Параметры: `damo_version`, `options` (то, что передано через `-D`), `time_base` (`record` или `damo`).
+Параметры: `damo_version`, `time_base` (`record` или `damo`).
 
 ### smaps (версия 1)
 
@@ -76,7 +75,7 @@
 
 ### softdirty (версия 1)
 
-`softdirty/writes.csv`: `ts_ms,start,end,present_pages,dirty_pages,rewritten_pages` по отображениям. Параметры: `period_ms`.
+`softdirty/writes.csv`: `ts_ms,start,end,present_pages,dirty_pages,rewritten_pages` по отображениям, выборка раз в `period_ms` (1000). Параметры: `period_ms`.
 
 ### syscalls (версия 1)
 

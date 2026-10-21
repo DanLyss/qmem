@@ -23,7 +23,7 @@
 | `smaps` | `smaps/<ts_ms>.txt` | Копии `/proc/<pid>/smaps` | есть |
 | `proc` | `proc/proc.csv` | minflt, majflt, RSS процесса | есть |
 | `system` | `system/system.csv` | meminfo, PSI, vmstat | есть |
-| `softdirty` | `softdirty/writes.csv` | Записанные страницы по отображениям (только с `-w`) | есть |
+| `softdirty` | `softdirty/writes.csv` | Записанные страницы по отображениям, раз в секунду | есть |
 | `syscalls` | `syscalls/syscalls.txt` | mmap/munmap/brk/mremap/madvise (tracefs) | есть |
 | `pmu_count` | — | Общее число обращений (perf) | **заглушка** |
 | `pmu_sample` | — | Выборка адресов (PEBS/SPE) | **заглушка** |
@@ -48,21 +48,18 @@
 ## Как пользоваться
 
 ```sh
-sudo record/qmem-record.sh -o out -- ./my_app --flag           # все источники
-sudo record/qmem-record.sh -o out -p 1234 -d 30 -w 5000        # подключиться на 30 с, с softdirty
+sudo record/qmem-record.sh -o out -- ./my_app --flag           # все источники, до выхода приложения
+sudo record/qmem-record.sh -o out -p 1234                      # подключиться, остановить Ctrl+C
 sudo record/qmem-record.sh -o out --sources smaps,proc -- ./my_app   # только часть источников
-record/qmem-record.sh --normalize out                          # пересобрать damon/access.csv
 ```
+
+Запись идёт, пока приложение не завершится, или до Ctrl+C. Запущенное записью приложение по Ctrl+C тоже останавливается, подключённое через `-p` — нет.
 
 | Опция | Значение |
 | --- | --- |
 | `-o <dir>` | Каталог записи (пустой или несуществующий) |
 | `-i <ms>` | Период снимков smaps, proc, system (по умолчанию 1000) |
-| `-w <ms>` | Включить softdirty с этим периодом |
 | `-p <pid>` | Подключиться к процессу вместо запуска |
-| `-d <s>` | Остановить через `<s>` секунд |
-| `-D "<опции>"` | Дополнительные опции `damo record` |
-| `--no-syscalls` | Выключить источник syscalls |
 | `--sources <список>` | Включить только эти источники; неизвестное имя — ошибка (код 2) |
 
 Без источника `damon` приложение запускает сам driver.

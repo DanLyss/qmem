@@ -13,7 +13,7 @@ src_proc_start() {
 src_proc_tick() {
 	local stat
 
-	stat=$(cat "/proc/$APP_PID/stat" 2>/dev/null) || return 0
+	read -r stat 2>/dev/null < "/proc/$APP_PID/stat" || return 0
 	set -- "$1" ${stat##*) }
 	# after the comm: $2 = state (field 3), minflt = field 10,
 	# majflt = field 12, rss in pages = field 24

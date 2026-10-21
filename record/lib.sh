@@ -1,5 +1,8 @@
 # qmem-record: helpers shared by the driver and the sources (sourced).
 
+# tracefs mount: the clock below and the syscalls source; tests point it elsewhere
+TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
+
 die() {
 	echo "qmem-record: $*" >&2
 	exit 1
@@ -9,7 +12,12 @@ warn() {
 	echo "qmem-record: $*" >&2
 }
 
-now_ms() { date +%s%3N; }
+# Wall-clock milliseconds into NOW_MS. A bash builtin, no subshell: a signal
+# arriving during a command substitution can confuse bash's trap handling.
+now_ms() {
+	NOW_MS=${EPOCHREALTIME/[.,]/}
+	NOW_MS=$(( NOW_MS / 1000 ))
+}
 
 json_str() {
 	local s=${1//\\/\\\\}
@@ -23,7 +31,7 @@ json_str() {
 alive() {
 	local stat
 
-	stat=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+	read -r stat 2>/dev/null < "/proc/$1/stat" || return 1
 	stat=${stat##*) }
 	[ "${stat%% *}" != Z ]
 }
@@ -44,7 +52,8 @@ start_clock() {
 
 anchor() {
 	[ -n "$CLK" ] || return 0
-	echo "qmem-anchor $(( $(now_ms) - START_MS ))" > "$CLK/trace_marker" 2>/dev/null || true
+	now_ms
+	echo "qmem-anchor $(( NOW_MS - START_MS ))" > "$CLK/trace_marker" 2>/dev/null || true
 }
 
 # Write clock.csv (when there is a directory to write it to) and remove the

@@ -13,18 +13,14 @@ usage() {
 	cat >&2 <<-EOF
 	usage: qmem-record.sh -o <dir> [options] -- <command> [args...]
 	       qmem-record.sh -o <dir> [options] -p <pid>
-	       qmem-record.sh --normalize <dir>
+
+	Records until the application exits or Ctrl+C.
 
 	  -o <dir>          output directory (must be empty or absent)
 	  -i <ms>           snapshot period of smaps, proc, system (default 1000)
-	  -w <ms>           sample written pages (soft-dirty) every <ms> (default off)
 	  -p <pid>          attach to a running process instead of starting one
-	  -d <s>            stop after <s> seconds
-	  -D "<options>"    extra options for damo record
-	  --no-syscalls     do not trace mmap/munmap/brk/mremap/madvise
 	  --sources <list>  comma-separated sources (default: all of
 	                    $ALL_SOURCES)
-	  --normalize       rebuild <dir>/damon/access.csv from <dir>/damon/damon.data
 	EOF
 	exit 2
 }
@@ -39,34 +35,15 @@ for src in $ALL_SOURCES; do
 	. "$HERE/sources/$src.sh"
 done
 
-# commands and paths; tests point these elsewhere
-read -ra DAMO <<< "${QMEM_DAMO:-damo}"
-TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
-SOFTDIRTY=${QMEM_SOFTDIRTY:-$HERE/qmem-softdirty}
-
-if [ "${1-}" = --normalize ]; then
-	[ $# -eq 2 ] || usage
-	src_damon_normalize "$2"
-	exit 0
-fi
-
 OUT=
 INTERVAL=1000
-WRITES_MS=0
-DAMO_OPTIONS=
 attach_pid=
-duration=
-want_syscalls=true
 sources=${ALL_SOURCES// /,}
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; OUT=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; INTERVAL=$2; shift 2 ;;
-	-w) [ $# -ge 2 ] || usage; WRITES_MS=$2; shift 2 ;;
 	-p) [ $# -ge 2 ] || usage; attach_pid=$2; shift 2 ;;
-	-d) [ $# -ge 2 ] || usage; duration=$2; shift 2 ;;
-	-D) [ $# -ge 2 ] || usage; DAMO_OPTIONS=$2; shift 2 ;;
-	--no-syscalls) want_syscalls=false; shift ;;
 	--sources) [ $# -ge 2 ] || usage; sources=$2; shift 2 ;;
 	--) shift; break ;;
 	*) usage ;;
@@ -81,13 +58,15 @@ else
 	MODE=launch
 fi
 [[ $INTERVAL =~ ^[1-9][0-9]*$ ]] || usage
-[[ $WRITES_MS =~ ^[0-9]+$ ]] || usage
-duration_ms=
-if [ -n "$duration" ]; then
-	[[ $duration =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage
-	duration_ms=$(awk -v s="$duration" 'BEGIN { printf "%d", s * 1000 }')
-	[ "$duration_ms" -gt 0 ] || usage
-fi
+
+# why recording stopped: exited or interrupted (Ctrl+C)
+STOP_REASON=exited
+STOPPED=false
+stop() {
+	STOP_REASON=$1
+	STOPPED=true
+}
+trap 'stop interrupted' INT TERM
 
 # status of every source: ok, off, unavailable or stub (+ reason)
 declare -A STATUS REASON
@@ -101,8 +80,6 @@ for src in ${sources//,/ }; do
 	}
 	STATUS[$src]=on
 done
-$want_syscalls || STATUS[syscalls]=off
-[ "$WRITES_MS" -gt 0 ] || STATUS[softdirty]=off
 on() { [ "${STATUS[$1]}" = on ] || [ "${STATUS[$1]}" = ok ]; }
 
 if [ -e "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
@@ -128,7 +105,6 @@ for src in $ALL_SOURCES; do
 	0) STATUS[$src]=ok ;;
 	3) STATUS[$src]=stub; REASON[$src]=$SRC_REASON ;;
 	*)
-		[ "$src" != softdirty ] || die "$SRC_REASON"	# asked for with -w
 		STATUS[$src]=unavailable
 		REASON[$src]=$SRC_REASON
 		warn "$SRC_REASON, continuing without it"
@@ -138,21 +114,12 @@ done
 
 mkdir -p "$OUT"
 start_time=$(date +%s.%N)
-START_MS=$(now_ms)
+now_ms
+START_MS=$NOW_MS
 start_uptime=$(cut -d' ' -f1 /proc/uptime)
-deadline_ms=
-[ -z "$duration_ms" ] || deadline_ms=$(( START_MS + duration_ms ))
 start_clock
 anchor
 
-# why recording stopped: exited, interrupted or duration
-STOP_REASON=exited
-STOPPED=false
-stop() {
-	STOP_REASON=$1
-	STOPPED=true
-}
-trap 'stop interrupted' INT TERM
 cleanup() {
 	for src in syscalls softdirty; do
 		on "$src" && "src_${src}_stop" || true
@@ -160,6 +127,9 @@ cleanup() {
 	stop_clock
 }
 trap cleanup EXIT
+
+# Ctrl+C before the application started: nothing to record
+$STOPPED && die "interrupted before the start"
 
 # the target
 APP_PID=
@@ -211,11 +181,8 @@ done
 poll_s=$(awk -v ms="$INTERVAL" 'BEGIN { print (ms < 100 ? ms : 100) / 1000 }')
 next_ms=$START_MS
 while [ -n "$APP_PID" ] && ! $STOPPED && alive "$APP_PID"; do
-	now=$(now_ms)
-	if [ -n "$deadline_ms" ] && [ "$now" -ge "$deadline_ms" ]; then
-		stop duration
-		break
-	fi
+	now_ms
+	now=$NOW_MS
 	if [ "$now" -ge "$next_ms" ]; then
 		next_ms=$(( now + INTERVAL ))
 		ts=$(( now - START_MS ))
@@ -293,7 +260,6 @@ source_json() {
 	  "stop": {"reason": "$STOP_REASON", "interrupted": $interrupted},
 	  "kernel": $(json_str "$(uname -r)"),
 	  "interval_ms": $INTERVAL,
-	  "duration_s": ${duration:-null},
 	  "sources": {
 	EOF
 	sep=

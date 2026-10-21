@@ -22,7 +22,7 @@ flowchart TB
             direction LR
             S_DAMON["damon.sh<br/>damo record → report"]
             S_SMAPS["smaps.sh<br/>копия smaps на тик"]
-            S_SD["softdirty.sh<br/>qmem-softdirty раз в -w мс"]
+            S_SD["softdirty.sh<br/>qmem-softdirty раз в секунду"]
             S_PROC["proc.sh · system.sh<br/>строка на тик"]
             S_SC["syscalls.sh<br/>mmap/munmap/brk… "]
             S_PMU["pmu_count · pmu_sample<br/><i>заглушки</i>"]
