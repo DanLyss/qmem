@@ -1,24 +1,53 @@
 # source damon: DAMON pseudo-frequencies of the target's regions, through
 # damo (damo record <pid>, then damo report for a normalized access.csv).
+#
+# damo stamps its snapshots with the trace clock. While it records, the trace
+# clock is set to mono (with boot, damo's trace-cmd records nothing) and put
+# back afterwards. mono differs from the record's boot clock (lib.sh: now_ms)
+# by the time the system slept, measured once at the start: no sleep during
+# the record, no drift.
 
 # damo command; tests point it elsewhere
 read -ra DAMO <<< "${QMEM_DAMO:-damo}"
 
 DAMON_PID=
 DAMON_RC=0
-DAMON_TIME_BASE=damo
+DAMON_OLD_CLOCK=
+DAMON_BOOT_MINUS_MONO_NS=0
 
 src_damon_check() {
 	command -v "${DAMO[0]}" > /dev/null 2>&1 || {
 		SRC_REASON="damo not found (${DAMO[0]})"
 		return 1
 	}
+	[ -w "$TRACEFS/trace_clock" ] || {
+		SRC_REASON="cannot set the trace clock ($TRACEFS/trace_clock)"
+		return 1
+	}
 }
 
 src_damon_start() {
+	local clocks
+
+	read -r clocks < "$TRACEFS/trace_clock" || return 1
+	DAMON_OLD_CLOCK=${clocks#*[}
+	DAMON_OLD_CLOCK=${DAMON_OLD_CLOCK%%]*}
+	echo mono > "$TRACEFS/trace_clock" || return 1
+	# python3 is there wherever damo (a python program) is
+	DAMON_BOOT_MINUS_MONO_NS=$(python3 -c 'import time
+print(time.clock_gettime_ns(time.CLOCK_BOOTTIME) - time.clock_gettime_ns(time.CLOCK_MONOTONIC))') ||
+		return 1
 	mkdir -p "$OUT/damon"
 	"${DAMO[@]}" record --do_record access -o "$OUT/damon/damon.data" "$1" &
 	DAMON_PID=$!
+}
+
+# Put the trace clock back; also called on any exit of the driver.
+src_damon_restore_clock() {
+	[ -n "$DAMON_OLD_CLOCK" ] || return 0
+	echo "$DAMON_OLD_CLOCK" > "$TRACEFS/trace_clock" 2>/dev/null || true
+	DAMON_OLD_CLOCK=
+DAMON_BOOT_MINUS_MONO_NS=0
 }
 
 src_damon_tick() { :; }
@@ -38,6 +67,7 @@ src_damon_stop() {
 		wait "$DAMON_PID" || DAMON_RC=$?
 		kill -0 "$DAMON_PID" 2>/dev/null || break
 	done
+	src_damon_restore_clock
 	if $STOPPED; then
 		# damo exits with the signal number after saving the record
 		[ -f "$OUT/damon/damon.data" ] || die "damo did not write $OUT/damon/damon.data"
@@ -50,24 +80,18 @@ src_damon_stop() {
 	[ "$DAMON_RC" -eq 0 ] || die "damo record failed (exit $DAMON_RC)"
 }
 
-# After the clock is closed: normalize into access.csv.
 src_damon_finish() {
 	src_damon_normalize "$OUT"
 }
 
 # <dir>/damon/damon.data -> <dir>/damon/access.csv via `damo report`, so
-# nothing else depends on damo's record file format.
-#
-# damo stamps snapshots with trace-cmd's 'local' clock, which starts with damo
-# and may run at another rate than real time (~9 % fast under WSL). With clock
-# anchors (<dir>/clock.csv: local clock seconds -> ts_ms) the snapshot times
-# are mapped onto the record's ts_ms, piecewise linearly; without them they
-# stay relative to damo's first snapshot.
+# nothing else depends on damo's record file format. Snapshot times become
+# ns since the record's start: damo's abs start time (mono) + the boot - mono
+# offset - the record's start (boot).
 src_damon_normalize() {
-	local dir=$1 anchors=/dev/null
+	local dir=$1
 
 	[ -f "$dir/damon/damon.data" ] || die "no $dir/damon/damon.data to normalize"
-	[ ! -f "$dir/clock.csv" ] || anchors="$dir/clock.csv"
 	{
 		echo "snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age"
 		"${DAMO[@]}" report access -i "$dir/damon/damon.data" --raw_number \
@@ -76,41 +100,15 @@ src_damon_normalize() {
 			--format set region "<start address> <end address> <access rate> <access hz> <age>" \
 			--format set snapshot_tail "" \
 			--format set record_tail "" |
-		awk -v anchors="$anchors" '
-			BEGIN {
-				while ((getline line < anchors) > 0) {
-					split(line, f, ",")
-					if (f[1] ~ /^[0-9.]+$/) {
-						n++
-						L[n] = f[1]
-						T[n] = f[2]
-					}
-				}
-			}
-			# local clock seconds -> record ms, extrapolated at the ends
-			function to_ms(sec,    i) {
-				for (i = 2; i < n && sec > L[i]; i++)
-					;
-				return T[i - 1] + (sec - L[i - 1]) * (T[i] - T[i - 1]) / (L[i] - L[i - 1])
-			}
-			function t(rel) {
-				if (n < 2)
-					return rel
-				return sprintf("%.0f", to_ms((base + rel) / 1e9) * 1e6)
-			}
-			$1 == "record" { base = $2; next }
-			$1 == "snapshot" { start = t($2); end = t($3); next }
-			NF == 5 { print start "," end "," $1 "," $2 "," $3 "," $4 "," $5 }'
+		awk -v start_ms="$START_MS" -v offset="$DAMON_BOOT_MINUS_MONO_NS" '
+			$1 == "record" { base = $2 + offset - start_ms * 1000000; next }
+			$1 == "snapshot" { start = base + $2; end = base + $3; next }
+			NF == 5 { printf "%.0f,%.0f,%s,%s,%s,%s,%s\n", start, end, $1, $2, $3, $4, $5 }'
 	} > "$dir/damon/access.csv.tmp" || die "damo report failed"
 	mv "$dir/damon/access.csv.tmp" "$dir/damon/access.csv"
-	if [ "$anchors" != /dev/null ]; then
-		find_pauses "$anchors" > "$dir/pauses.csv"
-		[ "$(wc -l < "$anchors")" -lt 3 ] || DAMON_TIME_BASE=record
-	fi
 }
 
 src_damon_manifest() {
 	printf '"version": 1, "files": ["damon/access.csv", "damon/damon.data"], '
-	printf '"damo_version": %s, "time_base": "%s"' \
-		"$(json_str "$("${DAMO[@]}" version 2>/dev/null)")" "$DAMON_TIME_BASE"
+	printf '"damo_version": %s' "$(json_str "$("${DAMO[@]}" version 2>/dev/null)")"
 }

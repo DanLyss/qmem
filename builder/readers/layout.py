@@ -35,7 +35,3 @@ class Record:
 
     def smaps_dir(self):
         return self.dir / 'smaps'
-
-    def pauses(self):
-        p = self.dir / 'pauses.csv'
-        return p if p.exists() else None

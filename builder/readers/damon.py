@@ -3,7 +3,6 @@ import csv
 import json
 import re
 
-from readers.timebase import unpause
 from util import die
 
 
@@ -14,11 +13,10 @@ def read(record):
     if path is None:
         return None
     snaps = {}
-    active = unpause(record)
     with open(path) as f:
         for r in csv.DictReader(f):
-            key = (active(int(r['snapshot_start_ns']) / 1e6),
-                   active(int(r['snapshot_end_ns']) / 1e6))
+            key = (int(r['snapshot_start_ns']) / 1e6,
+                   int(r['snapshot_end_ns']) / 1e6)
             snaps.setdefault(key, []).append(
                 (int(r['start']), int(r['end']), float(r['access_rate'])))
     return [(s, e, regions) for (s, e), regions in sorted(snaps.items())]

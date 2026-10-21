@@ -10,8 +10,9 @@
  * bits through /proc/<pid>/clear_refs. rewritten_pages are the dirty pages
  * that were already present at the previous clear: each of them took one
  * extra write fault because soft-dirty was re-armed, which is what has to
- * be subtracted from the process's fault count. ts_ms is wall-clock milliseconds
- * minus <start_ms>, so it lines up with the other qmem-record files.
+ * be subtracted from the process's fault count. ts_ms is milliseconds since
+ * boot (CLOCK_BOOTTIME, the record's clock) minus <start_ms>, so it lines up
+ * with the other qmem-record files.
  *
  * Runs until <pid> exits (exit 0) or SIGINT/SIGTERM (exit 0).
  *
@@ -112,11 +113,11 @@ static int parse_u64(const char *s, uint64_t *v)
 	return errno || *end ? -1 : 0;
 }
 
-static uint64_t wall_ms(void)
+static uint64_t boot_ms(void)
 {
 	struct timespec ts;
 
-	clock_gettime(CLOCK_REALTIME, &ts);
+	clock_gettime(CLOCK_BOOTTIME, &ts);
 	return ts.tv_sec * 1000ULL + ts.tv_nsec / 1000000;
 }
 
@@ -171,7 +172,7 @@ static int sample(const char *maps_path, int pagemap, uint64_t start_ms,
 {
 	FILE *maps = fopen(maps_path, "r");
 	char line[4096];
-	uint64_t ts = wall_ms() - start_ms;
+	uint64_t ts = boot_ms() - start_ms;
 	int any = 0;
 
 	if (!maps)

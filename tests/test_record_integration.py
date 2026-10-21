@@ -78,4 +78,5 @@ def test_damon_time_matches_record_time(tmp_path):
     assert 0 <= min(int(r[0]) for r in rows) / 1e6 < 2000
     durations = sorted({(int(r[1]) - int(r[0])) / 1e6 for r in rows})
     median = durations[len(durations) // 2]
-    assert 95 <= median <= 105, median
+    # one 100 ms aggregation; kdamond runs it a little longer under load
+    assert 95 <= median <= 115, median

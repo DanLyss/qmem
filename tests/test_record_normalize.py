@@ -14,7 +14,8 @@ from conftest import (ACCESS_HEADER, HOT_REGION, MKDAMON, ROOT, damo_calls,
 
 def normalize(d, env=None, start_ms=0):
     """src_damon_normalize of the damon source on a record directory whose
-    record started at <start_ms> of the boot clock."""
+    record started at <start_ms>; damo's clock taken as the record's (no
+    boot - mono offset)."""
     script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; START_MS=%d; '
               'src_damon_normalize "$1"') % (ROOT / 'record', start_ms)
     return subprocess.run(['bash', '-c', script, 'normalize', str(d)], env=env,

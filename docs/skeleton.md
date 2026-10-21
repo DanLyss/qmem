@@ -55,7 +55,7 @@ flowchart LR
 | --- | --- |
 | **driver** | Разбор аргументов, запуск или подключение к цели (`target`), общий таймер снимков, остановка, `record.json` |
 | **sources** | Источники данных. Каждый — отдельный модуль с одинаковым интерфейсом (2.2), включается и выключается опцией |
-| **clock** | Общая шкала времени записи (`ts_ms`) и метки синхронизации с часами источников (как сейчас `clock.csv`) |
+| **clock** | Одни часы записи — `boot`; `ts_ms` — мс по ним от старта. Источники пишут время в них же (damon переводит свои часы трассировки) |
 
 ### 2.2 Интерфейс источника
 
@@ -88,7 +88,6 @@ flowchart LR
 ```
 <dir>/
   record.json          # манифест: версия, цель, время, источники и их файлы
-  clock.csv, pauses.csv   # часы и паузы — общие для всей записи
   damon/  access.csv, damon.data, damon.data.kdamonds
   smaps/  <ts>.txt
   proc/   proc.csv
@@ -105,10 +104,10 @@ flowchart LR
   "format": "qmem-record",
   "version": 2,
   "target": {"mode": "launch", "command": "...", "pid": 1234, "kernel_pid": 1234},
-  "time": {"start_time": 1791554595.73, "start_uptime": 16772.57, "end_time": 1791554604.85,
-           "paused_ms": 0, "pauses": "pauses.csv"},
+  "time": {"clock": "boot", "start_ms": 7603190,
+           "start_time": 1791554595.73, "end_time": 1791554604.85},
   "sources": {
-    "damon":  {"version": 1, "files": ["damon/access.csv"], "time_base": "record"},
+    "damon":  {"version": 1, "files": ["damon/access.csv"]},
     "smaps":  {"version": 1, "files": ["smaps/"], "interval_ms": 500},
     "pmu_count": {"status": "unavailable", "reason": "no hardware PMU"}
   }
@@ -129,7 +128,7 @@ readers  →  модель  →  estimators  →  writer
 
 | Часть | Что делает |
 | --- | --- |
-| **readers** | По одному на источник. Переводят файлы источника в общую модель: время записи с вычетом пауз, адреса. Нет источника — нет и его reader |
+| **readers** | По одному на источник. Переводят файлы источника в общую модель. Нет источника — нет и его reader |
 | **модель** | Промежуточные структуры: регионы и их жизнь (из smaps), наблюдения обращений по времени (из damon, позже pmu), записи (из softdirty) |
 | **estimators** | Превращают модель в содержимое profile. Каждый — функция с фиксированным входом и выходом (3.2), выбирается опцией |
 | **writer** | Пишет profile v2 (раздел 4) |
@@ -252,7 +251,7 @@ record/
   softdirty.c            # помощник источника softdirty
 builder/
   qmem-build.py          # бывший tools/mkprofile.py
-  readers/               # layout timebase smaps damon softdirty
+  readers/               # layout smaps damon softdirty
   model.py               # модель
   estimators/            # lifecycle resident intensity_passthrough write_softdirty timing_roundrobin
   profile_v2.py          # writer и reader формата v2

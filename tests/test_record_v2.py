@@ -75,8 +75,9 @@ def test_one_clock(recorded, tmp_path):
     assert r['time']['clock'] == 'boot'
     assert r['time']['start_ms'] > 0
     assert not (out / 'clock.csv').exists() and not (out / 'pauses.csv').exists()
-    # the damon source set the trace clock to boot and put the old one back
-    assert (tmp_path / 'tracefs' / 'trace_clock').read_text() == '[local] global boot\n'
+    # the damon source set the trace clock to mono and put the old one back
+    # (a real tracefs lists all clocks and brackets the current one)
+    assert (tmp_path / 'tracefs' / 'trace_clock').read_text().strip() == 'local'
 
 
 def test_damon_needs_the_trace_clock(tmp_path, fake_env):

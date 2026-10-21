@@ -17,7 +17,7 @@ flowchart TB
     subgraph RECORD["1 · record — record/qmem-record.sh (root)"]
         direction TB
         DRV["driver<br/>опции · запуск или -p pid<br/>цикл: тик каждые -i мс · остановка"]
-        LIB["lib.sh<br/>часы: метки ts_ms в tracefs<br/>поиск пауз VM"]
+        LIB["lib.sh<br/>now_ms — одни часы записи (boot)"]
         subgraph SRC["sources/ — check · start · tick · stop · finish · manifest"]
             direction LR
             S_DAMON["damon.sh<br/>damo record → report"]
@@ -37,7 +37,6 @@ flowchart TB
     subgraph RDIR["каталог записи out/ — формат record v2"]
         direction LR
         F_JSON[/"record.json<br/>источники: статус, файлы, параметры"/]
-        F_TIME[/"clock.csv<br/>pauses.csv"/]
         F_DAMON[/"damon/access.csv<br/>регион · access_rate % · время"/]
         F_SMAPS[/"smaps/&lt;ts&gt;.txt<br/>отображения · Rss"/]
         F_SD[/"softdirty/writes.csv<br/>отображение · записано страниц"/]
@@ -45,7 +44,6 @@ flowchart TB
     end
 
     DRV --> F_JSON
-    LIB --> F_TIME
     S_DAMON --> F_DAMON
     S_SMAPS --> F_SMAPS
     S_SD --> F_SD
@@ -56,7 +54,6 @@ flowchart TB
     subgraph BUILDER["2 · builder — builder/qmem-build.py"]
         direction TB
         R_LAYOUT["readers/layout.py<br/>по record.json: какие источники есть и где их файлы"]
-        R_TIME["readers/timebase.py<br/>по pauses.csv: вычесть паузы VM из каждой метки"]
 
         subgraph READ["readers/ — по одному на источник"]
             direction LR
@@ -93,7 +90,6 @@ flowchart TB
         WRITER["profile_v2.py — writer<br/>Profile → текст"]
 
         R_LAYOUT --> READ
-        R_TIME -.->|время без пауз| READ
         R_SMAPS --> D_SMAPS
         R_DAMON --> D_DAMON
         R_SD --> D_SD
@@ -113,7 +109,6 @@ flowchart TB
     end
 
     F_JSON --> R_LAYOUT
-    F_TIME --> R_TIME
     F_SMAPS --> R_SMAPS
     F_DAMON --> R_DAMON
     F_SD --> R_SD

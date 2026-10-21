@@ -11,7 +11,7 @@
 | Файл | Что это |
 | --- | --- |
 | `record/qmem-record.sh` | Driver: опции, запуск/подключение, цикл тиков, остановка, `record.json` |
-| `record/lib.sh` | Общее для driver и источников: сообщения, JSON, часы (метки `clock.csv`, паузы `pauses.csv`) |
+| `record/lib.sh` | Общее для driver и источников: сообщения, JSON, `now_ms` — единственные часы записи (`boot`) |
 | `record/sources/<имя>.sh` | Источники, по файлу на источник |
 | `record/softdirty.c` → `qmem-softdirty` | Помощник источника softdirty |
 
@@ -40,7 +40,7 @@
 | `src_X_start <pid>` | после запуска приложения | Начать запись; ошибка → источник `unavailable` |
 | `src_X_tick <ts_ms>` | каждые `-i` мс | Снимок (только smaps, proc, system) |
 | `src_X_stop` | при остановке | Остановить фоновые процессы |
-| `src_X_finish` | после закрытия часов | Довести файлы (damon: `access.csv` по меткам часов) |
+| `src_X_finish` | после остановки всех источников | Довести файлы (damon: `access.csv`) |
 | `src_X_manifest` | в конце | Поля источника для `record.json`: `version`, `files`, параметры |
 
 Новый источник — новый файл и его имя в `ALL_SOURCES` в driver.

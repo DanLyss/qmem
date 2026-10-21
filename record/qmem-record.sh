@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # qmem-record: record an application's memory load (record v2).
 #
-# The driver starts or attaches to the target, keeps the clock (ts_ms and
-# clock anchors) and calls the sources (record/sources/<name>.sh). Each
+# The driver starts or attaches to the target, keeps the time (ts_ms: ms
+# since the start on the boot clock, lib.sh: now_ms) and calls the sources (record/sources/<name>.sh). Each
 # source writes into its own subdirectory and describes itself in
 # record.json. See docs/skeleton.md and docs/formats/record.md.
 set -euo pipefail
@@ -116,15 +116,12 @@ mkdir -p "$OUT"
 start_time=$(date +%s.%N)
 now_ms
 START_MS=$NOW_MS
-start_uptime=$(cut -d' ' -f1 /proc/uptime)
-start_clock
-anchor
 
 cleanup() {
 	for src in syscalls softdirty; do
 		on "$src" && "src_${src}_stop" || true
 	done
-	stop_clock
+	src_damon_restore_clock
 }
 trap cleanup EXIT
 
@@ -167,7 +164,6 @@ while ! $STOPPED && alive "$APP_PID"; do
 			[ "${STATUS[$src]}" = ok ] || continue
 			"src_${src}_tick" "$ts"
 		done
-		anchor
 	fi
 	# sleep in the background so a signal is handled right away
 	sleep "$poll_s" &
@@ -186,8 +182,6 @@ for src in $(echo $ALL_SOURCES | tr ' ' '\n' | tac); do
 	"src_${src}_stop"
 done
 end_time=$(date +%s.%N)
-anchor
-stop_clock
 
 for src in $ALL_SOURCES; do
 	[ "${STATUS[$src]}" = ok ] || continue
@@ -196,9 +190,6 @@ done
 
 interrupted=false
 [ $STOP_REASON != interrupted ] || interrupted=true
-paused_ms=0
-[ ! -f "$OUT/pauses.csv" ] ||
-	paused_ms=$(awk -F, 'NR > 1 { s += $2 } END { print s + 0 }' "$OUT/pauses.csv")
 
 source_json() {
 	local src=$1
@@ -224,10 +215,10 @@ source_json() {
 	    "kernel_pid": ${KERNEL_PID:-null}
 	  },
 	  "time": {
+	    "clock": "boot",
+	    "start_ms": $START_MS,
 	    "start_time": $start_time,
-	    "end_time": $end_time,
-	    "start_uptime": $start_uptime,
-	    "paused_ms": $paused_ms
+	    "end_time": $end_time
 	  },
 	  "stop": {"reason": "$STOP_REASON", "interrupted": $interrupted},
 	  "kernel": $(json_str "$(uname -r)"),

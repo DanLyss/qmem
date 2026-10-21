@@ -5,8 +5,6 @@
 ```
 <dir>/
   record.json        # манифест
-  clock.csv          # метки часов: local_s,ts_ms (если есть tracefs)
-  pauses.csv         # паузы виртуальной машины: ts_ms,pause_ms (если есть clock.csv)
   damon/             # источник damon
   smaps/             # источник smaps
   proc/              # источник proc
@@ -17,7 +15,7 @@
   pmu_sample/        # заглушка
 ```
 
-Время во всех файлах — `ts_ms`, миллисекунды от старта записи по настенным часам. Паузы виртуальной машины из `pauses.csv` читатели вычитают сами.
+Часы у записи одни — `boot` (время с загрузки системы, `CLOCK_BOOTTIME`). Время во всех файлах — `ts_ms`, миллисекунды по ним от старта записи (`time.start_ms`).
 
 ## record.json
 
@@ -26,8 +24,8 @@
   "format": "qmem-record",
   "version": 2,
   "target": {"mode": "launch", "command": "./app --x", "pid": 1234, "kernel_pid": 1234},
-  "time": {"start_time": 1791554595.73, "end_time": 1791554604.85,
-           "start_uptime": 16772.57, "paused_ms": 0},
+  "time": {"clock": "boot", "start_ms": 7603190,
+           "start_time": 1791554595.73, "end_time": 1791554604.85},
   "stop": {"reason": "exited", "interrupted": false},
   "kernel": "6.18.35.2-microsoft-standard-WSL2+",
   "interval_ms": 1000,
@@ -42,7 +40,7 @@
 | --- | --- |
 | `target.mode` | `launch` (запустили сами) или `attach` (`-p`) |
 | `target.kernel_pid` | pid, под которым процесс известен ядру (отличается внутри pid namespace) |
-| `time.start_uptime` | `/proc/uptime` в момент старта — для совмещения с часами `boot` |
+| `time.start_ms` | старт записи по часам `boot`, мс; от него отсчитываются все `ts_ms`. `start_time`, `end_time` — настенные часы, для человека |
 | `stop.reason` | `exited` (приложение завершилось) или `interrupted` (Ctrl+C) |
 | `sources.<имя>.status` | `ok`, `unavailable` (проверка не прошла, источник пропущен), `off` (выключен опцией) или `stub` (заглушка, данных нет) |
 | `sources.<имя>.version` | версия формата файлов источника |
@@ -56,10 +54,12 @@
 
 | Файл | Содержимое |
 | --- | --- |
-| `damon/access.csv` | `snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age` — регионы DAMON по снимкам. Время в шкале записи (если есть `clock.csv`), адреса — виртуальные адреса процесса, `access_rate` — % проверок с «да» |
+| `damon/access.csv` | `snapshot_start_ns,snapshot_end_ns,start,end,access_rate,access_hz,age` — регионы DAMON по снимкам. Время — нс от старта записи, адреса — виртуальные адреса процесса, `access_rate` — % проверок с «да» |
 | `damon/damon.data`, `damon/damon.data.kdamonds` | файлы damo, напрямую не читаются |
 
-Параметры: `damo_version`, `time_base` (`record` или `damo`).
+Параметры: `damo_version`.
+
+damo ставит снимкам метки по часам трассировки. На время записи источник переводит их на `mono` и потом возвращает прежние; разницу `boot − mono` (время сна системы) он один раз измеряет при старте и прибавляет. Если система уснёт посреди записи, время снимков сдвинется на длительность сна.
 
 ### smaps (версия 1)
 

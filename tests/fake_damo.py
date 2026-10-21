@@ -52,8 +52,8 @@ def record(args):
     out = args[args.index('-o') + 1]
     target = args[-1]
 
-    # the record's start in the trace clock, which damo would read: boot
-    start_ns = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+    # the record's start in the trace clock the damon source sets: mono
+    start_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
 
     def finish(code):
         with open(out, 'w') as f:

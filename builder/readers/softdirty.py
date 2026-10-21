@@ -1,7 +1,6 @@
 """source softdirty: written pages of each mapping per sampling period."""
 import csv
 
-from readers.timebase import unpause
 
 
 def read(record):
@@ -10,10 +9,9 @@ def read(record):
     if path is None:
         return None
     samples = {}
-    active = unpause(record)
     with open(path) as f:
         for r in csv.DictReader(f):
-            samples.setdefault(active(int(r['ts_ms'])), []).append(
+            samples.setdefault(int(r['ts_ms']), []).append(
                 (int(r['start']), int(r['end']), int(r['present_pages']),
                  int(r['dirty_pages'])))
     if not samples:

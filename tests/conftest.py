@@ -57,7 +57,7 @@ def fake_env(tmp_path):
     # tracing is unavailable, so results do not depend on root
     tracefs = tmp_path / 'tracefs'
     tracefs.mkdir()
-    (tracefs / 'trace_clock').write_text('[local] global boot\n')
+    (tracefs / 'trace_clock').write_text('[local] global mono\n')
     env['QMEM_TRACEFS'] = str(tracefs)
     return env
 

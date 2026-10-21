@@ -1,6 +1,6 @@
 # qmem-record: helpers shared by the driver and the sources (sourced).
 
-# tracefs mount: the clock below and the syscalls source; tests point it elsewhere
+# tracefs mount (damon sets its trace clock, syscalls traces); tests point it elsewhere
 TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
 
 die() {
@@ -12,11 +12,15 @@ warn() {
 	echo "qmem-record: $*" >&2
 }
 
-# Wall-clock milliseconds into NOW_MS. A bash builtin, no subshell: a signal
-# arriving during a command substitution can confuse bash's trap handling.
+# The record's one clock: milliseconds since boot (CLOCK_BOOTTIME, 10 ms
+# steps) into NOW_MS. damo's snapshots are on it too (the damon source sets
+# the trace clock to boot), as are softdirty and syscalls. No subshell: a
+# signal arriving during a command substitution can confuse bash's traps.
 now_ms() {
-	NOW_MS=${EPOCHREALTIME/[.,]/}
-	NOW_MS=$(( NOW_MS / 1000 ))
+	local up
+
+	read -r up _ < /proc/uptime
+	NOW_MS=$(( 10#${up/./} * 10 ))
 }
 
 json_str() {
@@ -34,69 +38,4 @@ alive() {
 	read -r stat 2>/dev/null < "/proc/$1/stat" || return 1
 	stat=${stat##*) }
 	[ "${stat%% *}" != Z ]
-}
-
-# ---------------------------------------------------------------- clock
-
-# Clock anchors: markers in a tracefs instance with the 'local' clock (the
-# one damo's timestamps come from), each carrying the record's ts_ms. They
-# let readers map other clocks onto ts_ms and find VM pauses. The clock is
-# the driver's, not a source's: every source shares ts_ms.
-CLK=
-start_clock() {
-	mkdir "$TRACEFS/instances/qmem-clock-$$" 2>/dev/null || return 0
-	CLK="$TRACEFS/instances/qmem-clock-$$"
-	echo local > "$CLK/trace_clock" && echo 1 > "$CLK/tracing_on" ||
-		stop_clock
-}
-
-anchor() {
-	[ -n "$CLK" ] || return 0
-	now_ms
-	echo "qmem-anchor $(( NOW_MS - START_MS ))" > "$CLK/trace_marker" 2>/dev/null || true
-}
-
-# Write clock.csv (when there is a directory to write it to) and remove the
-# instance.
-stop_clock() {
-	[ -n "$CLK" ] || return 0
-	if [ -n "${OUT-}" ] && [ -d "$OUT" ]; then
-		{
-			echo "local_s,ts_ms"
-			sed -n 's/.* \([0-9][0-9]*\.[0-9]*\): tracing_mark_write: qmem-anchor \([0-9]*\).*/\1,\2/p' \
-				"$CLK/trace"
-		} > "$OUT/clock.csv"
-	fi
-	rmdir "$CLK" 2>/dev/null || true
-	CLK=
-}
-
-# VM pauses (seen under WSL): between two anchors the wall clock (ts_ms)
-# moves much more than the kernel's clock. The application and replay run
-# on monotonic time and do not see the pause; every ts_ms after it is late
-# by its length.
-find_pauses() {
-	awk -F, '
-		NR > 1 && $1 ~ /^[0-9.]+$/ {
-			n++
-			L[n] = $1
-			T[n] = $2
-		}
-		END {
-			print "ts_ms,pause_ms"
-			# the usual rate of the trace clock against the wall clock
-			for (i = 2; i <= n; i++)
-				if (T[i] > T[i - 1])
-					r[++m] = (L[i] - L[i - 1]) * 1000 / (T[i] - T[i - 1])
-			for (i = 2; i <= m; i++)
-				for (j = i; j > 1 && r[j - 1] > r[j]; j--) {
-					x = r[j]; r[j] = r[j - 1]; r[j - 1] = x
-				}
-			rate = m ? r[int((m + 1) / 2)] : 1
-			for (i = 2; i <= n; i++) {
-				pause = (T[i] - T[i - 1]) - (L[i] - L[i - 1]) * 1000 / rate
-				if (pause > 300)
-					printf "%d,%.0f\n", T[i - 1], pause
-			}
-		}' "$1"
 }
