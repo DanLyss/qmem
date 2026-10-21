@@ -131,41 +131,18 @@ trap cleanup EXIT
 # Ctrl+C before the application started: nothing to record
 $STOPPED && die "interrupted before the start"
 
-# the target
-APP_PID=
+# the target: started here, or attached to with -p; the sources follow its pid
 KERNEL_PID=
-launcher=
 if [ $MODE = attach ]; then
 	APP_PID=$attach_pid
-elif on damon; then
-	# damo starts the command itself (through bash, which execs it). It may
-	# also start short-lived helpers, so the application is the child whose
-	# argv[0] is our command's.
-	src_damon_launch "$command"
-	for _ in $(seq 100); do
-		for child in $(pgrep -P "$DAMON_PID" || true); do
-			# the child may be gone already
-			argv0=$( (tr '\0' '\n' < "/proc/$child/cmdline") 2>/dev/null |
-				head -n1) || true
-			if [ "$argv0" = "$1" ]; then
-				APP_PID=$child
-				break
-			fi
-		done
-		[ -n "$APP_PID" ] && break
-		kill -0 "$DAMON_PID" 2>/dev/null || break
-		sleep 0.05
-	done
 else
 	"$@" &
 	APP_PID=$!
-	launcher=$APP_PID
 fi
 
 # start the sources
 for src in $ALL_SOURCES; do
 	[ "${STATUS[$src]}" = ok ] || continue
-	[ -n "$APP_PID" ] || [ "$src" = damon ] || continue
 	SRC_REASON=
 	if ! "src_${src}_start" "$APP_PID"; then
 		"src_${src}_stop" || true
@@ -180,7 +157,7 @@ done
 # after it does), tick the snapshot sources every $INTERVAL ms.
 poll_s=$(awk -v ms="$INTERVAL" 'BEGIN { print (ms < 100 ? ms : 100) / 1000 }')
 next_ms=$START_MS
-while [ -n "$APP_PID" ] && ! $STOPPED && alive "$APP_PID"; do
+while ! $STOPPED && alive "$APP_PID"; do
 	now_ms
 	now=$NOW_MS
 	if [ "$now" -ge "$next_ms" ]; then
@@ -197,13 +174,10 @@ while [ -n "$APP_PID" ] && ! $STOPPED && alive "$APP_PID"; do
 	wait $! || true
 done
 
-# a target we started is ours to stop (damo leaves it alone when it is
-# stopped), an attached one is not
-if $STOPPED && [ $MODE = launch ] && [ -n "$APP_PID" ]; then
-	kill -TERM "$APP_PID" 2>/dev/null || true
-fi
-if [ -n "$launcher" ]; then
-	wait "$launcher" 2>/dev/null || true
+# a target we started is ours to stop and wait for, an attached one is not
+if [ $MODE = launch ]; then
+	$STOPPED && { kill -TERM "$APP_PID" 2>/dev/null || true; }
+	wait "$APP_PID" 2>/dev/null || true
 fi
 
 # stop the sources in reverse order; damon waits for damo to save its record
@@ -246,7 +220,7 @@ source_json() {
 	  "target": {
 	    "mode": "$MODE",
 	    "command": $(json_str "$command"),
-	    "pid": ${APP_PID:-null},
+	    "pid": $APP_PID,
 	    "kernel_pid": ${KERNEL_PID:-null}
 	  },
 	  "time": {

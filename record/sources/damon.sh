@@ -1,8 +1,5 @@
 # source damon: DAMON pseudo-frequencies of the target's regions, through
-# damo (damo record, then damo report for a normalized access.csv).
-#
-# In launch mode damo starts the command itself (src_damon_launch), so the
-# driver finds the application among damo's children.
+# damo (damo record <pid>, then damo report for a normalized access.csv).
 
 # damo command; tests point it elsewhere
 read -ra DAMO <<< "${QMEM_DAMO:-damo}"
@@ -18,20 +15,10 @@ src_damon_check() {
 	}
 }
 
-_damon_run() {
+src_damon_start() {
 	mkdir -p "$OUT/damon"
 	"${DAMO[@]}" record --do_record access -o "$OUT/damon/damon.data" "$1" &
 	DAMON_PID=$!
-}
-
-# Launch mode: damo runs <command string>.
-src_damon_launch() {
-	_damon_run "$1"
-}
-
-# Attach mode: damo monitors <pid>; in launch mode it already runs.
-src_damon_start() {
-	[ -n "$DAMON_PID" ] || _damon_run "$1"
 }
 
 src_damon_tick() { :; }
