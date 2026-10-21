@@ -1,11 +1,9 @@
-"""R5: attaching to a running process (-p) and recording duration (-d)."""
-import json
+"""Attaching to a running process (-p); Ctrl+C stops the recording."""
 import os
 import subprocess
 import time
 
-from conftest import (record_json, HOT_REGION, damo_calls, kill_matching, process_running,
-                      run_record)
+from conftest import (record_json, HOT_REGION, damo_calls, run_record, signal, start_record)
 
 
 def unique_seconds():
@@ -13,27 +11,25 @@ def unique_seconds():
     return '60.%d%d' % (os.getpid(), time.time_ns() % 100000)
 
 
-def test_attach_with_duration(tmp_path, fake_env):
+def test_attach_until_interrupted(tmp_path, fake_env):
     secs = unique_seconds()
     app = subprocess.Popen([str(HOT_REGION), '16', '2', secs],
                            stdout=subprocess.DEVNULL)
     try:
         time.sleep(0.3)
         out = tmp_path / 'out'
-        started = time.monotonic()
-        p = run_record(['-o', out, '-i', '100', '-d', '1.5', '-p', app.pid],
-                       env=fake_env, timeout=30)
-        elapsed = time.monotonic() - started
-        assert p.returncode == 0, p.stderr
-        assert 1.0 < elapsed < 10
-        rec = [c for c in damo_calls(fake_env) if c[:1] == ['record']][0]
-        assert rec[-1] == str(app.pid)
+        rec = start_record(['-o', out, '-i', '100', '-p', app.pid], env=fake_env)
+        time.sleep(1.5)
+        os.kill(rec.pid, signal.SIGINT)
+        rec.wait(timeout=30)
+        assert rec.returncode == 0, rec.stderr.read()
+        call = [c for c in damo_calls(fake_env) if c[:1] == ['record']][0]
+        assert call[-1] == str(app.pid)
         assert len(list((out / 'smaps').iterdir())) >= 5
         meta = record_json(out)
         assert meta['target']['mode'] == 'attach'
         assert meta['target']['pid'] == app.pid
-        assert meta['stop']['reason'] == 'duration'
-        assert meta['stop']['interrupted'] is False
+        assert meta['stop']['reason'] == 'interrupted'
         # attach mode leaves the process running
         assert app.poll() is None
     finally:
@@ -51,30 +47,6 @@ def test_attach_to_missing_process(tmp_path, fake_env):
     p = run_record(['-o', tmp_path / 'out', '-p', '999999999'], env=fake_env)
     assert p.returncode != 0
     assert 'no such process' in p.stderr
-
-
-def test_rejects_bad_duration(tmp_path, fake_env):
-    p = run_record(['-o', tmp_path / 'out', '-d', 'soon', '--', 'true'],
-                   env=fake_env)
-    assert p.returncode == 2
-
-
-def test_launch_with_duration_stops_application(tmp_path, fake_env):
-    secs = unique_seconds()
-    out = tmp_path / 'out'
-    try:
-        started = time.monotonic()
-        p = run_record(['-o', out, '-i', '100', '-d', '1', '--',
-                        HOT_REGION, '16', '2', secs], env=fake_env, timeout=30)
-        assert p.returncode == 0, p.stderr
-        assert time.monotonic() - started < 10
-        meta = record_json(out)
-        assert meta['target']['mode'] == 'launch'
-        assert meta['stop']['reason'] == 'duration'
-        time.sleep(0.5)
-        assert not process_running('hot_region 16 2 ' + secs)
-    finally:
-        kill_matching('hot_region 16 2 ' + secs)
 
 
 def test_stop_reason_exited(tmp_path, fake_env):

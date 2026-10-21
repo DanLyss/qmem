@@ -18,14 +18,6 @@ def test_without_tracefs_warns_and_continues(tmp_path, fake_env):
     assert record_json(out)['sources']['syscalls']['status'] == 'unavailable'
 
 
-def test_no_syscalls_flag(tmp_path, fake_env):
-    out = tmp_path / 'out'
-    p = run_record(['-o', out, '--no-syscalls', '--', 'true'], env=fake_env)
-    assert p.returncode == 0, p.stderr
-    assert 'syscall tracing unavailable' not in p.stderr
-    assert record_json(out)['sources']['syscalls']['status'] == 'off'
-
-
 @pytest.mark.skipif(not has_tracefs(), reason='needs root and tracefs')
 def test_traces_mmap_of_workload(tmp_path, fake_env):
     env = dict(fake_env)

@@ -82,8 +82,7 @@ def test_softdirty_missing_process():
 
 def test_record_with_writes(tmp_path, fake_env):
     out = tmp_path / 'out'
-    p = run_record(['-o', out, '-i', '200', '-w', '300', '--',
-                    RW_SPLIT, '8', '8', '1.5'], env=fake_env)
+    p = run_record(['-o', out, '-i', '200', '--', RW_SPLIT, '8', '8', '2.5'], env=fake_env)
     assert p.returncode == 0, p.stderr
     lines = (out / 'softdirty' / 'writes.csv').read_text().splitlines()
     assert lines[0] == WRITES_HEADER
@@ -91,12 +90,12 @@ def test_record_with_writes(tmp_path, fake_env):
     assert len(rows) >= 2
     assert all(r[4] <= r[3] for r in rows)
     meta = record_json(out)
-    assert meta['sources']['softdirty']['period_ms'] == 300
+    assert meta['sources']['softdirty']['period_ms'] == 1000
 
 
-def test_record_without_writes(tmp_path, fake_env):
+def test_record_without_softdirty(tmp_path, fake_env):
     out = tmp_path / 'out'
-    p = run_record(['-o', out, '--', 'true'], env=fake_env)
+    p = run_record(['-o', out, '--sources', 'damon,smaps', '--', 'true'], env=fake_env)
     assert p.returncode == 0, p.stderr
     assert not (out / 'softdirty' / 'writes.csv').exists()
     assert record_json(out)['sources']['softdirty']['status'] == 'off'

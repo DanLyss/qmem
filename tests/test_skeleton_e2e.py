@@ -53,7 +53,7 @@ def test_without_damon(tmp_path, fake_env):
 @pytest.mark.skipif(not has_real_damon(), reason='needs root and DAMON')
 def test_with_real_damon(tmp_path):
     rec = tmp_path / 'rec'
-    p = run_record(['-o', rec, '-i', '200', '-w', '500', '--', HOT_REGION, '32', '4', '3'],
+    p = run_record(['-o', rec, '-i', '200', '--', HOT_REGION, '32', '4', '3'],
                    timeout=60)
     assert p.returncode == 0, p.stderr
     sources = record_json(rec)['sources']

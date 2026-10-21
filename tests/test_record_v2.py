@@ -28,7 +28,7 @@ def test_manifest(recorded):
         assert isinstance(src['version'], int)
         for f in src['files']:
             assert (out / f).exists(), (name, f)
-    assert r['sources']['softdirty']['status'] == 'off'           # no -w
+    assert r['sources']['softdirty']['status'] == 'ok'
     assert r['sources']['syscalls']['status'] == 'unavailable'    # fake tracefs
     for name in ('pmu_count', 'pmu_sample'):
         assert r['sources'][name]['status'] in ('unavailable', 'stub')

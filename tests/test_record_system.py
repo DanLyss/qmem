@@ -27,19 +27,6 @@ def test_system_csv(tmp_path, fake_env):
     assert pgfault[-1] - pgfault[0] >= 16000
 
 
-def test_damo_options_are_passed(tmp_path, fake_env):
-    out = tmp_path / 'out'
-    opts = '--monitoring_intervals 5ms 100ms 1s --monitoring_nr_regions_range 10 1000'
-    p = run_record(['-o', out, '-D', opts, '--', 'true'], env=fake_env)
-    assert p.returncode == 0, p.stderr
-    rec = [c for c in damo_calls(fake_env) if c[:1] == ['record']][0]
-    assert rec[1:3] == ['--do_record', 'access']
-    joined = ' '.join(rec[3:-1])
-    assert opts in joined
-    assert rec[-1] == 'true'
-    assert record_json(out)['sources']['damon']['options'] == opts
-
-
 def test_proc_csv_counts_faults_since_start(tmp_path, fake_env):
     """The application's own fault counters, including the faults before the
     first snapshot (system.csv misses those)."""
