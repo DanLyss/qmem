@@ -6,15 +6,11 @@ src_smaps_start() {
 	mkdir -p "$OUT/smaps"
 }
 
-# Returns 1 when the target has gone (its smaps is empty or unreadable).
 src_smaps_tick() {
 	local snap="$OUT/smaps/$1.txt"
 
 	cat "/proc/$APP_PID/smaps" > "$snap" 2>/dev/null || true
-	if [ ! -s "$snap" ]; then
-		rm -f "$snap"
-		return 1
-	fi
+	[ -s "$snap" ] || rm -f "$snap"		# the target has just exited
 }
 
 src_smaps_stop() { :; }

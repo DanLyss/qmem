@@ -186,12 +186,10 @@ while [ -n "$APP_PID" ] && ! $STOPPED && alive "$APP_PID"; do
 	if [ "$now" -ge "$next_ms" ]; then
 		next_ms=$(( now + INTERVAL ))
 		ts=$(( now - START_MS ))
-		gone=false
 		for src in $TICKING; do
 			[ "${STATUS[$src]}" = ok ] || continue
-			"src_${src}_tick" "$ts" || { gone=true; break; }	# just exited
+			"src_${src}_tick" "$ts"
 		done
-		$gone && break
 		anchor
 	fi
 	# sleep in the background so a signal is handled right away
