@@ -19,7 +19,7 @@ def test_softdirty_tells_written_from_read():
     try:
         a_line, b_line = app.stdout.readline(), app.stdout.readline()
         (a0, a1), (b0, b1) = ranges(a_line + b_line)
-        start_ms = int(time.time() * 1000)
+        start_ms = time.clock_gettime_ns(time.CLOCK_BOOTTIME) // 1_000_000   # the record clock
         sd = subprocess.run([str(SOFTDIRTY), str(app.pid), '300', str(start_ms)],
                             capture_output=True, text=True, timeout=20)
         assert sd.returncode == 0, sd.stderr
