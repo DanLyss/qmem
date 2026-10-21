@@ -3,17 +3,17 @@
 
 Supports what qmem-record.sh uses:
   damo version
-  damo record --do_record access [options] -o <file> <command | pid>
+  damo record --do_record access -o <file> <pid>
   damo report access -i <file> ... (prints a canned report)
 
 Every call is appended to $FAKE_DAMO_LOG as one JSON line with argv.
-With FAKE_DAMO_DECOY=1, record first starts a short-lived helper child, as
-real damo sometimes does, before the target.
+Unlike real damo, record of a process that is already gone saves an empty
+record instead of failing, so tests can record `true`; tests with real damo
+cover that case.
 """
 import json
 import os
 import signal
-import subprocess
 import sys
 import time
 
@@ -64,19 +64,9 @@ def record(args):
 
     signal.signal(signal.SIGINT, on_signal)
     signal.signal(signal.SIGTERM, on_signal)
-    if target.isdigit():
-        pid = int(target)
-        if not pid_alive(pid):
-            print('fake damo: no such process %d' % pid, file=sys.stderr)
-            sys.exit(1)
-        while pid_alive(pid):
-            time.sleep(0.05)
-    else:
-        if os.environ.get('FAKE_DAMO_DECOY') == '1':
-            subprocess.Popen(['sleep', '0.2'])
-            time.sleep(0.05)
-        child = subprocess.Popen(target, shell=True, executable='/bin/bash')
-        child.wait()
+    pid = int(target)
+    while pid_alive(pid):
+        time.sleep(0.05)
     finish(0)
 
 
