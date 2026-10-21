@@ -53,8 +53,12 @@ def fake_env(tmp_path):
     env = dict(os.environ)
     env['QMEM_DAMO'] = '%s %s' % (sys.executable, FAKE_DAMO)
     env['FAKE_DAMO_LOG'] = str(tmp_path / 'damo.log')
-    # no tracefs unless a test asks for it, so results do not depend on root
-    env['QMEM_TRACEFS'] = str(tmp_path / 'no-tracefs')
+    # a tracefs with only a trace clock: the damon source sets it, syscall
+    # tracing is unavailable, so results do not depend on root
+    tracefs = tmp_path / 'tracefs'
+    tracefs.mkdir()
+    (tracefs / 'trace_clock').write_text('[local] global boot\n')
+    env['QMEM_TRACEFS'] = str(tracefs)
     return env
 
 

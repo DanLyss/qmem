@@ -32,7 +32,7 @@ def test_traces_mmap_of_workload(tmp_path, fake_env):
     meta = record_json(out)
     assert meta['sources']['syscalls']['status'] == 'ok'
     assert isinstance(meta['sources']['syscalls']['overrun'], int)
-    assert meta['time']['start_uptime'] > 0
+    assert meta['time']['start_ms'] > 0
     # events carry the pid the kernel knows the application by
     assert re.search(r'-%d\s+\[' % meta['target']['kernel_pid'], text)
     leftovers = list(Path('/sys/kernel/tracing/instances').glob('qmem-record-*'))

@@ -4,7 +4,7 @@
 Supports what qmem-record.sh uses:
   damo version
   damo record --do_record access -o <file> <pid>
-  damo report access -i <file> ... (prints a canned report)
+  damo report access -i <file> ... (a canned report, starting when record did)
 
 Every call is appended to $FAKE_DAMO_LOG as one JSON line with argv.
 Unlike real damo, record of a process that is already gone saves an empty
@@ -19,7 +19,7 @@ import time
 
 # Output in the shape of real `damo report access --raw_number` for the --format
 # strings that qmem-record.sh passes (shape checked against damo 3.3.0).
-CANNED_REPORT = """record 5000000000
+CANNED_REPORT = """record %d
 snapshot 0 100000000
 4096         20480       100.000000 200.000000 300000
 20480        1048576     0.000000 0.000000 700000
@@ -52,9 +52,12 @@ def record(args):
     out = args[args.index('-o') + 1]
     target = args[-1]
 
+    # the record's start in the trace clock, which damo would read: boot
+    start_ns = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+
     def finish(code):
         with open(out, 'w') as f:
-            f.write('fake damon data\n')
+            f.write('%d\n' % start_ns)
         sys.exit(code)
 
     def on_signal(signum, frame):
@@ -78,7 +81,9 @@ def main():
     elif argv[:1] == ['record']:
         record(argv[1:])
     elif argv[:2] == ['report', 'access']:
-        sys.stdout.write(CANNED_REPORT)
+        with open(argv[argv.index('-i') + 1]) as f:
+            start_ns = int(f.read().split()[0])
+        sys.stdout.write(CANNED_REPORT % start_ns)
     else:
         print('fake damo: unsupported: %s' % argv, file=sys.stderr)
         sys.exit(1)

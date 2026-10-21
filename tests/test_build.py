@@ -214,20 +214,6 @@ def test_write_without_softdirty_is_all_writes(tmp_path):
     assert all(float(a['write']) == 1.0 for t in prof['access'] for a in prof['access'][t])
 
 
-def test_pauses_are_taken_out_of_time(tmp_path):
-    base = 0x7f0000000000
-    smaps = {0: [(base, base + 4 * MB, '', 1024)],
-             3500: [(base, base + 8 * MB, '', 8192)]}         # active time 1500
-    hot = [(base, base + 4 * MB, 100.0)]
-    rec = write_record(tmp_path / 'rec', smaps, snaps(0, 1000, hot) + snaps(3000, 4000, hot))
-    (rec / 'pauses.csv').write_text('ts_ms,pause_ms\n1000,2000\n')
-    out = tmp_path / 'p.txt'
-    assert run_build(rec, '-o', out).returncode == 0
-    prof = parse(out)
-    assert sorted(prof['epochs']) == list(range(0, 2000, 100))
-    assert prof['map'][-1][0] == (0 + 1500) // 2
-
-
 # ------------------------------------------------------------------ options
 
 

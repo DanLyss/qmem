@@ -1,4 +1,8 @@
-"""R2: DAMON data is normalized into access.csv through `damo report access`."""
+"""DAMON data is normalized into access.csv through `damo report access`.
+
+damo stamps snapshots with the trace clock, which the damon source sets to
+`boot` while it records: the record's only clock. access.csv has them as
+ns since the record's start (START_MS)."""
 import subprocess
 import sys
 
@@ -8,10 +12,11 @@ from conftest import (ACCESS_HEADER, HOT_REGION, MKDAMON, ROOT, damo_calls,
                       has_damo, run_record)
 
 
-def normalize(d, env=None):
-    """src_damon_normalize of the damon source on a record directory."""
-    script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; '
-              'src_damon_normalize "$1"') % (ROOT / 'record')
+def normalize(d, env=None, start_ms=0):
+    """src_damon_normalize of the damon source on a record directory whose
+    record started at <start_ms> of the boot clock."""
+    script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; START_MS=%d; '
+              'src_damon_normalize "$1"') % (ROOT / 'record', start_ms)
     return subprocess.run(['bash', '-c', script, 'normalize', str(d)], env=env,
                           capture_output=True, text=True, timeout=60)
 
@@ -28,13 +33,18 @@ def test_record_writes_access_csv(tmp_path, fake_env):
     assert p.returncode == 0, p.stderr
     header, rows = read_csv(out / 'damon' / 'access.csv')
     assert header == ACCESS_HEADER
-    # fake damo's canned report: 2 snapshots x 2 regions
-    assert rows == [
-        ['0', '100000000', '4096', '20480', '100.000000', '200.000000', '300000'],
-        ['0', '100000000', '20480', '1048576', '0.000000', '0.000000', '700000'],
-        ['100000000', '200000000', '4096', '20480', '50.000000', '100.000000', '400000'],
-        ['100000000', '200000000', '20480', '1048576', '0.000000', '0.000000', '800000'],
+    # fake damo's report: 2 snapshots x 2 regions, its record starting when
+    # damo did, shortly after the record
+    assert [r[2:] for r in rows] == [
+        ['4096', '20480', '100.000000', '200.000000', '300000'],
+        ['20480', '1048576', '0.000000', '0.000000', '700000'],
+        ['4096', '20480', '50.000000', '100.000000', '400000'],
+        ['20480', '1048576', '0.000000', '0.000000', '800000'],
     ]
+    t0 = int(rows[0][0])
+    assert 0 <= t0 < 2e9
+    assert [(int(r[0]) - t0, int(r[1]) - t0) for r in rows[::2]] == \
+        [(0, 100000000), (100000000, 200000000)]
     reports = [c for c in damo_calls(fake_env) if c[:2] == ['report', 'access']]
     assert len(reports) == 1
     assert str(out / 'damon' / 'damon.data') in reports[0]
@@ -49,9 +59,9 @@ def test_normalize_requires_damon_data(tmp_path, fake_env):
 
 def test_normalize_overwrites_access_csv(tmp_path, fake_env):
     (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('fake')
+    (tmp_path / 'damon' / 'damon.data').write_text('5000000000\n')
     (tmp_path / 'damon' / 'access.csv').write_text('stale\n')
-    p = normalize(tmp_path, fake_env)
+    p = normalize(tmp_path, fake_env, start_ms=5000)
     assert p.returncode == 0, p.stderr
     header, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert header == ACCESS_HEADER
@@ -80,57 +90,13 @@ def test_normalize_with_real_damo_report(tmp_path):
         assert int(hot[6]) == 300000 and int(cold[6]) == 700000
 
 
-def test_normalize_maps_damon_time_to_record_time(tmp_path, fake_env):
-    """With clock anchors (trace 'local' clock seconds -> ts_ms), DAMON times
-    are moved to the record's time base: here the trace clock runs 10 %
-    fast and the canned record starts at 5.0 s of it."""
+def test_normalize_counts_from_the_record_start(tmp_path, fake_env):
+    """damo's record starts at 5.0 s of the boot clock, the record at 4.9 s:
+    the first snapshot is 100 ms into the record."""
     (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('fake')
-    (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n6.1,1000\n')
-    p = normalize(tmp_path, fake_env)
+    (tmp_path / 'damon' / 'damon.data').write_text('5000000000\n')
+    p = normalize(tmp_path, fake_env, start_ms=4900)
     assert p.returncode == 0, p.stderr
     _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
-    starts = sorted({(int(r[0]), int(r[1])) for r in rows})
-    assert starts == [(0, 90909091), (90909091, 181818182)]
-
-
-def test_normalize_without_anchors_keeps_damo_time(tmp_path, fake_env):
-    (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('fake')
-    p = normalize(tmp_path, fake_env)
-    assert p.returncode == 0, p.stderr
-    _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
-    assert sorted({int(r[0]) for r in rows}) == [0, 100000000]
-
-
-def test_normalize_finds_pauses(tmp_path, fake_env):
-    """A paused VM: wall-clock ts_ms jumps 3.5 s while the trace clock moves
-    0.25 s. normalize writes the pause to pauses.csv (the application and
-    replay, on monotonic time, never saw it)."""
-    (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('fake')
-    rows = ['local_s,ts_ms']
-    local, ts = 5.0, 0
-    for i in range(20):
-        rows.append('%.6f,%d' % (local, ts))
-        if i == 9:
-            local, ts = local + 0.25 * 1.1, ts + 3500      # paused ~3.25 s
-        else:
-            local, ts = local + 0.33 * 1.1, ts + 330
-    (tmp_path / 'clock.csv').write_text('\n'.join(rows) + '\n')
-    p = normalize(tmp_path, fake_env)
-    assert p.returncode == 0, p.stderr
-    lines = (tmp_path / 'pauses.csv').read_text().splitlines()
-    assert lines[0] == 'ts_ms,pause_ms'
-    assert len(lines) == 2
-    ts_ms, pause_ms = (int(x) for x in lines[1].split(','))
-    assert ts_ms == 9 * 330
-    assert pause_ms == pytest.approx(3250, abs=20)
-
-
-def test_normalize_no_pauses(tmp_path, fake_env):
-    (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('fake')
-    (tmp_path / 'clock.csv').write_text('local_s,ts_ms\n5.0,0\n5.363,330\n5.726,660\n')
-    assert normalize(tmp_path, fake_env).returncode == 0
-    assert (tmp_path / 'pauses.csv').read_text().splitlines() == ['ts_ms,pause_ms']
+    assert sorted({(int(r[0]), int(r[1])) for r in rows}) == \
+        [(100000000, 200000000), (200000000, 300000000)]

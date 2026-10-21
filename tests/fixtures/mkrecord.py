@@ -6,7 +6,7 @@ PAGE = 4096
 
 
 def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0, proc=None, start_uptime=100.0):
+                 softdirty_ms=0, proc=None):
     """Write a record v2 directory: a subdirectory per source and record.json.
 
     smaps:  {ts_ms: [(start, end, name, rss_kb[, vmflags]), ...]}; name '' is
@@ -71,8 +71,7 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
     sources['smaps'] = ok(['smaps/'], interval_ms=1000)
     sources['system'] = ok(['system/system.csv'])
     if access is not None:
-        sources['damon'] = ok(['damon/access.csv'], damo_version='test', options='',
-                              time_base='record')
+        sources['damon'] = ok(['damon/access.csv'], damo_version='test')
     if proc is not None:
         sources['proc'] = ok(['proc/proc.csv'])
     if writes is not None:
@@ -82,8 +81,7 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
     (d / 'record.json').write_text(json.dumps({
         'format': 'qmem-record', 'version': 2,
         'target': {'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1},
-        'time': {'start_time': 1.0, 'end_time': 5.0, 'start_uptime': start_uptime,
-                 'paused_ms': 0},
+        'time': {'clock': 'boot', 'start_ms': 100000, 'start_time': 1.0, 'end_time': 5.0},
         'stop': {'reason': 'exited', 'interrupted': False},
         'kernel': 'test', 'interval_ms': 1000, 'duration_s': None,
         'sources': sources}, indent=2))

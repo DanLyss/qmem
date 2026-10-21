@@ -63,23 +63,19 @@ def test_too_short_command_fails_clearly(tmp_path):
 
 
 def test_damon_time_matches_record_time(tmp_path):
-    """DAMON snapshots are in the record's time base, whatever the rate of
-    the trace clock damo uses (~9 % fast under WSL)."""
+    """DAMON snapshots are on the record's one clock (boot): they start soon
+    after the record, end before it and last one 100 ms aggregation."""
     import json
     out = tmp_path / 'out'
     p = run_record(['-o', out, '-i', '200', '--', HOT_REGION, '64', '4', '8'],
                    timeout=120)
     assert p.returncode == 0, p.stderr
     meta = record_json(out)
-    assert meta['sources']['damon']['time_base'] == 'record'
-    anchors = (out / 'clock.csv').read_text().splitlines()
-    assert anchors[0] == 'local_s,ts_ms' and len(anchors) >= 10
     rows = [l.split(',') for l in (out / 'damon' / 'access.csv').read_text().splitlines()[1:]]
     last_end_ms = max(int(r[1]) for r in rows) / 1e6
     run_ms = (meta['time']['end_time'] - meta['time']['start_time']) * 1000
     assert last_end_ms <= run_ms
-    # a snapshot lasts one 100 ms aggregation interval in real time; in the
-    # trace clock it may look ~110 ms
+    assert 0 <= min(int(r[0]) for r in rows) / 1e6 < 2000
     durations = sorted({(int(r[1]) - int(r[0])) / 1e6 for r in rows})
     median = durations[len(durations) // 2]
     assert 95 <= median <= 105, median

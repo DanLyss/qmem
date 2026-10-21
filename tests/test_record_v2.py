@@ -70,13 +70,31 @@ def test_unknown_source(tmp_path, fake_env):
     assert 'nonsense' in p.stderr
 
 
+def test_one_clock(recorded, tmp_path):
+    out, r = recorded
+    assert r['time']['clock'] == 'boot'
+    assert r['time']['start_ms'] > 0
+    assert not (out / 'clock.csv').exists() and not (out / 'pauses.csv').exists()
+    # the damon source set the trace clock to boot and put the old one back
+    assert (tmp_path / 'tracefs' / 'trace_clock').read_text() == '[local] global boot\n'
+
+
+def test_damon_needs_the_trace_clock(tmp_path, fake_env):
+    (tmp_path / 'tracefs' / 'trace_clock').unlink()
+    out = tmp_path / 'out'
+    p = run_record(['-o', out, '--', HOT_REGION, '8', '2', '0.3'], env=fake_env)
+    assert p.returncode == 0, p.stderr
+    damon = record_json(out)['sources']['damon']
+    assert damon['status'] == 'unavailable' and 'trace clock' in damon['reason']
+    assert damo_calls(fake_env) == []
+
+
 @pytest.mark.skipif(not has_tracefs(), reason='needs root and tracefs')
-def test_clock_at_the_top(tmp_path, fake_env):
+def test_trace_clock_is_put_back(tmp_path, fake_env):
     env = dict(fake_env)
     del env['QMEM_TRACEFS']
+    before = open('/sys/kernel/tracing/trace_clock').read()
     out = tmp_path / 'out'
     p = run_record(['-o', out, '-i', '100', '--', HOT_REGION, '16', '2', '1'], env=env)
     assert p.returncode == 0, p.stderr
-    assert (out / 'clock.csv').read_text().startswith('local_s,ts_ms')
-    assert (out / 'pauses.csv').read_text().startswith('ts_ms,pause_ms')
-    assert record_json(out)['sources']['damon']['time_base'] == 'record'
+    assert open('/sys/kernel/tracing/trace_clock').read() == before
