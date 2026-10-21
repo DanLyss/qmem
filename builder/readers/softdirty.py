@@ -2,7 +2,6 @@
 import csv
 
 
-
 def read(record):
     """(period_ms, {ts_ms: [(start, end, present, dirty)]}) or None."""
     path = record.path('softdirty', 'writes.csv')

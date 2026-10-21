@@ -2,9 +2,10 @@
 # qmem-record: record an application's memory load (record v2).
 #
 # The driver starts or attaches to the target, keeps the time (ts_ms: ms
-# since the start on the boot clock, lib.sh: now_ms) and calls the sources (record/sources/<name>.sh). Each
-# source writes into its own subdirectory and describes itself in
-# record.json. See docs/skeleton.md and docs/formats/record.md.
+# since the start on the boot clock, lib.sh: now_ms) and calls the sources
+# (record/sources/<name>.sh). Each source writes into its own subdirectory
+# and describes itself in record.json. See docs/skeleton.md and
+# docs/formats/record.md.
 set -euo pipefail
 
 HERE=$(dirname "$0")

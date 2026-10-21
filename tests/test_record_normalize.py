@@ -101,3 +101,19 @@ def test_normalize_counts_from_the_record_start(tmp_path, fake_env):
     _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert sorted({(int(r[0]), int(r[1])) for r in rows}) == \
         [(100000000, 200000000), (200000000, 300000000)]
+
+
+def test_boot_minus_mono_offset_survives_the_stop(tmp_path, fake_env):
+    """damo's times are mono; the boot - mono offset measured at the start is
+    still added after the trace clock was put back (which once reset it)."""
+    (tmp_path / 'damon').mkdir()
+    (tmp_path / 'damon' / 'damon.data').write_text('5000000000\n')
+    (tmp_path / 'trace_clock').write_text('[mono] local\n')
+    script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; START_MS=5000; '
+              'TRACEFS=%s; DAMON_OLD_CLOCK=local; DAMON_BOOT_MINUS_MONO_NS=300000000; '
+              'src_damon_restore_clock; src_damon_normalize "$1"') % (ROOT / 'record', tmp_path)
+    p = subprocess.run(['bash', '-c', script, 'normalize', str(tmp_path)], env=fake_env,
+                       capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr
+    _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
+    assert min(int(r[0]) for r in rows) == 300000000

@@ -13,8 +13,8 @@ warn() {
 }
 
 # The record's one clock: milliseconds since boot (CLOCK_BOOTTIME, 10 ms
-# steps) into NOW_MS. damo's snapshots are on it too (the damon source sets
-# the trace clock to boot), as are softdirty and syscalls. No subshell: a
+# steps) into NOW_MS. softdirty and syscalls count on it too; the damon source
+# converts damo's (mono) times to it. No subshell: a
 # signal arriving during a command substitution can confuse bash's traps.
 now_ms() {
 	local up

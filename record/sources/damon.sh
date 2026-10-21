@@ -47,7 +47,6 @@ src_damon_restore_clock() {
 	[ -n "$DAMON_OLD_CLOCK" ] || return 0
 	echo "$DAMON_OLD_CLOCK" > "$TRACEFS/trace_clock" 2>/dev/null || true
 	DAMON_OLD_CLOCK=
-DAMON_BOOT_MINUS_MONO_NS=0
 }
 
 src_damon_tick() { :; }
