@@ -1,7 +1,7 @@
 """DAMON data is normalized into access.csv through `damo report access`.
 
 damo stamps snapshots with the trace clock, which the damon source sets to
-`boot` while it records: the record's only clock. access.csv has them as
+`mono` while it records: the record's only clock. access.csv has them as
 ns since the record's start (START_MS)."""
 import subprocess
 import sys
@@ -14,8 +14,7 @@ from conftest import (ACCESS_HEADER, HOT_REGION, MKDAMON, ROOT, damo_calls,
 
 def normalize(d, env=None, start_ms=0):
     """src_damon_normalize of the damon source on a record directory whose
-    record started at <start_ms>; damo's clock taken as the record's (no
-    boot - mono offset)."""
+    record started at <start_ms>."""
     script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; START_MS=%d; '
               'src_damon_normalize "$1"') % (ROOT / 'record', start_ms)
     return subprocess.run(['bash', '-c', script, 'normalize', str(d)], env=env,
@@ -92,7 +91,7 @@ def test_normalize_with_real_damo_report(tmp_path):
 
 
 def test_normalize_counts_from_the_record_start(tmp_path, fake_env):
-    """damo's record starts at 5.0 s of the boot clock, the record at 4.9 s:
+    """damo's record starts at 5.0 s of the mono clock, the record at 4.9 s:
     the first snapshot is 100 ms into the record."""
     (tmp_path / 'damon').mkdir()
     (tmp_path / 'damon' / 'damon.data').write_text('5000000000\n')
@@ -101,19 +100,3 @@ def test_normalize_counts_from_the_record_start(tmp_path, fake_env):
     _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
     assert sorted({(int(r[0]), int(r[1])) for r in rows}) == \
         [(100000000, 200000000), (200000000, 300000000)]
-
-
-def test_boot_minus_mono_offset_survives_the_stop(tmp_path, fake_env):
-    """damo's times are mono; the boot - mono offset measured at the start is
-    still added after the trace clock was put back (which once reset it)."""
-    (tmp_path / 'damon').mkdir()
-    (tmp_path / 'damon' / 'damon.data').write_text('5000000000\n')
-    (tmp_path / 'trace_clock').write_text('[mono] local\n')
-    script = ('HERE=%s; . "$HERE/lib.sh"; . "$HERE/sources/damon.sh"; START_MS=5000; '
-              'TRACEFS=%s; DAMON_OLD_CLOCK=local; DAMON_BOOT_MINUS_MONO_NS=300000000; '
-              'src_damon_restore_clock; src_damon_normalize "$1"') % (ROOT / 'record', tmp_path)
-    p = subprocess.run(['bash', '-c', script, 'normalize', str(tmp_path)], env=fake_env,
-                       capture_output=True, text=True, timeout=60)
-    assert p.returncode == 0, p.stderr
-    _, rows = read_csv(tmp_path / 'damon' / 'access.csv')
-    assert min(int(r[0]) for r in rows) == 300000000

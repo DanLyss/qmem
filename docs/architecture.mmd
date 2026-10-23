@@ -17,7 +17,7 @@ flowchart TB
     subgraph RECORD["1 · record — record/qmem-record.sh (root)"]
         direction TB
         DRV["driver<br/>опции · процесс -p pid<br/>цикл: тик каждые -i мс · остановка"]
-        LIB["lib.sh<br/>now_ms — одни часы записи (boot)"]
+        LIB["lib.sh<br/>now_ms — одни часы записи (mono)"]
         subgraph SRC["sources/ — check · start · tick · stop · finish · manifest"]
             direction LR
             S_DAMON["damon.sh<br/>damo record → report"]

@@ -66,7 +66,7 @@ def test_unknown_source(tmp_path, fake_env):
 
 def test_one_clock(recorded, tmp_path):
     out, r = recorded
-    assert r['time']['clock'] == 'boot'
+    assert r['time']['clock'] == 'mono'
     assert r['time']['start_ms'] > 0
     assert not (out / 'clock.csv').exists() and not (out / 'pauses.csv').exists()
     # the damon source set the trace clock to mono and put the old one back

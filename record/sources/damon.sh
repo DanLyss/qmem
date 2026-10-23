@@ -2,10 +2,8 @@
 # damo (damo record <pid>, then damo report for a normalized access.csv).
 #
 # damo stamps its snapshots with the trace clock. While it records, the trace
-# clock is set to mono (with boot, damo's trace-cmd records nothing) and put
-# back afterwards. mono differs from the record's boot clock (lib.sh: now_ms)
-# by the time the system slept, measured once at the start: no sleep during
-# the record, no drift.
+# clock is set to mono, the record's clock (lib.sh: now_ms), and put back
+# afterwards.
 
 # damo command; tests point it elsewhere
 read -ra DAMO <<< "${QMEM_DAMO:-damo}"
@@ -13,7 +11,6 @@ read -ra DAMO <<< "${QMEM_DAMO:-damo}"
 DAMON_PID=
 DAMON_RC=0
 DAMON_OLD_CLOCK=
-DAMON_BOOT_MINUS_MONO_NS=0
 
 src_damon_check() {
 	command -v "${DAMO[0]}" > /dev/null 2>&1 || {
@@ -33,10 +30,6 @@ src_damon_start() {
 	DAMON_OLD_CLOCK=${clocks#*[}
 	DAMON_OLD_CLOCK=${DAMON_OLD_CLOCK%%]*}
 	echo mono > "$TRACEFS/trace_clock" || return 1
-	# python3 is there wherever damo (a python program) is
-	DAMON_BOOT_MINUS_MONO_NS=$(python3 -c 'import time
-print(time.clock_gettime_ns(time.CLOCK_BOOTTIME) - time.clock_gettime_ns(time.CLOCK_MONOTONIC))') ||
-		return 1
 	mkdir -p "$OUT/damon"
 	"${DAMO[@]}" record --do_record access -o "$OUT/damon/damon.data" "$1" &
 	DAMON_PID=$!
@@ -79,8 +72,8 @@ src_damon_finish() {
 
 # <dir>/damon/damon.data -> <dir>/damon/access.csv via `damo report`, so
 # nothing else depends on damo's record file format. Snapshot times become
-# ns since the record's start: damo's abs start time (mono) + the boot - mono
-# offset - the record's start (boot).
+# ns since the record's start: damo's abs start time - the record's start,
+# both mono.
 src_damon_normalize() {
 	local dir=$1
 
@@ -93,8 +86,8 @@ src_damon_normalize() {
 			--format set region "<start address> <end address> <access rate> <access hz> <age>" \
 			--format set snapshot_tail "" \
 			--format set record_tail "" |
-		awk -v start_ms="$START_MS" -v offset="$DAMON_BOOT_MINUS_MONO_NS" '
-			$1 == "record" { base = $2 + offset - start_ms * 1000000; next }
+		awk -v start_ms="$START_MS" '
+			$1 == "record" { base = $2 - start_ms * 1000000; next }
 			$1 == "snapshot" { start = base + $2; end = base + $3; next }
 			NF == 5 { printf "%.0f,%.0f,%s,%s,%s,%s,%s\n", start, end, $1, $2, $3, $4, $5 }'
 	} > "$dir/damon/access.csv.tmp" || die "damo report failed"

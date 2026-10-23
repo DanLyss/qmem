@@ -12,15 +12,11 @@ warn() {
 	echo "qmem-record: $*" >&2
 }
 
-# The record's one clock: milliseconds since boot (CLOCK_BOOTTIME, 10 ms
-# steps) into NOW_MS. The damon source converts damo's (mono) times to it.
-# No subshell: a
-# signal arriving during a command substitution can confuse bash's traps.
+# The record's one clock: CLOCK_MONOTONIC (mono) in milliseconds, into
+# NOW_MS. damo stamps its snapshots on it too (the damon source sets the
+# trace clock to mono). bash cannot read it, so python3 does.
 now_ms() {
-	local up
-
-	read -r up _ < /proc/uptime
-	NOW_MS=$(( 10#${up/./} * 10 ))
+	NOW_MS=$(python3 -c 'import time; print(time.clock_gettime_ns(time.CLOCK_MONOTONIC) // 1000000)')
 }
 
 json_str() {

@@ -70,7 +70,7 @@ def write_record(d, smaps, access, system=None, sample_us='5 ms', proc=None):
     (d / 'record.json').write_text(json.dumps({
         'format': 'qmem-record', 'version': 2,
         'target': {'command': 'test', 'pid': 1},
-        'time': {'clock': 'boot', 'start_ms': 100000, 'start_time': 1.0, 'end_time': 5.0},
+        'time': {'clock': 'mono', 'start_ms': 100000, 'start_time': 1.0, 'end_time': 5.0},
         'stop': {'reason': 'exited', 'interrupted': False},
         'kernel': 'test', 'interval_ms': 1000, 'duration_s': None,
         'sources': sources}, indent=2))

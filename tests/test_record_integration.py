@@ -64,7 +64,7 @@ def test_too_short_application_fails_clearly(tmp_path):
 
 
 def test_damon_time_matches_record_time(tmp_path):
-    """DAMON snapshots are on the record's one clock (boot): they start soon
+    """DAMON snapshots are on the record's one clock (mono): they start soon
     after the record, end before it and last one 100 ms aggregation."""
     import json
     out = tmp_path / 'out'

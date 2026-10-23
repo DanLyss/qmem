@@ -2,7 +2,7 @@
 # qmem-record: record an application's memory load (record v2).
 #
 # The driver follows a running process (the target, -p <pid>), keeps the time (ts_ms: ms
-# since the start on the boot clock, lib.sh: now_ms) and calls the sources
+# since the start on the mono clock, lib.sh: now_ms) and calls the sources
 # (record/sources/<name>.sh). Each source writes into its own subdirectory
 # and describes itself in record.json. See docs/skeleton.md and
 # docs/formats/record.md.
@@ -179,7 +179,7 @@ source_json() {
 	    "pid": $APP_PID
 	  },
 	  "time": {
-	    "clock": "boot",
+	    "clock": "mono",
 	    "start_ms": $START_MS,
 	    "start_time": $start_time,
 	    "end_time": $end_time
