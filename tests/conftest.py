@@ -70,17 +70,23 @@ def run_record(args, env=None, timeout=60):
     if '--' not in args:
         return subprocess.run(['bash', str(RECORD)] + args, env=env,
                               capture_output=True, text=True, timeout=timeout)
+    import threading
     i = args.index('--')
     app = subprocess.Popen(args[i + 1:], stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, text=True)
+    # reap the application as soon as it exits, as a user's shell would: a
+    # zombie still looks alive to damo
+    app_out = []
+    reaper = threading.Thread(target=lambda: app_out.append(app.communicate()[0]))
+    reaper.start()
     try:
         p = subprocess.run(['bash', str(RECORD)] + args[:i] + ['-p', str(app.pid)],
                            env=env, capture_output=True, text=True, timeout=timeout)
     finally:
         if app.poll() is None:
             app.kill()
-        app_out = app.communicate()[0]
-    return subprocess.CompletedProcess(p.args, p.returncode, app_out + p.stdout, p.stderr)
+        reaper.join()
+    return subprocess.CompletedProcess(p.args, p.returncode, app_out[0] + p.stdout, p.stderr)
 
 
 def start_record(args, env=None):

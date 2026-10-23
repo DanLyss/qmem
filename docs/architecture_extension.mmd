@@ -24,7 +24,7 @@ flowchart TB
     %% ------------------------------------------------------------ record
     subgraph RECORD["1 · record — record/qmem-record.sh (root)"]
         direction TB
-        DRV["driver<br/>опции · запуск или -p pid<br/>цикл: тик каждые -i мс · остановка<br/><b>+ x в ALL_SOURCES (и TICKING)</b>"]:::chg
+        DRV["driver<br/>опции · процесс -p pid<br/>цикл: тик каждые -i мс · остановка<br/><b>+ x в ALL_SOURCES (и TICKING)</b>"]:::chg
         LIB["lib.sh<br/>now_ms — одни часы записи (boot)"]
         subgraph SRC["sources/ — check · start · tick · stop · finish · manifest"]
             direction LR

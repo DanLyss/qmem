@@ -51,13 +51,12 @@ src_damon_restore_clock() {
 
 src_damon_tick() { :; }
 
-# Stop damo (when recording is stopped rather than the target exiting) and
-# wait for it.
+# Stop damo and wait for it to save its record. SIGINT makes damo save and
+# exit; without it damo stops only when it notices the target is gone,
+# which it may not (a zombie target still looks alive to it).
 src_damon_stop() {
 	[ -n "$DAMON_PID" ] || return 0
-	if $STOPPED; then
-		kill -INT "$DAMON_PID" 2>/dev/null || true
-	fi
+	kill -INT "$DAMON_PID" 2>/dev/null || true
 	# wait at least once: if damo is already gone, kill -0 fails but wait
 	# still returns its status; a trapped signal interrupts wait while damo
 	# is still running
@@ -67,16 +66,11 @@ src_damon_stop() {
 		kill -0 "$DAMON_PID" 2>/dev/null || break
 	done
 	src_damon_restore_clock
-	if $STOPPED; then
-		# damo exits with the signal number after saving the record
-		[ -f "$OUT/damon/damon.data" ] || die "damo did not write $OUT/damon/damon.data"
-		DAMON_RC=0
-	fi
-	if [ "$DAMON_RC" -ne 0 ] && [ ! -f "$OUT/damon/damon.data" ] && [ "$STOP_REASON" = exited ]; then
-		# damo crashes this way when the target is gone before the first snapshot
+	[ ! -f "$OUT/damon/damon.data" ] || return 0
+	# damo fails this way when the target is gone before its first snapshot
+	[ "$STOP_REASON" != exited ] ||
 		die "the application exited before damo saved a record; it ran too briefly to record"
-	fi
-	[ "$DAMON_RC" -eq 0 ] || die "damo record failed (exit $DAMON_RC)"
+	die "damo record failed (exit $DAMON_RC)"
 }
 
 src_damon_finish() {

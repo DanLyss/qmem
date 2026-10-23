@@ -12,7 +12,7 @@
 
 ```sh
 make
-sudo record/qmem-record.sh -o out -- ./workloads/hot_region 256 16 10   # записать
+./workloads/hot_region 256 16 10 & sudo record/qmem-record.sh -o out -p $!   # записать
 builder/qmem-build.py out -o profile.txt                                # собрать profile
 replay/qmem-replay profile.txt --stats stats.csv                        # воспроизвести
 ```

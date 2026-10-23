@@ -23,7 +23,7 @@
 {
   "format": "qmem-record",
   "version": 2,
-  "target": {"mode": "launch", "command": "./app --x", "pid": 1234, "kernel_pid": 1234},
+  "target": {"command": "./app --x", "pid": 1234, "kernel_pid": 1234},
   "time": {"clock": "boot", "start_ms": 7603190,
            "start_time": 1791554595.73, "end_time": 1791554604.85},
   "stop": {"reason": "exited", "interrupted": false},
@@ -38,7 +38,6 @@
 
 | Поле | Значение |
 | --- | --- |
-| `target.mode` | `launch` (запустили сами) или `attach` (`-p`) |
 | `target.kernel_pid` | pid, под которым процесс известен ядру (отличается внутри pid namespace) |
 | `time.start_ms` | старт записи по часам `boot`, мс; от него отсчитываются все `ts_ms`. `start_time`, `end_time` — настенные часы, для человека |
 | `stop.reason` | `exited` (приложение завершилось) или `interrupted` (Ctrl+C) |

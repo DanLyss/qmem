@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # qmem-record: record an application's memory load (record v2).
 #
-# The driver starts or attaches to the target, keeps the time (ts_ms: ms
+# The driver follows a running process (the target, -p <pid>), keeps the time (ts_ms: ms
 # since the start on the boot clock, lib.sh: now_ms) and calls the sources
 # (record/sources/<name>.sh). Each source writes into its own subdirectory
 # and describes itself in record.json. See docs/skeleton.md and
@@ -12,14 +12,14 @@ HERE=$(dirname "$0")
 
 usage() {
 	cat >&2 <<-EOF
-	usage: qmem-record.sh -o <dir> [options] -- <command> [args...]
-	       qmem-record.sh -o <dir> [options] -p <pid>
+	usage: qmem-record.sh -o <dir> [options] -p <pid>
 
-	Records until the application exits or Ctrl+C.
+	Records the running process <pid> until it exits or Ctrl+C (which stops
+	the recording, not the process).
 
 	  -o <dir>          output directory (must be empty or absent)
+	  -p <pid>          the process to record
 	  -i <ms>           snapshot period of smaps, proc, system (default 1000)
-	  -p <pid>          attach to a running process instead of starting one
 	  --sources <list>  comma-separated sources (default: all of
 	                    $ALL_SOURCES)
 	EOF
@@ -37,27 +37,20 @@ for src in $ALL_SOURCES; do
 done
 
 OUT=
+APP_PID=
 INTERVAL=1000
-attach_pid=
 sources=${ALL_SOURCES// /,}
 while [ $# -gt 0 ]; do
 	case $1 in
 	-o) [ $# -ge 2 ] || usage; OUT=$2; shift 2 ;;
 	-i) [ $# -ge 2 ] || usage; INTERVAL=$2; shift 2 ;;
-	-p) [ $# -ge 2 ] || usage; attach_pid=$2; shift 2 ;;
+	-p) [ $# -ge 2 ] || usage; APP_PID=$2; shift 2 ;;
 	--sources) [ $# -ge 2 ] || usage; sources=$2; shift 2 ;;
-	--) shift; break ;;
 	*) usage ;;
 	esac
 done
 [ -n "$OUT" ] || usage
-if [ -n "$attach_pid" ]; then
-	[ $# -eq 0 ] && [[ $attach_pid =~ ^[1-9][0-9]*$ ]] || usage
-	MODE=attach
-else
-	[ $# -gt 0 ] || usage
-	MODE=launch
-fi
+[[ $APP_PID =~ ^[1-9][0-9]*$ ]] || usage
 [[ $INTERVAL =~ ^[1-9][0-9]*$ ]] || usage
 
 # why recording stopped: exited or interrupted (Ctrl+C)
@@ -87,14 +80,9 @@ if [ -e "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
 	die "$OUT is not empty"
 fi
 
-if [ $MODE = attach ]; then
-	[ -d "/proc/$attach_pid" ] || die "no such process $attach_pid"
-	command=$(tr '\0' ' ' < "/proc/$attach_pid/cmdline")
-	command=${command% }
-else
-	command=$(printf '%q ' "$@")
-	command=${command% }
-fi
+alive "$APP_PID" || die "no such process $APP_PID"
+command=$(tr '\0' ' ' < "/proc/$APP_PID/cmdline")
+command=${command% }
 
 # ask every enabled source whether it can work here
 for src in $ALL_SOURCES; do
@@ -126,17 +114,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Ctrl+C before the application started: nothing to record
+# Ctrl+C before the sources started: nothing to record
 $STOPPED && die "interrupted before the start"
 
-# the target: started here, or attached to with -p; the sources follow its pid
+# set by the syscalls source: the pid the kernel knows the target by
 KERNEL_PID=
-if [ $MODE = attach ]; then
-	APP_PID=$attach_pid
-else
-	"$@" &
-	APP_PID=$!
-fi
 
 # start the sources
 for src in $ALL_SOURCES; do
@@ -171,12 +153,6 @@ while ! $STOPPED && alive "$APP_PID"; do
 	wait $! || true
 done
 
-# a target we started is ours to stop and wait for, an attached one is not
-if [ $MODE = launch ]; then
-	$STOPPED && { kill -TERM "$APP_PID" 2>/dev/null || true; }
-	wait "$APP_PID" 2>/dev/null || true
-fi
-
 # stop the sources in reverse order; damon waits for damo to save its record
 for src in $(echo $ALL_SOURCES | tr ' ' '\n' | tac); do
 	[ "${STATUS[$src]}" = ok ] || continue
@@ -210,7 +186,6 @@ source_json() {
 	  "format": "qmem-record",
 	  "version": 2,
 	  "target": {
-	    "mode": "$MODE",
 	    "command": $(json_str "$command"),
 	    "pid": $APP_PID,
 	    "kernel_pid": ${KERNEL_PID:-null}
