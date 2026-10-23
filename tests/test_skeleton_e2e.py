@@ -57,7 +57,7 @@ def test_with_real_damon(tmp_path):
                    timeout=60)
     assert p.returncode == 0, p.stderr
     sources = record_json(rec)['sources']
-    for name in ('damon', 'smaps', 'proc', 'system', 'softdirty', 'syscalls'):
+    for name in ('damon', 'smaps', 'proc', 'system'):
         assert sources[name]['status'] == 'ok', name
     text, summary = build_and_replay(rec, tmp_path)
     assert re.search(r'^epoch t=\d+ dur=100$', text, re.M)

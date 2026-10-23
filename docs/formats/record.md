@@ -9,10 +9,6 @@
   smaps/             # источник smaps
   proc/              # источник proc
   system/            # источник system
-  softdirty/         # источник softdirty
-  syscalls/          # источник syscalls
-  pmu_count/         # заглушка
-  pmu_sample/        # заглушка
 ```
 
 Часы у записи одни — `boot` (время с загрузки системы, `CLOCK_BOOTTIME`). Время во всех файлах — `ts_ms`, миллисекунды по ним от старта записи (`time.start_ms`).
@@ -23,25 +19,23 @@
 {
   "format": "qmem-record",
   "version": 2,
-  "target": {"command": "./app --x", "pid": 1234, "kernel_pid": 1234},
+  "target": {"command": "./app --x", "pid": 1234},
   "time": {"clock": "boot", "start_ms": 7603190,
            "start_time": 1791554595.73, "end_time": 1791554604.85},
   "stop": {"reason": "exited", "interrupted": false},
   "kernel": "6.18.35.2-microsoft-standard-WSL2+",
   "interval_ms": 1000,
   "sources": {
-    "damon":     {"status": "ok", "version": 1, "files": ["damon/access.csv"], ...},
-    "pmu_count": {"status": "unavailable", "reason": "no PMU (perf_event_open: hardware events)"}
+    "damon":     {"status": "ok", "version": 1, "files": ["damon/access.csv"], ...}
   }
 }
 ```
 
 | Поле | Значение |
 | --- | --- |
-| `target.kernel_pid` | pid, под которым процесс известен ядру (отличается внутри pid namespace) |
 | `time.start_ms` | старт записи по часам `boot`, мс; от него отсчитываются все `ts_ms`. `start_time`, `end_time` — настенные часы, для человека |
 | `stop.reason` | `exited` (приложение завершилось) или `interrupted` (Ctrl+C) |
-| `sources.<имя>.status` | `ok`, `unavailable` (проверка не прошла, источник пропущен), `off` (выключен опцией) или `stub` (заглушка, данных нет) |
+| `sources.<имя>.status` | `ok`, `unavailable` (проверка не прошла, источник пропущен) или `off` (выключен опцией) |
 | `sources.<имя>.version` | версия формата файлов источника |
 | `sources.<имя>.files` | файлы источника, относительно каталога записи |
 
@@ -71,15 +65,3 @@ damo ставит снимкам метки по часам трассировк
 ### system (версия 1)
 
 `system/system.csv`: `ts_ms,MemFree,MemAvailable,Cached,SwapFree,psi_some_avg10,psi_full_avg10,pgfault,pgmajfault,pswpin,pswpout` (память в кБ).
-
-### softdirty (версия 1)
-
-`softdirty/writes.csv`: `ts_ms,start,end,present_pages,dirty_pages,rewritten_pages` по отображениям, выборка раз в `period_ms` (1000). Параметры: `period_ms`.
-
-### syscalls (версия 1)
-
-`syscalls/syscalls.txt` — сырой вывод tracefs (mmap, munmap, brk, mremap, madvise), часы `boot`. Параметры: `overrun` (потерянные события).
-
-### pmu_count, pmu_sample (заглушки, версия 0)
-
-Проверяют доступность аппаратных счётчиков. Без них — `status: unavailable` с причиной, с ними — `status: stub`: данных пока нет.

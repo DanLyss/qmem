@@ -27,7 +27,7 @@ usage() {
 }
 
 # every source, in the order they are started; stopped in reverse
-ALL_SOURCES="damon smaps proc system softdirty syscalls pmu_count pmu_sample"
+ALL_SOURCES="damon smaps proc system"
 # sources that take snapshots on every tick
 TICKING="smaps proc system"
 
@@ -62,7 +62,7 @@ stop() {
 }
 trap 'stop interrupted' INT TERM
 
-# status of every source: ok, off, unavailable or stub (+ reason)
+# status of every source: ok, off or unavailable (+ reason)
 declare -A STATUS REASON
 for src in $ALL_SOURCES; do
 	STATUS[$src]=off
@@ -88,17 +88,13 @@ command=${command% }
 for src in $ALL_SOURCES; do
 	on "$src" || continue
 	SRC_REASON=
-	rc=0
-	"src_${src}_check" || rc=$?
-	case $rc in
-	0) STATUS[$src]=ok ;;
-	3) STATUS[$src]=stub; REASON[$src]=$SRC_REASON ;;
-	*)
+	if "src_${src}_check"; then
+		STATUS[$src]=ok
+	else
 		STATUS[$src]=unavailable
 		REASON[$src]=$SRC_REASON
 		warn "$SRC_REASON, continuing without it"
-		;;
-	esac
+	fi
 done
 
 mkdir -p "$OUT"
@@ -107,18 +103,12 @@ now_ms
 START_MS=$NOW_MS
 
 cleanup() {
-	for src in syscalls softdirty; do
-		on "$src" && "src_${src}_stop" || true
-	done
 	src_damon_restore_clock
 }
 trap cleanup EXIT
 
 # Ctrl+C before the sources started: nothing to record
 $STOPPED && die "interrupted before the start"
-
-# set by the syscalls source: the pid the kernel knows the target by
-KERNEL_PID=
 
 # start the sources
 for src in $ALL_SOURCES; do
@@ -174,7 +164,6 @@ source_json() {
 	printf '    "%s": {"status": "%s"' "$src" "${STATUS[$src]}"
 	case ${STATUS[$src]} in
 	ok) printf ', '; "src_${src}_manifest" ;;
-	stub) printf ', '; "src_${src}_manifest"; printf ', "reason": %s' "$(json_str "${REASON[$src]}")" ;;
 	unavailable) printf ', "reason": %s' "$(json_str "${REASON[$src]}")" ;;
 	esac
 	printf '}'
@@ -187,8 +176,7 @@ source_json() {
 	  "version": 2,
 	  "target": {
 	    "command": $(json_str "$command"),
-	    "pid": $APP_PID,
-	    "kernel_pid": ${KERNEL_PID:-null}
+	    "pid": $APP_PID
 	  },
 	  "time": {
 	    "clock": "boot",

@@ -19,7 +19,7 @@ import importlib
 from pathlib import Path
 
 CHOOSABLE = ('intensity', 'write', 'timing')
-DEFAULTS = {'intensity': 'passthrough', 'write': 'softdirty', 'timing': 'roundrobin'}
+DEFAULTS = {'intensity': 'passthrough', 'write': 'all', 'timing': 'roundrobin'}
 
 
 def available(kind):

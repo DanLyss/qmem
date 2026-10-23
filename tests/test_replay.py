@@ -1,4 +1,4 @@
-"""qmem-replay: core, timing and stats, write share, populate,
+"""qmem-replay: core, timing and stats, populate,
 layout. The compatibility rules and the stubs are in test_replay_v2.py.
 """
 import re
@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from conftest import REPLAY, SOFTDIRTY
+from conftest import REPLAY
 
 PAGE = 4096
 MB = 1 << 20
@@ -244,50 +244,6 @@ def test_overload_does_not_drift(tmp_path):
     assert wall < 1.6                       # missed work is dropped, not queued
     assert int(s['done']) < int(s['planned'])
     assert int(s['lagged_ticks']) > 0
-
-
-# ---------------------------------------------------------------- write share
-
-
-def softdirty_during(prof, after_s):
-    proc = subprocess.Popen([str(REPLAY), str(prof)], stderr=subprocess.PIPE, text=True)
-    try:
-        time.sleep(after_s)
-        sd = subprocess.run([str(SOFTDIRTY), str(proc.pid), '1000',
-                             str(int(time.time() * 1000))],
-                            capture_output=True, text=True, timeout=30)
-        assert sd.returncode == 0, sd.stderr
-    finally:
-        _, err = proc.communicate(timeout=30)
-    assert proc.returncode == 0, err
-    return [[int(x) for x in l.split(',')] for l in sd.stdout.splitlines()]
-
-
-def test_write_ratio_matches_softdirty(tmp_path):
-    size = 32 * MB
-    pages = size // PAGE
-    head, _ = whole(size, 0)
-    body = head + epochs(0, 500, 100, [access(0, 0, size, 20)]) + \
-        epochs(500, 4500, 100, [access(0, 0, size, 10, 0.25)])
-    rows = softdirty_during(write_profile(tmp_path / 'p.txt', body), 0.8)
-    big = [r for r in rows if r[3] >= 0.9 * pages]
-    assert len(big) >= 2, rows
-    for r in big:
-        assert r[4] / r[3] == pytest.approx(0.25, abs=0.05)
-
-
-def test_every_page_hit_at_the_planned_rate(tmp_path):
-    """rate=1 must touch every page once a second with roundrobin (a random
-    choice would miss about 1/e of them)."""
-    size = 32 * MB
-    pages = size // PAGE
-    head, acc = whole(size, 1)
-    rows = softdirty_during(write_profile(tmp_path / 'p.txt', head + epochs(0, 4000, 100, acc)),
-                            1.2)
-    big = [r for r in rows if r[3] >= 0.9 * pages]
-    assert len(big) >= 2, rows
-    for r in big:
-        assert r[4] / r[3] >= 0.97, r
 
 
 # ---------------------------------------------------------------- populate

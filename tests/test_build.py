@@ -74,9 +74,7 @@ def example_record(d):
                                    (A + 40 * MB, A + 48 * MB, 50.0)])
               + snaps(3000, 3500, [(A, A + 48 * MB, 20.0),
                                    (A + 48 * MB, A + 64 * MB, 0.0)]))
-    # 8 MB written in (1000, 2000] where 16 MB were accessed -> 0.5
-    writes = [(2000, A, A + 64 * MB, 16384, 2048)]
-    return write_record(d, smaps, access, writes=writes, softdirty_ms=1000)
+    return write_record(d, smaps, access)
 
 
 @pytest.fixture
@@ -108,7 +106,7 @@ def test_header_and_meta(profile):
     assert meta['epoch_ms'] == '100' and meta['seed'] == '42'
     # which estimators made the profile
     assert meta['intensity'] == 'passthrough'
-    assert meta['write'] == 'softdirty'
+    assert meta['write'] == 'all'
     assert meta['timing'] == 'roundrobin'
 
 
@@ -170,8 +168,7 @@ def test_intensity_passthrough_is_damon_pseudofrequency(profile):
     prof, _ = profile
     a = region_of(prof, 64 * MB)
     for t in range(1000, 2000, 100):
-        assert acc(prof, t) == [(a, 0, 16 * MB, round(1.0 / SAMPLE_S, 3), 0.5)]
-    # 2000-3000: no writes sample covers it, the nearest one gives 8 / 8 = 1.0
+        assert acc(prof, t) == [(a, 0, 16 * MB, round(1.0 / SAMPLE_S, 3), 1.0)]
     for t in range(2000, 3000, 100):
         assert acc(prof, t) == [(a, 40 * MB, 8 * MB, round(0.5 / SAMPLE_S, 3), 1.0)]
 
@@ -180,7 +177,7 @@ def test_access_clipped_to_mapped_part(profile):
     prof, _ = profile
     a = region_of(prof, 64 * MB)
     for t in range(3000, 3500, 100):
-        assert acc(prof, t) == [(a, 32 * MB, 16 * MB, round(0.2 / SAMPLE_S, 3), 0.5)]
+        assert acc(prof, t) == [(a, 32 * MB, 16 * MB, round(0.2 / SAMPLE_S, 3), 1.0)]
 
 
 def test_quiet_epochs_are_left_out(profile):
@@ -203,7 +200,7 @@ def test_damon_gap_holds_last_pattern(tmp_path):
     assert 'gap' in p.stderr
 
 
-def test_write_without_softdirty_is_all_writes(tmp_path):
+def test_write_all(tmp_path):
     base = 0x7f0000000000
     smaps = {0: [(base, base + 8 * MB, '', 8192)]}
     rec = write_record(tmp_path / 'rec', smaps,

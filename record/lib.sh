@@ -1,6 +1,6 @@
 # qmem-record: helpers shared by the driver and the sources (sourced).
 
-# tracefs mount (damon sets its trace clock, syscalls traces); tests point it elsewhere
+# tracefs mount (damon sets its trace clock); tests point it elsewhere
 TRACEFS=${QMEM_TRACEFS:-/sys/kernel/tracing}
 
 die() {
@@ -13,8 +13,8 @@ warn() {
 }
 
 # The record's one clock: milliseconds since boot (CLOCK_BOOTTIME, 10 ms
-# steps) into NOW_MS. softdirty and syscalls count on it too; the damon source
-# converts damo's (mono) times to it. No subshell: a
+# steps) into NOW_MS. The damon source converts damo's (mono) times to it.
+# No subshell: a
 # signal arriving during a command substitution can confuse bash's traps.
 now_ms() {
 	local up

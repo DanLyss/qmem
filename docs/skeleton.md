@@ -25,7 +25,7 @@
 ```mermaid
 flowchart LR
     subgraph record
-        T["target<br/>запуск / подключение"] --> S["sources<br/>damon, smaps, proc, system,<br/>softdirty, syscalls,<br/>pmu_count*, pmu_sample*"]
+        T["target<br/>запуск / подключение"] --> S["sources<br/>damon, smaps, proc, system"]
         S --> RD["каталог записи<br/>+ record.json"]
     end
     subgraph builder
@@ -78,10 +78,6 @@ flowchart LR
 | `smaps` | Отображения и Rss процесса | есть |
 | `proc` | Faults и RSS процесса | есть |
 | `system` | Память системы, PSI, vmstat | есть |
-| `softdirty` | Записанные страницы по отображениям | есть |
-| `syscalls` | mmap/munmap/brk/mremap/madvise (tracefs) | есть |
-| `pmu_count` | Общий счётчик обращений процесса (`perf_event_open`, подсчёт) | **заглушка**: `check` проверяет доступность PMU, без PMU источник пропускается |
-| `pmu_sample` | Выборка адресов обращений (PEBS / SPE) | **заглушка** |
 
 ### 2.4 Каталог записи
 
@@ -92,9 +88,6 @@ flowchart LR
   smaps/  <ts>.txt
   proc/   proc.csv
   system/ system.csv
-  softdirty/ writes.csv
-  syscalls/  syscalls.txt
-  pmu_count/ ...       # когда появится
 ```
 
 `record.json`:
@@ -103,13 +96,12 @@ flowchart LR
 {
   "format": "qmem-record",
   "version": 2,
-  "target": {"command": "...", "pid": 1234, "kernel_pid": 1234},
+  "target": {"command": "...", "pid": 1234},
   "time": {"clock": "boot", "start_ms": 7603190,
            "start_time": 1791554595.73, "end_time": 1791554604.85},
   "sources": {
     "damon":  {"version": 1, "files": ["damon/access.csv"]},
-    "smaps":  {"version": 1, "files": ["smaps/"], "interval_ms": 500},
-    "pmu_count": {"status": "unavailable", "reason": "no hardware PMU"}
+    "smaps":  {"version": 1, "files": ["smaps/"], "interval_ms": 500}
   }
 }
 ```
@@ -129,7 +121,7 @@ readers  →  модель  →  estimators  →  writer
 | Часть | Что делает |
 | --- | --- |
 | **readers** | По одному на источник. Переводят файлы источника в общую модель. Нет источника — нет и его reader |
-| **модель** | Промежуточные структуры: регионы и их жизнь (из smaps), наблюдения обращений по времени (из damon, позже pmu), записи (из softdirty) |
+| **модель** | Промежуточные структуры: регионы и их жизнь (из smaps), наблюдения обращений по времени (из damon) |
 | **estimators** | Превращают модель в содержимое profile. Каждый — функция с фиксированным входом и выходом (3.2), выбирается опцией |
 | **writer** | Пишет profile v2 (раздел 4) |
 
@@ -140,7 +132,7 @@ readers  →  модель  →  estimators  →  writer
 | `lifecycle` | регионы по времени | `region`, `map`, `unmap` | есть: как в нынешнем mkprofile |
 | `resident` | Rss по времени | `populate` | есть |
 | `intensity` | наблюдения обращений (сейчас только DAMON) | поле `rate` в `access`: касаний на страницу в секунду | **заглушка `passthrough`**: псевдочастота DAMON без перевода. Место для будущих оценщиков, которые учтут счётчик, выборку и т. п. |
-| `write` | наблюдения записей | поле `write` в `access` | **заглушка**: нынешняя доля по отображению |
+| `write` | — | поле `write` в `access` | **заглушка `all`**: всегда `write=1` |
 | `timing` | — | поле `pattern` в `access`: как распределять касания во времени | **заглушка**: всегда `roundrobin` |
 
 Интерфейс estimator'а — функция модуля Python:
@@ -246,14 +238,12 @@ qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
 ```
 record/
   qmem-record.sh         # driver
-  sources/               # damon.sh smaps.sh proc.sh system.sh softdirty.sh syscalls.sh
-                         # pmu_count.sh pmu_sample.sh (заглушки)
-  softdirty.c            # помощник источника softdirty
+  sources/               # damon.sh smaps.sh proc.sh system.sh
 builder/
   qmem-build.py          # бывший tools/mkprofile.py
-  readers/               # layout smaps damon softdirty
+  readers/               # layout smaps damon
   model.py               # модель
-  estimators/            # lifecycle resident intensity_passthrough write_softdirty timing_roundrobin
+  estimators/            # lifecycle resident intensity_passthrough write_all timing_roundrobin
   profile_v2.py          # writer и reader формата v2
 replay/
   replay.c               # loader, scheduler
@@ -268,9 +258,8 @@ docs/formats/            # record.md, profile.md — описания форма
 
 | Где | Заглушка | Как ведёт себя сейчас | Интерфейс зафиксирован |
 | --- | --- | --- | --- |
-| record | `pmu_count`, `pmu_sample` | `check` → нет PMU → источник пропущен, в `record.json` `status: unavailable` | 2.2 |
 | builder | `intensity=passthrough` | `rate` = псевдочастота DAMON без перевода | 3.2 |
-| builder | `write`, `timing` | Нынешнее поведение / всегда `roundrobin` | 3.2 |
+| builder | `write`, `timing` | Всегда `write=1` / всегда `roundrobin` | 3.2 |
 | profile | `counter`, `threads`, `kind=file` | Пишутся или нет; replay принимает, не использует | 4.4 |
 | replay | `random`, `poisson` | Случайная страница | 5.2 |
 | replay | `threads` | Один поток, предупреждение | 5.1 |
@@ -298,7 +287,7 @@ docs/formats/            # record.md, profile.md — описания форма
 | Риск | Что делать |
 | --- | --- |
 | Нет прав на сборку ядра HMOS | Вариант на eBPF и стандартных tracepoint'ах |
-| На HMOS нет DAMON | Источники `pmu_count`/`pmu_sample`, idle page tracking |
+| На HMOS нет DAMON | Новые источники: счётчики PMU, idle page tracking |
 | Запись меняет поведение приложения | Фильтры в ядре, анализ на хосте, `tools/measure-overhead.sh` |
 | Фон системы не воспроизводится | Прогоны в cgroup с фиксированным лимитом |
 

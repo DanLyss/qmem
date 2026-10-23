@@ -5,8 +5,7 @@ MB = 1 << 20
 PAGE = 4096
 
 
-def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
-                 softdirty_ms=0, proc=None):
+def write_record(d, smaps, access, system=None, sample_us='5 ms', proc=None):
     """Write a record v2 directory: a subdirectory per source and record.json.
 
     smaps:  {ts_ms: [(start, end, name, rss_kb[, vmflags]), ...]}; name '' is
@@ -14,7 +13,6 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
     access: [(start_ns, end_ns, [(start, end, access_rate), ...]), ...];
             None: no damon source
     system: [(ts_ms, pgfault, pgmajfault, pswpout), ...]
-    writes: [(ts_ms, start, end, present_pages, dirty_pages[, rewritten]), ...]
     proc:   [(ts_ms, minflt, majflt, rss_kb), ...]
     """
     def at(source, name):
@@ -59,28 +57,19 @@ def write_record(d, smaps, access, system=None, writes=None, sample_us='5 ms',
         rows = ['ts_ms,minflt,majflt,rss_kb'] + ['%d,%d,%d,%d' % r for r in proc]
         at('proc', 'proc.csv').write_text('\n'.join(rows) + '\n')
 
-    if writes is not None:
-        rows = ['ts_ms,start,end,present_pages,dirty_pages,rewritten_pages']
-        rows += ['%d,%d,%d,%d,%d,%d' % (tuple(w) + (0,) * (6 - len(w))) for w in writes]
-        at('softdirty', 'writes.csv').write_text('\n'.join(rows) + '\n')
-
     def ok(files, **params):
         return dict(status='ok', version=1, files=files, **params)
     sources = {name: {'status': 'off'} for name in
-               ('damon', 'smaps', 'proc', 'system', 'softdirty', 'syscalls')}
+               ('damon', 'smaps', 'proc', 'system')}
     sources['smaps'] = ok(['smaps/'], interval_ms=1000)
     sources['system'] = ok(['system/system.csv'])
     if access is not None:
         sources['damon'] = ok(['damon/access.csv'], damo_version='test')
     if proc is not None:
         sources['proc'] = ok(['proc/proc.csv'])
-    if writes is not None:
-        sources['softdirty'] = ok(['softdirty/writes.csv'], period_ms=softdirty_ms)
-    for name in ('pmu_count', 'pmu_sample'):
-        sources[name] = {'status': 'unavailable', 'reason': 'test'}
     (d / 'record.json').write_text(json.dumps({
         'format': 'qmem-record', 'version': 2,
-        'target': {'mode': 'launch', 'command': 'test', 'pid': 1, 'kernel_pid': 1},
+        'target': {'command': 'test', 'pid': 1},
         'time': {'clock': 'boot', 'start_ms': 100000, 'start_time': 1.0, 'end_time': 5.0},
         'stop': {'reason': 'exited', 'interrupted': False},
         'kernel': 'test', 'interval_ms': 1000, 'duration_s': None,

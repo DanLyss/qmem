@@ -4,13 +4,12 @@
   smaps         [(ts_ms, mapped intervals, [(start, end, rss_bytes)])]
   observations  per epoch, what DAMON saw: [Observation], see below
   sample_s      DAMON's sampling interval
-  writes        softdirty samples or None
 """
 import bisect
 from dataclasses import dataclass, field
 
 from intervals import intersect, merge
-from readers import damon, smaps, softdirty
+from readers import damon, smaps
 from util import PAGE, warn
 
 
@@ -38,7 +37,6 @@ class Model:
         self.regions = merge(i for _, anon, _ in self.smaps for i in anon)
         self._starts = [s for s, _ in self.regions]
         self.sample_s = damon.sample_seconds(record)
-        self.writes = softdirty.read(record)
         snaps = damon.read(record)
         if snaps is None:
             warn('no damon source: the profile has no epochs')

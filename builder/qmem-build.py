@@ -2,7 +2,7 @@
 """Build a qmem-replay profile (v2) from a qmem-record directory.
 
 usage: qmem-build.py <record dir> -o <profile> [--epoch-ms 100] [--seed 42]
-                     [--intensity passthrough] [--write softdirty]
+                     [--intensity passthrough] [--write all]
                      [--timing roundrobin]
 
 readers (one per record source) -> model -> estimators

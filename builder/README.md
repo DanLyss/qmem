@@ -14,13 +14,13 @@ readers  →  model  →  estimators  →  writer
 | --- | --- |
 | `qmem-build.py` | Командная строка: записи → модель → estimators → profile |
 | `readers/layout.py` | Где лежат файлы каждого источника: `record.json`, подпапка на источник |
-| `readers/smaps.py`, `damon.py`, `softdirty.py` | По reader'у на источник |
-| `model.py` | Модель: регионы, снимки smaps, наблюдения DAMON по эпохам, записи softdirty |
+| `readers/smaps.py`, `damon.py` | По reader'у на источник |
+| `model.py` | Модель: регионы, снимки smaps, наблюдения DAMON по эпохам |
 | `estimators/` | Оценщики (ниже) |
 | `profile_v2.py` | Строки profile v2, writer и reader |
 | `intervals.py`, `util.py` | Интервалы адресов, сообщения |
 
-Нет источника — нет и его данных: без `damon` profile получается без эпох (с предупреждением), без `softdirty` — `write=1`.
+Нет источника — нет и его данных: без `damon` profile получается без эпох (с предупреждением).
 
 ## Estimators
 
@@ -31,7 +31,7 @@ readers  →  model  →  estimators  →  writer
 | `lifecycle` | `region`, `map`, `unmap` | Из разниц снимков smaps; изменение ставится посередине между снимками |
 | `resident` | `populate` | Рост Rss отображения |
 | `intensity_passthrough` | `epoch`, `access` с `rate` | **заглушка**: `rate` = access_rate / 100 / интервал выборки DAMON — псевдочастота как касаний на страницу в секунду, без перевода |
-| `write_softdirty` | поле `write` | **заглушка**: доля записанных байт отображения за период softdirty |
+| `write_all` | поле `write` | **заглушка**: всегда `write=1` |
 | `timing_roundrobin` | поле `pattern` | **заглушка**: всегда `roundrobin` |
 
 Новый оценщик — файл `estimators/<вид>_<имя>.py`, выбирается опцией `--intensity <имя>` (`--write`, `--timing`). Список вариантов опция берёт из файлов сама.

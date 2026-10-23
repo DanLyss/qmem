@@ -13,7 +13,6 @@
 | `record/qmem-record.sh` | Driver: опции, подключение к процессу, цикл тиков, остановка, `record.json` |
 | `record/lib.sh` | Общее для driver и источников: сообщения, JSON, `now_ms` — единственные часы записи (`boot`) |
 | `record/sources/<имя>.sh` | Источники, по файлу на источник |
-| `record/softdirty.c` → `qmem-softdirty` | Помощник источника softdirty |
 
 ## Источники
 
@@ -23,12 +22,8 @@
 | `smaps` | `smaps/<ts_ms>.txt` | Копии `/proc/<pid>/smaps` | есть |
 | `proc` | `proc/proc.csv` | minflt, majflt, RSS процесса | есть |
 | `system` | `system/system.csv` | meminfo, PSI, vmstat | есть |
-| `softdirty` | `softdirty/writes.csv` | Записанные страницы по отображениям, раз в секунду | есть |
-| `syscalls` | `syscalls/syscalls.txt` | mmap/munmap/brk/mremap/madvise (tracefs) | есть |
-| `pmu_count` | — | Общее число обращений (perf) | **заглушка** |
-| `pmu_sample` | — | Выборка адресов (PEBS/SPE) | **заглушка** |
 
-Статус каждого источника пишется в `record.json`: `ok`, `off` (выключен), `unavailable` (здесь не работает, с причиной) или `stub`. Заглушки PMU проверяют, есть ли аппаратные счётчики. Без них (WSL) статус — `unavailable`, с ними — `stub`: пока ничего не записывается.
+Статус каждого источника пишется в `record.json`: `ok`, `off` (выключен) или `unavailable` (здесь не работает, с причиной).
 
 ### Интерфейс источника
 
@@ -36,7 +31,7 @@
 
 | Функция | Когда | Что делает |
 | --- | --- | --- |
-| `src_X_check` | до старта | 0 — может работать; 3 — заглушка; иначе недоступен, причина в `SRC_REASON` |
+| `src_X_check` | до старта | 0 — может работать; иначе недоступен, причина в `SRC_REASON` |
 | `src_X_start <pid>` | после запуска приложения | Начать запись; ошибка → источник `unavailable` |
 | `src_X_tick <ts_ms>` | каждые `-i` мс | Снимок (только smaps, proc, system) |
 | `src_X_stop` | при остановке | Остановить фоновые процессы |
@@ -66,4 +61,4 @@ damo и остальные источники подключаются к про
 
 ## Тесты
 
-`tests/test_record_*.py`, `tests/test_softdirty.py`: раскладка v2 и `record.json`, `--sources`, заглушки PMU, режимы запуска и подключения, остановка (выход, `-d`, Ctrl+C), метки часов и паузы, tracefs. Тесты с настоящими DAMON и tracefs идут под root (`sudo make test`).
+`tests/test_record_*.py`: раскладка v2 и `record.json`, `--sources`, режимы запуска и подключения, остановка (выход, `-d`, Ctrl+C), метки часов и паузы, tracefs. Тесты с настоящими DAMON и tracefs идут под root (`sudo make test`).

@@ -1,11 +1,10 @@
 """record v2: one subdirectory per source, record.json, the source interface,
---sources, PMU stubs. See docs/formats/record.md."""
+--sources. See docs/formats/record.md."""
 import pytest
 
 from conftest import HOT_REGION, damo_calls, has_tracefs, record_json, run_record
 
-SOURCES = ['damon', 'smaps', 'proc', 'system', 'softdirty', 'syscalls',
-           'pmu_count', 'pmu_sample']
+SOURCES = ['damon', 'smaps', 'proc', 'system']
 
 
 @pytest.fixture
@@ -28,11 +27,6 @@ def test_manifest(recorded):
         assert isinstance(src['version'], int)
         for f in src['files']:
             assert (out / f).exists(), (name, f)
-    assert r['sources']['softdirty']['status'] == 'ok'
-    assert r['sources']['syscalls']['status'] == 'unavailable'    # fake tracefs
-    for name in ('pmu_count', 'pmu_sample'):
-        assert r['sources'][name]['status'] in ('unavailable', 'stub')
-        assert r['sources'][name].get('reason')
 
 
 def test_layout(recorded):

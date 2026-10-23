@@ -30,10 +30,7 @@ flowchart TB
             direction LR
             S_DAMON["damon.sh<br/>damo record → report"]
             S_SMAPS["smaps.sh<br/>копия smaps на тик"]
-            S_SD["softdirty.sh<br/>qmem-softdirty раз в секунду"]
             S_PROC["proc.sh · system.sh<br/>строка на тик"]
-            S_SC["syscalls.sh<br/>mmap/munmap/brk… "]
-            S_PMU["pmu_count · pmu_sample<br/><i>заглушки</i>"]
             S_X["x.sh<br/>src_x_check · start · tick<br/>stop · finish · manifest"]:::new
         end
         DRV --> LIB
@@ -48,17 +45,14 @@ flowchart TB
         F_JSON[/"record.json<br/>источники: статус, файлы, параметры<br/><b>+ sources.x</b>"/]:::chg
         F_DAMON[/"damon/access.csv<br/>регион · access_rate % · время"/]
         F_SMAPS[/"smaps/&lt;ts&gt;.txt<br/>отображения · Rss"/]
-        F_SD[/"softdirty/writes.csv<br/>отображение · записано страниц"/]
-        F_REST[/"proc/ · system/ · syscalls/<br/><i>builder пока не читает</i>"/]
+        F_REST[/"proc/ · system/<br/><i>builder пока не читает</i>"/]
         F_X[/"x/ — файлы X"/]:::new
     end
 
     DRV --> F_JSON
     S_DAMON --> F_DAMON
     S_SMAPS --> F_SMAPS
-    S_SD --> F_SD
     S_PROC --> F_REST
-    S_SC --> F_REST
     S_X --> F_X
     K_X --> S_X
 
@@ -71,7 +65,6 @@ flowchart TB
             direction LR
             R_SMAPS["smaps.py"]
             R_DAMON["damon.py"]
-            R_SD["softdirty.py"]
             R_X["x.py"]:::new
         end
 
@@ -79,7 +72,6 @@ flowchart TB
             direction LR
             D_SMAPS[("снимки smaps<br/>ts · анонимные интервалы · Rss")]
             D_DAMON[("снимки DAMON<br/>время · участок · access_rate %<br/>+ интервал выборки")]
-            D_SD[("выборки softdirty<br/>ts · отображение · записано страниц")]
             D_X[("данные X")]:::new
         end
 
@@ -88,7 +80,6 @@ flowchart TB
             M_REG[("regions<br/>объединение анонимных<br/>интервалов всех снимков")]
             M_SNAP[("smaps<br/>снимки как есть")]
             M_OBS[("observations<br/>по эпохе: участки DAMON,<br/>обрезанные по выделенному<br/>и разрезанные по регионам")]
-            M_WR[("writes<br/>выборки softdirty как есть")]
             M_X[("x<br/>в общих координатах:<br/>регион + смещение, эпоха")]:::new
         end
 
@@ -97,7 +88,7 @@ flowchart TB
             E_LC["1 lifecycle<br/>разница соседних снимков<br/>→ region · map · unmap"]
             E_RES["2 resident<br/>рост Rss<br/>→ populate"]
             E_INT["3 intensity_passthrough<br/>rate = access_rate / 100 / интервал<br/>→ epoch · access region off len rate<br/><i>заглушка</i>"]
-            E_WR["4 write_softdirty<br/>записано / затронуто в access<br/>→ access.write<br/><i>заглушка</i>"]
+            E_WR["4 write_all<br/>→ access.write = 1<br/><i>заглушка</i>"]
             E_TM["5 timing_roundrobin<br/>→ access.pattern<br/><i>заглушка</i>"]
             E_X["&lt;вид&gt;_x, например intensity_x<br/>вместо заглушки своего вида<br/>выбор: --intensity x<br/>→ те же поля или новый ключ"]:::new
         end
@@ -108,20 +99,17 @@ flowchart TB
         R_LAYOUT --> READ
         R_SMAPS --> D_SMAPS
         R_DAMON --> D_DAMON
-        R_SD --> D_SD
         R_X --> D_X
 
         D_SMAPS --> M_REG
         D_SMAPS --> M_SNAP
         D_DAMON --> M_OBS
         M_SNAP -.->|что выделено| M_OBS
-        D_SD --> M_WR
         D_X --> M_X
 
         M_REG --> E_LC
         M_SNAP --> E_RES
         M_OBS --> E_INT
-        M_WR --> E_WR
         M_X --> E_X
         M_OBS -.->|может использовать| E_X
 
@@ -131,7 +119,6 @@ flowchart TB
     F_JSON --> R_LAYOUT
     F_SMAPS --> R_SMAPS
     F_DAMON --> R_DAMON
-    F_SD --> R_SD
     F_X --> R_X
 
     PROFILE[/"profile.txt — формат profile v2<br/>region · map/unmap/populate · epoch · access rate write pattern<br/><b>B: + ключ x_key=… или строка x …</b>"/]:::opt
