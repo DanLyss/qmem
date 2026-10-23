@@ -95,7 +95,7 @@ def test_record_with_writes(tmp_path, fake_env):
 
 def test_record_without_softdirty(tmp_path, fake_env):
     out = tmp_path / 'out'
-    p = run_record(['-o', out, '--sources', 'damon,smaps', '--', 'true'], env=fake_env)
+    p = run_record(['-o', out, '--sources', 'damon,smaps', '--', 'sleep', '0.5'], env=fake_env)
     assert p.returncode == 0, p.stderr
     assert not (out / 'softdirty' / 'writes.csv').exists()
     assert record_json(out)['sources']['softdirty']['status'] == 'off'

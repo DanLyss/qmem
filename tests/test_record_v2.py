@@ -20,7 +20,7 @@ def recorded(tmp_path, fake_env):
 def test_manifest(recorded):
     out, r = recorded
     assert r['format'] == 'qmem-record' and r['version'] == 2
-    assert r['target']['mode'] == 'launch' and r['target']['pid'] > 0
+    assert r['target']['pid'] > 0
     assert set(r['sources']) == set(SOURCES)
     for name in ('damon', 'smaps', 'proc', 'system'):
         src = r['sources'][name]
@@ -64,7 +64,7 @@ def test_sources_option_without_damon(tmp_path, fake_env):
 
 
 def test_unknown_source(tmp_path, fake_env):
-    p = run_record(['-o', tmp_path / 'out', '--sources', 'smaps,nonsense', '--', 'true'],
+    p = run_record(['-o', tmp_path / 'out', '--sources', 'smaps,nonsense', '-p', '1'],
                    env=fake_env)
     assert p.returncode == 2
     assert 'nonsense' in p.stderr

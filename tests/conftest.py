@@ -63,9 +63,24 @@ def fake_env(tmp_path):
 
 
 def run_record(args, env=None, timeout=60):
-    return subprocess.run(['bash', str(RECORD)] + [str(a) for a in args],
-                          env=env, capture_output=True, text=True,
-                          timeout=timeout)
+    """Run qmem-record.sh. With `-- <command>` in args the command is started
+    first, as a user would, and recorded with -p <its pid>; its stdout comes
+    first in the result's stdout."""
+    args = [str(a) for a in args]
+    if '--' not in args:
+        return subprocess.run(['bash', str(RECORD)] + args, env=env,
+                              capture_output=True, text=True, timeout=timeout)
+    i = args.index('--')
+    app = subprocess.Popen(args[i + 1:], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, text=True)
+    try:
+        p = subprocess.run(['bash', str(RECORD)] + args[:i] + ['-p', str(app.pid)],
+                           env=env, capture_output=True, text=True, timeout=timeout)
+    finally:
+        if app.poll() is None:
+            app.kill()
+        app_out = app.communicate()[0]
+    return subprocess.CompletedProcess(p.args, p.returncode, app_out + p.stdout, p.stderr)
 
 
 def start_record(args, env=None):

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # measure-overhead: wall time of a command with and without qmem-record.
 #
-# Runs the command -n times plainly and -n times under qmem-record.sh
-# (alternating, to spread out drift) and prints median times and the
-# overhead. Use a command with a fixed amount of work (workloads/fixed_work);
-# the recorded time includes qmem-record's own start and finish.
+# Runs the command -n times plainly and -n times recorded by qmem-record.sh
+# -p <its pid> (alternating, to spread out drift) and prints median times
+# and the overhead. Use a command with a fixed amount of work
+# (workloads/fixed_work); the recorded time is the command's own.
 set -euo pipefail
 
 usage() {
@@ -34,15 +34,32 @@ read -ra record_opts <<< "$record_options"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
+fail() {
+	cat "$tmp/stderr" >&2
+	echo "measure-overhead: failed: $*" >&2
+	exit 1
+}
+
 elapsed_ns() {
 	local start end
 
 	start=$(date +%s%N)
-	"$@" > /dev/null 2>> "$tmp/stderr" || {
-		cat "$tmp/stderr" >&2
-		echo "measure-overhead: failed: $*" >&2
-		exit 1
-	}
+	"$@" > /dev/null 2>> "$tmp/stderr" || fail "$@"
+	end=$(date +%s%N)
+	echo $(( end - start ))
+}
+
+# The command's wall time while qmem-record follows it by pid.
+recorded_ns() {
+	local out=$1 start end pid
+	shift
+
+	start=$(date +%s%N)
+	"$@" > /dev/null 2>> "$tmp/stderr" &
+	pid=$!
+	bash "$RECORD" -o "$out" "${record_opts[@]}" -p "$pid" > /dev/null 2>> "$tmp/stderr" ||
+		fail qmem-record.sh -p "$pid"
+	wait "$pid" || fail "$@"
 	end=$(date +%s%N)
 	echo $(( end - start ))
 }
@@ -51,8 +68,7 @@ elapsed_ns() {
 : > "$tmp/recorded"
 for i in $(seq "$runs"); do
 	elapsed_ns "$@" >> "$tmp/baseline"
-	elapsed_ns bash "$RECORD" -o "$tmp/run$i" "${record_opts[@]}" -- "$@" \
-		>> "$tmp/recorded"
+	recorded_ns "$tmp/run$i" "$@" >> "$tmp/recorded"
 done
 
 median_s() {

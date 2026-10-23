@@ -1,4 +1,4 @@
-"""Attaching to a running process (-p); Ctrl+C stops the recording."""
+"""Recording a running process (-p): until it exits or Ctrl+C."""
 import os
 import subprocess
 import time
@@ -27,19 +27,17 @@ def test_attach_until_interrupted(tmp_path, fake_env):
         assert call[-1] == str(app.pid)
         assert len(list((out / 'smaps').iterdir())) >= 5
         meta = record_json(out)
-        assert meta['target']['mode'] == 'attach'
         assert meta['target']['pid'] == app.pid
         assert meta['stop']['reason'] == 'interrupted'
-        # attach mode leaves the process running
+        # Ctrl+C stops the recording, not the application
         assert app.poll() is None
     finally:
         app.kill()
         app.wait()
 
 
-def test_attach_rejects_command(tmp_path, fake_env):
-    p = run_record(['-o', tmp_path / 'out', '-p', '1', '--', 'true'],
-                   env=fake_env)
+def test_rejects_extra_arguments(tmp_path, fake_env):
+    p = run_record(['-o', tmp_path / 'out', '-p', '1', 'true'], env=fake_env)
     assert p.returncode == 2
 
 
@@ -56,4 +54,3 @@ def test_stop_reason_exited(tmp_path, fake_env):
     assert p.returncode == 0, p.stderr
     meta = record_json(out)
     assert meta['stop']['reason'] == 'exited'
-    assert meta['target']['mode'] == 'launch'

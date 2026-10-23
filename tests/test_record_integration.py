@@ -55,9 +55,10 @@ def test_record_hot_region(tmp_path):
                 > sum(cold_rates) / len(cold_rates))
 
 
-def test_too_short_command_fails_clearly(tmp_path):
-    # real damo crashes without writing a record if the target exits at once
-    p = run_record(['-o', tmp_path / 'out', '--', 'true'], timeout=60)
+def test_too_short_application_fails_clearly(tmp_path):
+    # real damo fails without writing a record if the target exits before
+    # damo has started
+    p = run_record(['-o', tmp_path / 'out', '--', 'sleep', '0.3'], timeout=60)
     assert p.returncode != 0
     assert 'exited before damo saved a record' in p.stderr
 
