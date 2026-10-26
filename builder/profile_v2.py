@@ -1,5 +1,4 @@
-"""Profile v2 (docs/formats/profile.md): the items and their writer and
-reader."""
+"""Profile v2 (docs/formats/profile.md): the items and their writer."""
 from dataclasses import dataclass, field
 
 
@@ -87,33 +86,3 @@ def write(path, prof):
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
 
-
-def read(path):
-    """Profile v2 -> Profile (for tools and tests; replay has its own loader)."""
-    prof, epoch = Profile(), None
-    with open(path) as f:
-        lines = [l.split('#')[0].split() for l in f]
-    lines = [l for l in lines if l]
-    if lines[:1] != [['qmem-profile', '2']]:
-        raise ValueError('%s: not a profile v2' % path)
-    for f in lines[1:]:
-        k = dict(x.lstrip('!').split('=', 1) for x in f[1:])
-        if f[0] == 'meta':
-            prof.meta.update(k)
-        elif f[0] == 'region':
-            prof.regions.append(Region(int(k['id']), int(k['size']),
-                                       int(k.get('base', '0'), 16), k.get('kind', 'anon')))
-        elif f[0] in ('map', 'unmap', 'populate'):
-            prof.events.append(Event(f[0], int(k['t']), int(k['region']),
-                                     int(k['off']), int(k['len'])))
-        elif f[0] == 'epoch':
-            epoch = Epoch(int(k['t']), int(k.get('dur', prof.meta.get('epoch_ms', 100))))
-            prof.epochs.append(epoch)
-        elif f[0] == 'access':
-            epoch.accesses.append(Access(int(k['region']), int(k['off']), int(k['len']),
-                                         float(k['rate']), float(k.get('write', 0)),
-                                         k.get('pattern', 'roundrobin'),
-                                         int(k.get('threads', 1))))
-        elif f[0] == 'counter':
-            prof.counters.append(Counter(int(k['t']), k['name'], float(k['value'])))
-    return prof

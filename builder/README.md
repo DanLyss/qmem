@@ -17,7 +17,7 @@ readers  →  model  →  estimators  →  writer
 | `readers/smaps.py`, `damon.py` | По reader'у на источник |
 | `model.py` | Модель: регионы, снимки smaps, наблюдения DAMON по эпохам |
 | `estimators/` | Оценщики (ниже) |
-| `profile_v2.py` | Строки profile v2, writer и reader |
+| `profile_v2.py` | Строки profile v2 и writer |
 | `intervals.py`, `util.py` | Интервалы адресов, сообщения |
 
 Нет источника — нет и его данных: без `damon` profile получается без эпох (с предупреждением).

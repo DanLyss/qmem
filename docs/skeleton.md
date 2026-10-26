@@ -244,7 +244,7 @@ builder/
   readers/               # layout smaps damon
   model.py               # модель
   estimators/            # lifecycle resident intensity_passthrough write_all timing_roundrobin
-  profile_v2.py          # writer и reader формата v2
+  profile_v2.py          # строки и writer формата v2
 replay/
   replay.c               # loader, scheduler
   memory.c  gen_*.c  exec.c

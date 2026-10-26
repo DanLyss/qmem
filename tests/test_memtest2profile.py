@@ -18,6 +18,42 @@ CONFIGS = ROOT / 'third_party' / 'damoLoad' / 'memtest' / 'configs'
 PAGE = 4096
 
 
+def read_profile(path):
+    """Profile v2 -> Profile, to check what memtest2profile wrote (replay has
+    its own loader)."""
+    prof, epoch = profile_v2.Profile(), None
+    with open(path) as f:
+        lines = [l.split('#')[0].split() for l in f]
+    lines = [l for l in lines if l]
+    if lines[:1] != [['qmem-profile', '2']]:
+        raise ValueError('%s: not a profile v2' % path)
+    for f in lines[1:]:
+        k = dict(x.lstrip('!').split('=', 1) for x in f[1:])
+        if f[0] == 'meta':
+            prof.meta.update(k)
+        elif f[0] == 'region':
+            prof.regions.append(profile_v2.Region(int(k['id']), int(k['size']),
+                                                  int(k.get('base', '0'), 16),
+                                                  k.get('kind', 'anon')))
+        elif f[0] in ('map', 'unmap', 'populate'):
+            prof.events.append(profile_v2.Event(f[0], int(k['t']), int(k['region']),
+                                                int(k['off']), int(k['len'])))
+        elif f[0] == 'epoch':
+            epoch = profile_v2.Epoch(int(k['t']),
+                                     int(k.get('dur', prof.meta.get('epoch_ms', 100))))
+            prof.epochs.append(epoch)
+        elif f[0] == 'access':
+            epoch.accesses.append(profile_v2.Access(int(k['region']), int(k['off']),
+                                                    int(k['len']), float(k['rate']),
+                                                    float(k.get('write', 0)),
+                                                    k.get('pattern', 'roundrobin'),
+                                                    int(k.get('threads', 1))))
+        elif f[0] == 'counter':
+            prof.counters.append(profile_v2.Counter(int(k['t']), k['name'],
+                                                    float(k['value'])))
+    return prof
+
+
 def convert(tmp_path, cfg, *args):
     path = tmp_path / 'cfg.json'
     path.write_text(json.dumps(cfg))
@@ -25,7 +61,7 @@ def convert(tmp_path, cfg, *args):
     p = subprocess.run([sys.executable, str(M2P), str(path), '-o', str(out)] + list(args),
                        capture_output=True, text=True, timeout=120)
     assert p.returncode == 0, p.stderr
-    return profile_v2.read(out)
+    return read_profile(out)
 
 
 def config(tracks, regions=(10,), duration=2):
@@ -218,5 +254,5 @@ def test_every_shipped_config_converts(tmp_path):
         p = subprocess.run([sys.executable, str(M2P), str(cfg), '-o', str(out),
                             '--duration', '1'], capture_output=True, text=True, timeout=300)
         assert p.returncode == 0, (cfg.name, p.stderr)
-        prof = profile_v2.read(out)
+        prof = read_profile(out)
         assert len(prof.regions) == len(json.loads(cfg.read_text())['regions']), cfg.name
