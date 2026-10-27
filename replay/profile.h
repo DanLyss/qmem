@@ -5,8 +5,7 @@
  *   loader.c      profile v2 -> the tables below
  *   memory.c      regions: reservation, map/unmap/populate, touching pages
  *   generators.c  which page of a range is touched next (gen_*.c)
- *   exec.c        who does the touches of a tick (one thread for now)
- *   replay.c      the scheduler: ticks, deadlines, epochs, statistics
+ *   replay.c      the scheduler: ticks, deadlines, epochs, touches, statistics
  *   log.c         the step log (--log)
  */
 #ifndef QMEM_REPLAY_PROFILE_H
@@ -73,6 +72,7 @@ void load(const char *path);
 /* replay.c */
 extern long page;
 extern uint64_t planned, done, skipped, checksum, populated;
+uint64_t now_ns(void);
 
 /* generators.c */
 const struct generator_ops *generator(const char *name);
@@ -81,10 +81,6 @@ const struct generator_ops *generator(const char *name);
 void memory_prepare(void);
 uint64_t memory_apply(const struct event *e);
 int memory_touch(uint32_t r, uint64_t p, double write_ratio);
-
-/* exec.c */
-int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns);
-uint64_t now_ns(void);
 
 /* log.c */
 enum { LOG_OFF, LOG_EVENTS, LOG_TICKS, LOG_TOUCHES };
