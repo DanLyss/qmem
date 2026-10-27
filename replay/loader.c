@@ -5,6 +5,9 @@
  * Rules: lines are "type key=value ..."; an unknown key is skipped, an
  * unknown line type too (one warning per type); a key written "!key" must
  * be understood, so an unknown one is an error.
+ *
+ * Checks marked "ext" matter only for profiles from outside the pipeline
+ * (written by hand or by other tools): qmem-build writes correct ones.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -60,11 +63,11 @@ static uint64_t num(const char *s)
 	uint64_t v;
 
 	if (!s || *s == '-')
-		bad("expected a number");
+		bad("expected a number");	/* ext */
 	errno = 0;
 	v = strtoull(s, &end, 10);
 	if (errno || *end || end == s)
-		bad("bad number '%s'", s);
+		bad("bad number '%s'", s);	/* ext */
 	return v;
 }
 
@@ -74,11 +77,11 @@ static double real(const char *s)
 	double v;
 
 	if (!s)
-		bad("expected a number");
+		bad("expected a number");	/* ext */
 	errno = 0;
 	v = strtod(s, &end);
 	if (errno || *end || end == s || v < 0)
-		bad("bad number '%s'", s);
+		bad("bad number '%s'", s);	/* ext */
 	return v;
 }
 
@@ -86,17 +89,17 @@ static void check_base(const char *s)
 {
 	if (s && (strncmp(s, "0x", 2) || !s[2] ||
 		  s[2 + strspn(s + 2, "0123456789abcdefABCDEF")]))
-		bad("bad region base '%s'", s);
+		bad("bad region base '%s'", s);	/* ext */
 }
 
 static void check_range(uint32_t r, uint64_t off, uint64_t len, int aligned)
 {
 	if (r >= n_regions)
-		bad("unknown region %" PRIu32, r);
+		bad("unknown region %" PRIu32, r);	/* ext */
 	if (len == 0 || off + len < off || off + len > regions[r].size)
-		bad("range %" PRIu64 "+%" PRIu64 " outside region %" PRIu32, off, len, r);
+		bad("range %" PRIu64 "+%" PRIu64 " outside region %" PRIu32, off, len, r);	/* ext */
 	if (aligned && (off % page || len % page))
-		bad("range %" PRIu64 "+%" PRIu64 " is not page aligned", off, len);
+		bad("range %" PRIu64 "+%" PRIu64 " is not page aligned", off, len);	/* ext */
 }
 
 /* ------------------------------------------------------------ v2 keys */
@@ -120,7 +123,7 @@ static const char *need(const char *key)
 	const char *v = opt(key);
 
 	if (!v)
-		bad("%s: missing %s=", tok[0], key);
+		bad("%s: missing %s=", tok[0], key);	/* ext */
 	return v;
 }
 
@@ -133,7 +136,7 @@ static void check_keys(const char *known)
 		const char *k;
 
 		if (!eq || eq == tok[i])
-			bad("expected key=value, got '%s'", tok[i]);
+			bad("expected key=value, got '%s'", tok[i]);	/* ext */
 		if (tok[i][0] != '!')
 			continue;
 		n = eq - tok[i] - 1;
@@ -141,7 +144,7 @@ static void check_keys(const char *known)
 			if (strcspn(k, " ") == n && !strncmp(k, tok[i] + 1, n))
 				break;
 		if (!*k)
-			bad("unknown mandatory key '%.*s'", (int)n, tok[i] + 1);
+			bad("unknown mandatory key '%.*s'", (int)n, tok[i] + 1);	/* ext */
 	}
 }
 
@@ -152,9 +155,9 @@ static uint64_t last_event, last_epoch;
 static void add_region(uint64_t id, uint64_t size, const char *base)
 {
 	if (id != n_regions)
-		bad("regions must be numbered 0, 1, ... in order");
+		bad("regions must be numbered 0, 1, ... in order");	/* ext */
 	if (size == 0)
-		bad("empty region");
+		bad("empty region");	/* ext */
 	/* the base in the original record, for verify only */
 	check_base(base);
 	regions = grow(regions, n_regions, sizeof(*regions));
@@ -168,7 +171,7 @@ static void add_event(int kind, uint64_t t, uint64_t r, uint64_t off, uint64_t l
 
 	check_range(e.region, e.off, e.len, 1);
 	if (e.t_ms < last_event)
-		bad("map/unmap/populate times must not go back");
+		bad("map/unmap/populate times must not go back");	/* ext */
 	last_event = e.t_ms;
 	events = grow(events, n_events, sizeof(*events));
 	events[n_events++] = e;
@@ -177,7 +180,7 @@ static void add_event(int kind, uint64_t t, uint64_t r, uint64_t off, uint64_t l
 static void add_epoch(uint64_t t, uint64_t dur)
 {
 	if (n_epochs && t <= last_epoch)
-		bad("epoch times must grow");
+		bad("epoch times must grow");	/* ext */
 	last_epoch = t;
 	epochs = grow(epochs, n_epochs, sizeof(*epochs));
 	/* dur 0: epoch_ms, known at the end */
@@ -187,10 +190,10 @@ static void add_epoch(uint64_t t, uint64_t dur)
 static void add_access(struct access a)
 {
 	if (!n_epochs)
-		bad("access before the first epoch");
+		bad("access before the first epoch");	/* ext */
 	check_range(a.region, a.off, a.len, 0);
 	if (a.write_ratio > 1)
-		bad("write ratio above 1");
+		bad("write ratio above 1");	/* ext */
 	a.pages = (a.off + a.len - 1) / page - a.off / page + 1;
 	a.rate *= a.pages;	/* the profile gives touches per page */
 	a.prev = -1;
@@ -221,7 +224,7 @@ static void parse_line(void)
 		if ((v = opt("epoch_ms"))) {
 			epoch_ms = num(v);
 			if (epoch_ms == 0)
-				bad("epoch_ms must be positive");
+				bad("epoch_ms must be positive");	/* ext */
 		}
 		if ((v = opt("seed")))
 			seed = num(v);
@@ -231,9 +234,9 @@ static void parse_line(void)
 		check_keys("id size kind base file");
 		kind = opt("kind");
 		if (kind && !strcmp(kind, "file"))
-			bad("file regions are not supported yet");
+			bad("file regions are not supported yet");	/* ext */
 		if (kind && strcmp(kind, "anon"))
-			bad("unknown region kind '%s'", kind);
+			bad("unknown region kind '%s'", kind);	/* ext */
 		add_region(num(need("id")), num(need("size")), opt("base"));
 	} else if (is_event(tok[0])) {
 		check_keys("t region off len");
@@ -245,7 +248,7 @@ static void parse_line(void)
 		check_keys("t dur");
 		dur = opt("dur");
 		if (dur && num(dur) == 0)
-			bad("dur must be positive");
+			bad("dur must be positive");	/* ext */
 		add_epoch(num(need("t")), dur ? num(dur) : 0);
 	} else if (!strcmp(tok[0], "access")) {
 		const char *pattern, *w;
@@ -259,7 +262,7 @@ static void parse_line(void)
 				     .write_ratio = w ? real(w) : 0,
 				     .gen = generator(pattern ? pattern : "roundrobin") };
 		if (!a.gen)
-			bad("unknown pattern '%s'", pattern);
+			bad("unknown pattern '%s'", pattern);	/* ext */
 		if (a.gen->stub) {
 			/* one warning per stub generator */
 			static const struct generator_ops *warned[16];
@@ -310,7 +313,7 @@ void load(const char *path)
 		for (char *t = strtok_r(line, " \t\r\n", &save); t;
 		     t = strtok_r(NULL, " \t\r\n", &save)) {
 			if (n_tok == MAX_TOKENS)
-				bad("too many fields");
+				bad("too many fields");	/* ext */
 			tok[n_tok++] = t;
 		}
 		if (n_tok == 0)
@@ -320,7 +323,7 @@ void load(const char *path)
 
 		if (!header) {
 			if (strcmp(tok[0], "qmem-profile") || !tok[1] || strcmp(tok[1], "2"))
-				bad("expected 'qmem-profile 2'");
+				bad("expected 'qmem-profile 2'");	/* ext */
 			header = 1;
 		} else {
 			parse_line();
@@ -329,7 +332,7 @@ void load(const char *path)
 	free(line);
 	fclose(f);
 	if (!header)
-		bad("empty profile");
+		bad("empty profile");	/* ext */
 	for (uint32_t i = 0; i < n_epochs; i++)
 		if (!epochs[i].dur_ms)
 			epochs[i].dur_ms = epoch_ms;
