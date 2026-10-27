@@ -252,7 +252,6 @@ int main(int argc, char **argv)
 	load(path);
 	if (seed_set)
 		seed = seed_arg;
-	exec_init();
 	prepare();
 	replay(&wall_ns);
 	if (stats)

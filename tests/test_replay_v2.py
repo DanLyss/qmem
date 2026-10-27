@@ -102,16 +102,6 @@ def test_pattern_poisson_is_a_stub(tmp_path):
     assert int(s['done']) >= 0.99 * int(s['planned']) > 0
 
 
-def test_threads_is_a_stub(tmp_path):
-    head, acc = whole(4 * MB, 10, extra='threads=4')
-    stats = tmp_path / 's.csv'
-    p = run(tmp_path, head + epochs(0, 500, 100, acc), '--stats', stats)
-    assert p.returncode == 0, p.stderr
-    assert p.stderr.count('threads') == 1
-    # all the touches are still done, by one thread
-    assert all(r[1] == 10 * (4 * MB // PAGE) // 10 for r in stats_rows(stats))
-
-
 def test_file_regions_are_refused(tmp_path):
     body = ['region id=0 size=%d kind=file file=/usr/lib/libc.so.6' % MB]
     p = run(tmp_path, body)

@@ -48,7 +48,6 @@ struct access {
 	uint64_t off, len, pages;
 	double rate;		/* touches of the whole range per second */
 	double write_ratio;
-	uint32_t threads;	/* stub: always replayed by one thread */
 	const struct generator_ops *gen;
 	uint64_t cursor, rng;	/* generator state */
 	double carry;		/* fractional touches left from the last tick */
@@ -67,7 +66,7 @@ extern struct region *regions;
 extern struct event *events;
 extern struct access *accesses;
 extern struct epoch *epochs;
-extern uint32_t n_regions, n_events, n_accesses, n_epochs, max_threads;
+extern uint32_t n_regions, n_events, n_accesses, n_epochs;
 extern uint64_t epoch_ms, seed;
 void load(const char *path);
 
@@ -84,7 +83,6 @@ uint64_t memory_apply(const struct event *e);
 int memory_touch(uint32_t r, uint64_t p, double write_ratio);
 
 /* exec.c */
-void exec_init(void);
 int exec_tick(uint32_t epoch, uint64_t tick, uint64_t tick_ms, uint64_t deadline_ns);
 uint64_t now_ns(void);
 

@@ -20,7 +20,7 @@ struct region *regions;
 struct event *events;
 struct access *accesses;
 struct epoch *epochs;
-uint32_t n_regions, n_events, n_accesses, n_epochs, max_threads = 1;
+uint32_t n_regions, n_events, n_accesses, n_epochs;
 uint64_t epoch_ms = 100, seed = 42;
 
 #define MAX_TOKENS 32
@@ -194,8 +194,6 @@ static void add_access(struct access a)
 	a.pages = (a.off + a.len - 1) / page - a.off / page + 1;
 	a.rate *= a.pages;	/* the profile gives touches per page */
 	a.prev = -1;
-	if (a.threads > max_threads)
-		max_threads = a.threads;
 	accesses = grow(accesses, n_accesses, sizeof(*accesses));
 	accesses[n_accesses++] = a;
 	epochs[n_epochs - 1].n++;
@@ -250,22 +248,18 @@ static void parse_line(void)
 			bad("dur must be positive");
 		add_epoch(num(need("t")), dur ? num(dur) : 0);
 	} else if (!strcmp(tok[0], "access")) {
-		const char *pattern, *w, *th;
+		const char *pattern, *w;
 		struct access a;
 
-		check_keys("region off len rate write pattern threads");
+		check_keys("region off len rate write pattern");
 		pattern = opt("pattern");
 		w = opt("write");
-		th = opt("threads");
 		a = (struct access){ .region = num(need("region")), .off = num(need("off")),
 				     .len = num(need("len")), .rate = real(need("rate")),
 				     .write_ratio = w ? real(w) : 0,
-				     .threads = th ? num(th) : 1,
 				     .gen = generator(pattern ? pattern : "roundrobin") };
 		if (!a.gen)
 			bad("unknown pattern '%s'", pattern);
-		if (a.threads == 0)
-			bad("threads must be positive");
 		if (a.gen->stub) {
 			/* one warning per stub generator */
 			static const struct generator_ops *warned[16];

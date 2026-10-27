@@ -1,6 +1,6 @@
 /*
  * executors: who does the touches of a tick. For now one thread, the
- * scheduler's own; threads= is a stub.
+ * scheduler's own.
  */
 #include <stdio.h>
 #include <time.h>
@@ -13,13 +13,6 @@ uint64_t now_ns(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
-}
-
-void exec_init(void)
-{
-	if (max_threads > 1)
-		fprintf(stderr, "qmem-replay: access threads=%u is a stub: replayed by one "
-			"thread\n", max_threads);
 }
 
 /* Do one tick of the epoch's touches; stop at deadline_ns. Returns 0 if the
