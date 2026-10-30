@@ -182,9 +182,11 @@ static void note_lag(double lag_ms)
  * Returns the tick to go on from. */
 static uint64_t drop_late_ticks(uint64_t t)
 {
-	uint64_t now_ms = (now_ns() - start_ns) / 1000000ULL;
+	uint64_t now = now_ns() - start_ns, now_ms = now / 1000000ULL;
 	uint64_t next = now_ms / tick_ms * tick_ms, skip;
 
+	/* the ticks after the drop start on time: only here the lag shows */
+	note_lag(now / 1e6 - (t + tick_ms));
 	lagged_ticks++;
 	if (next <= t + tick_ms) {
 		log_drop(t, 0);
