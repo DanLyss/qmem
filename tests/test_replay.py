@@ -253,14 +253,14 @@ def test_lag_counts_a_tick_that_overran(tmp_path):
     body = [region(0, big), region(1, 2 * PAGE), ev('map', 0, 0, 0, big),
             ev('map', 0, 1, 0, 2 * PAGE), ev('populate', 50, 0, 0, big),
             'epoch t=0 dur=500', access(1, 0, 2 * PAGE, 5000000)]
-    stats = tmp_path / 's.csv'
-    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--stats', stats)
+    stats, log = tmp_path / 's.csv', tmp_path / 'log.txt'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--stats', stats, '--log', log)
     assert p.returncode == 0, p.stderr
-    s = summary(p.stderr)
-    lagged = int(s['lagged_ticks'])
-    assert lagged > 10, s                   # the populate did overrun
-    assert float(s['max_lag_ms']) >= lagged - 2
-    assert stats_rows(stats)[0][3] >= lagged - 2
+    # the longest drop; lagged_ticks would also count the small ones after it
+    skipped = max(int(m) for m in re.findall(r'^drop .* skipped=(\d+)$', log.read_text(), re.M))
+    assert skipped > 10                     # the populate did overrun
+    assert float(summary(p.stderr)['max_lag_ms']) >= skipped
+    assert stats_rows(stats)[0][3] >= skipped
 
 
 # ---------------------------------------------------------------- populate
