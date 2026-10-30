@@ -6,7 +6,7 @@
  * Work that does not fit into its tick is dropped, not queued, so the
  * replay never drifts. The other parts are listed in profile.h.
  *
- * usage: qmem-replay <profile> [--seed N] [--stats <file>]
+ * usage: qmem-replay <profile> [--stats <file>]
  *                    [--log <file> [--log-level events|ticks|touches]]
  */
 #define _GNU_SOURCE
@@ -76,11 +76,11 @@ static void sleep_until(uint64_t ns)
 		;
 }
 
-/* Generator state at load time; prev links a range to the same range (with
- * the same generator) in the previous epoch. */
+/* Generator state at load time, random every run; prev links a range to the
+ * same range (with the same generator) in the previous epoch. */
 static void prepare(void)
 {
-	uint64_t rng = seed ? seed : 1;
+	uint64_t rng = now_ns() | 1;	/* xorshift must not start at 0 */
 
 	for (uint32_t i = 0; i < n_epochs; i++) {
 		struct epoch *e = &epochs[i], *pe = i ? &epochs[i - 1] : NULL;
@@ -259,7 +259,7 @@ static void write_stats(const char *path)
 
 static void usage(const char *prog)
 {
-	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
+	fprintf(stderr, "usage: %s <profile> [--stats <file>]"
 		" [--log <file> [--log-level events|ticks|touches]]\n", prog);
 	exit(2);
 }
@@ -268,20 +268,13 @@ int main(int argc, char **argv)
 {
 	const char *path = NULL, *stats = NULL, *log_path = NULL;
 	int level = LOG_EVENTS;
-	int seed_set = 0, level_set = 0;
-	uint64_t seed_arg = 0, wall_ns;
+	int level_set = 0;
+	uint64_t wall_ns;
 	struct rusage ru;
 
 	page = sysconf(_SC_PAGESIZE);
 	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
-			char *end;
-
-			seed_arg = strtoull(argv[++i], &end, 10);
-			if (*end)
-				usage(argv[0]);
-			seed_set = 1;
-		} else if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
+		if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
 			stats = argv[++i];
 		} else if (!strcmp(argv[i], "--log") && i + 1 < argc) {
 			log_path = argv[++i];
@@ -302,8 +295,6 @@ int main(int argc, char **argv)
 		log_level = level;
 
 	load(path);
-	if (seed_set)
-		seed = seed_arg;
 	prepare();
 	replay(&wall_ns);
 	if (stats)

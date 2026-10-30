@@ -2,7 +2,7 @@
 """Turn a damoLoad memtest workload config into a qmem profile v2.
 
 usage: memtest2profile.py <config.json> -o <profile> [--epoch-ms 10]
-                          [--duration S] [--seed 42]
+                          [--duration S]
 
 Every memtest spatial selector picks pages with known probabilities, so the
 expected touches of each page per second are known exactly:
@@ -196,10 +196,10 @@ def epoch_rates(tracks, regions, t0, t1):
     return out
 
 
-def build(cfg, name, epoch_ms, seed):
+def build(cfg, name, epoch_ms):
     duration, regions, tracks = tracks_of(cfg)
     prof = pf.Profile(meta={'source': 'memtest:' + name, 'builder': 'memtest2profile',
-                            'epoch_ms': epoch_ms, 'seed': seed})
+                            'epoch_ms': epoch_ms})
     for i, n in enumerate(regions):
         prof.regions.append(pf.Region(i, n * PAGE))
         prof.events.append(pf.Event('map', 0, i, 0, n * PAGE))
@@ -241,14 +241,13 @@ def main():
     ap.add_argument('-o', '--output', required=True)
     ap.add_argument('--epoch-ms', type=int, default=10)
     ap.add_argument('--duration', type=float, help='use only the first S seconds')
-    ap.add_argument('--seed', type=int, default=42)
     args = ap.parse_args()
     if args.epoch_ms <= 0:
         ap.error('--epoch-ms must be positive')
     cfg = json.loads(Path(args.config).read_text())
     if args.duration:
         cfg = cut(cfg, args.duration)
-    prof = build(cfg, Path(args.config).stem, args.epoch_ms, args.seed)
+    prof = build(cfg, Path(args.config).stem, args.epoch_ms)
     pf.write(args.output, prof)
     print('memtest2profile: %d regions, %d epochs' % (len(prof.regions), len(prof.epochs)),
           file=sys.stderr)

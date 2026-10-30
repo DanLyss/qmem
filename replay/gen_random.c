@@ -7,9 +7,9 @@
 
 #include "profile.h"
 
-static void init(struct access *a, uint64_t seed)
+static void init(struct access *a, uint64_t r)
 {
-	a->rng = seed ? seed : 1;
+	a->rng = r;
 }
 
 static void epoch(struct access *a, const struct access *prev)

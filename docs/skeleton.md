@@ -167,7 +167,7 @@ Estimator добавляет в `profile` свои строки (`lifecycle`, `r
 ```
 qmem-profile 2
 meta source=rec1 builder=2 intensity=passthrough
-meta epoch_ms=100 seed=42
+meta epoch_ms=100
 
 region id=2 size=317898752 kind=anon base=0x74b7dfad4000
 map t=1220 region=2 off=0 len=315801600
@@ -185,7 +185,7 @@ counter t=3000 name=pmu.loads value=0      # заглушка: пока никт
 
 | Тип | Обязательные ключи | Необязательные | Смысл |
 | --- | --- | --- | --- |
-| `meta` | — | любые | Сведения о происхождении и параметрах; replay их игнорирует, кроме `epoch_ms`, `seed` |
+| `meta` | — | любые | Сведения о происхождении и параметрах; replay их игнорирует, кроме `epoch_ms` |
 | `region` | `id`, `size` | `kind` (`anon`; `file` — заглушка), `base` (адрес в оригинале), `file` | Регион памяти |
 | `map`, `unmap`, `populate` | `t`, `region`, `off`, `len` | — | Жизнь памяти |
 | `epoch` | `t` | `dur` (по умолчанию `epoch_ms`) | Начало эпохи; следующие `access` относятся к ней |
@@ -211,7 +211,7 @@ counter t=3000 name=pmu.loads value=0      # заглушка: пока никт
 ```c
 struct generator_ops {
 	const char *name;                               /* значение pattern= */
-	void (*init)(struct access *a, uint64_t seed);  /* при загрузке */
+	void (*init)(struct access *a, uint64_t r);     /* при загрузке; r — случайное число */
 	void (*epoch)(struct access *a, const struct access *prev);  /* при смене эпохи */
 	uint64_t (*next)(struct access *a);             /* номер следующей страницы участка */
 };
@@ -228,7 +228,7 @@ struct generator_ops {
 ### 5.3 Командная строка
 
 ```
-qmem-replay <profile> [--seed N] [--stats <file>]
+qmem-replay <profile> [--stats <file>]
 ```
 
 `--stats` — план и сделанное по эпохам.

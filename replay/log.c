@@ -140,9 +140,9 @@ void log_write(const char *path, uint64_t end_ms, uint64_t lagged_ticks)
 		perror(path);
 		exit(1);
 	}
-	fprintf(f, "start seed=%" PRIu64 " regions=%" PRIu32 " events=%" PRIu32
+	fprintf(f, "start regions=%" PRIu32 " events=%" PRIu32
 		" epochs=%" PRIu32 " end_ms=%" PRIu64 " level=%s\n",
-		seed, n_regions, n_events, n_epochs, end_ms, level_names[log_level]);
+		n_regions, n_events, n_epochs, end_ms, level_names[log_level]);
 	for (uint32_t i = 0; i < n_regions; i++)
 		fprintf(f, "region id=%" PRIu32 " pages=%" PRIu64 " base=0x%lx\n",
 			i, regions[i].npages, (unsigned long)regions[i].base);

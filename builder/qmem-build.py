@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a qmem-replay profile (v2) from a qmem-record directory.
 
-usage: qmem-build.py <record dir> -o <profile> [--epoch-ms 100] [--seed 42]
+usage: qmem-build.py <record dir> -o <profile> [--epoch-ms 100]
                      [--intensity passthrough] [--write all]
                      [--timing roundrobin]
 
@@ -27,7 +27,6 @@ def main():
     ap.add_argument('record')
     ap.add_argument('-o', '--output', required=True)
     ap.add_argument('--epoch-ms', type=int, default=100)
-    ap.add_argument('--seed', type=int, default=42)
     for kind in estimators.CHOOSABLE:
         ap.add_argument('--' + kind, default=estimators.DEFAULTS[kind],
                         choices=estimators.available(kind))
@@ -42,7 +41,7 @@ def main():
     choice = {k: getattr(args, k) for k in estimators.CHOOSABLE}
     prof = pf.Profile(meta={'source': '_'.join(record.name.split()) or 'record',
                             'builder': 2, **choice,
-                            'epoch_ms': args.epoch_ms, 'seed': args.seed})
+                            'epoch_ms': args.epoch_ms})
     for name in estimators.pipeline(choice):
         estimators.load(name).estimate(model, args, prof)
     pf.write(args.output, prof)

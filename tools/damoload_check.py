@@ -166,7 +166,7 @@ def check(cfg_file, args, work):
     cfg_path = work / 'config.json'
     cfg_path.write_text(json.dumps(cfg, indent=1))
 
-    prof = m2p.build(cfg, Path(cfg_file).stem, args.epoch_ms, args.seed)
+    prof = m2p.build(cfg, Path(cfg_file).stem, args.epoch_ms)
     if args.scale_rate != 1.0:                               # self-test of the check
         for ep in prof.epochs:
             for a in ep.accesses:
@@ -241,7 +241,6 @@ def main():
     ap.add_argument('--duration', type=float, help='use only the first S seconds')
     ap.add_argument('--window-ms', type=int, default=100)
     ap.add_argument('--epoch-ms', type=int, default=10)
-    ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--keep', help='keep the files of a run here (one config only, '
                     'or a subdirectory per config)')
     ap.add_argument('--json', help='write the reports here')

@@ -66,8 +66,8 @@ def kv(**pairs):
 def write(path, prof):
     lines = ['qmem-profile 2']
     lines.append('meta ' + kv(**{k: v for k, v in prof.meta.items()
-                                 if k not in ('epoch_ms', 'seed')}))
-    lines.append('meta ' + kv(epoch_ms=prof.meta['epoch_ms'], seed=prof.meta['seed']))
+                                 if k != 'epoch_ms'}))
+    lines.append('meta ' + kv(epoch_ms=prof.meta['epoch_ms']))
     lines.append('')
     for r in prof.regions:
         lines.append('region ' + kv(id=r.id, size=r.size, kind=r.kind, base='0x%x' % r.base))

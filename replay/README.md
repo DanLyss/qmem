@@ -24,7 +24,7 @@
 struct generator_ops {
 	const char *name;                                   /* значение pattern= */
 	const char *stub;                                   /* предупреждение, если заглушка */
-	void (*init)(struct access *a, uint64_t seed);      /* при загрузке */
+	void (*init)(struct access *a, uint64_t r);         /* при загрузке; r — случайное число */
 	void (*epoch)(struct access *a, const struct access *prev);  /* при смене эпохи */
 	uint64_t (*next)(struct access *a);                 /* номер следующей страницы участка */
 };
@@ -52,7 +52,7 @@ struct generator_ops {
 ## Как пользоваться
 
 ```sh
-replay/qmem-replay profile.txt [--seed N] [--stats stats.csv]
+replay/qmem-replay profile.txt [--stats stats.csv]
                    [--log run.log [--log-level events|ticks|touches]]
 ```
 
@@ -62,7 +62,7 @@ Root не нужен. В конце в stderr печатается сводка:
 
 | Файл | Что проверяет |
 | --- | --- |
-| `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, populate, адреса регионов (`base=`), отдельные VMA |
+| `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, populate, адреса регионов (`base=`), отдельные VMA |
 | `tests/test_replay_v2.py` | Правила совместимости и заглушки |
 | `tests/test_skeleton_e2e.py` | record → build → replay целиком (с настоящим DAMON — под root) |
 | `tests/test_replay_log.py` | Лог шагов `--log`: строки и уровни |

@@ -8,10 +8,10 @@
 
 #include "profile.h"
 
-static void init(struct access *a, uint64_t seed)
+static void init(struct access *a, uint64_t r)
 {
 	/* a new range starts at a random page */
-	a->cursor = seed % a->pages;
+	a->cursor = r % a->pages;
 }
 
 static void epoch(struct access *a, const struct access *prev)

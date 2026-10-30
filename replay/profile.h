@@ -36,7 +36,7 @@ struct access;
 struct generator_ops {
 	const char *name;				/* the pattern= value */
 	const char *stub;				/* warning if it is a stub */
-	void (*init)(struct access *a, uint64_t seed);	/* at load time */
+	void (*init)(struct access *a, uint64_t r);	/* at load time; r: a random number */
 	/* at the start of the epoch; prev: the same range with the same
 	 * generator in the previous epoch, or NULL */
 	void (*epoch)(struct access *a, const struct access *prev);
@@ -67,7 +67,7 @@ extern struct event *events;
 extern struct access *accesses;
 extern struct epoch *epochs;
 extern uint32_t n_regions, n_events, n_accesses, n_epochs;
-extern uint64_t epoch_ms, seed;
+extern uint64_t epoch_ms;
 void load(const char *path);
 
 /* replay.c */

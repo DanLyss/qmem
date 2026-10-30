@@ -15,7 +15,7 @@
 
 | Тип | Уровень | Когда | Ключи |
 | --- | --- | --- | --- |
-| `start` | все | Перед первым тиком | `seed`, `regions`, `events`, `epochs`, `end_ms`, `level` |
+| `start` | все | Перед первым тиком | `regions`, `events`, `epochs`, `end_ms`, `level` |
 | `region` | все | После резерва адресов | `id`, `pages`, `base` (адрес в этом запуске, hex) |
 | `event` | все | Событие применено | `kind=map\|unmap\|populate`, `t` (из profile), `tick`, `region`, `off`, `len`; у `populate` ещё `pages` — сколько страниц записано |
 | `epoch` | все | Эпоха началась (`what=start`) или закончилась (`what=end`) | `idx`, `t`, `dur`, `tick`; у `end` ещё `planned`, `done` |
@@ -29,7 +29,7 @@
 ## Пример (уровень `ticks`)
 
 ```
-start seed=42 regions=1 events=2 epochs=1 end_ms=200 level=ticks
+start regions=1 events=2 epochs=1 end_ms=200 level=ticks
 region id=0 pages=1024 base=0x7f3a2c000000
 event kind=map t=0 tick=0 region=0 off=0 len=4194304
 event kind=populate t=0 tick=0 region=0 off=0 len=4194304 pages=1024

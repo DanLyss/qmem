@@ -7,7 +7,7 @@ profile — текстовый файл, который пишет builder (`bui
 ```
 qmem-profile 2
 meta source=rec1 builder=2 intensity=passthrough timing=roundrobin write=softdirty
-meta epoch_ms=100 seed=42
+meta epoch_ms=100
 
 region id=0 size=67108864 kind=anon base=0x7f0000000000
 map t=500 region=0 off=0 len=67108864
@@ -31,7 +31,7 @@ counter t=1000 name=pmu.loads value=0
 
 | Тип | Обязательные ключи | Необязательные | Смысл |
 | --- | --- | --- | --- |
-| `meta` | — | `epoch_ms` (по умолчанию 100), `seed` (42), любые другие | Параметры и сведения о происхождении. replay использует только `epoch_ms` и `seed` |
+| `meta` | — | `epoch_ms` (по умолчанию 100), любые другие | Параметры и сведения о происхождении. replay использует только `epoch_ms` |
 | `region` | `id`, `size` | `kind` (`anon` по умолчанию; `file` — заглушка, replay откажется), `base` (адрес в оригинале, hex), `file` | Регион памяти. `id` — 0, 1, 2, ... по порядку |
 | `map` / `unmap` / `populate` | `t`, `region`, `off`, `len` | — | Выделить, освободить или один раз записать каждую страницу участка. `off`, `len` кратны странице. Времена этих строк не убывают |
 | `epoch` | `t` | `dur` (по умолчанию `epoch_ms`) | Эпоха с `t` по `t + dur`; следующие строки `access` относятся к ней. Времена эпох растут |

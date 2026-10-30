@@ -40,7 +40,7 @@ readers  →  model  →  estimators  →  writer
 
 ```sh
 builder/qmem-build.py out -o profile.txt
-builder/qmem-build.py out -o profile.txt --epoch-ms 200 --seed 9 --intensity passthrough
+builder/qmem-build.py out -o profile.txt --epoch-ms 200 --intensity passthrough
 ```
 
 В stderr — сводка: регионы, события, эпохи, сколько файловых отображений пропущено. Какими оценщиками собран profile, видно в его строке `meta`.

@@ -24,7 +24,7 @@ struct event *events;
 struct access *accesses;
 struct epoch *epochs;
 uint32_t n_regions, n_events, n_accesses, n_epochs;
-uint64_t epoch_ms = 100, seed = 42;
+uint64_t epoch_ms = 100;
 
 #define MAX_TOKENS 32
 
@@ -221,14 +221,12 @@ static void parse_line(void)
 	if (!strcmp(tok[0], "meta")) {
 		const char *v;
 
-		check_keys("epoch_ms seed");
+		check_keys("epoch_ms");
 		if ((v = opt("epoch_ms"))) {
 			epoch_ms = num(v);
 			if (epoch_ms == 0)
 				bad("epoch_ms must be positive");	/* ext */
 		}
-		if ((v = opt("seed")))
-			seed = num(v);
 	} else if (!strcmp(tok[0], "region")) {
 		const char *kind;
 
