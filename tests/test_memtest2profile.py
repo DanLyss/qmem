@@ -239,8 +239,8 @@ def test_duration_option_cuts_the_config(tmp_path):
 
 def test_meta(tmp_path):
     prof = convert(tmp_path, config([track({'type': 'uniform'}, {'type': 'const', 'hz': 1})]),
-                   '--epoch-ms', '20', '--seed', '5')
-    assert prof.meta['epoch_ms'] == '20' and prof.meta['seed'] == '5'
+                   '--epoch-ms', '20')
+    assert prof.meta['epoch_ms'] == '20' and 'seed' not in prof.meta
     assert prof.meta['source'] == 'memtest:cfg'
 
 

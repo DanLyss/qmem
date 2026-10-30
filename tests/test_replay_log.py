@@ -19,10 +19,10 @@ def lines(log, type_, **match):
     return [kv for t, kv in log if t == type_ and all(kv.get(k) == str(v) for k, v in match.items())]
 
 
-def run_logged(tmp_path, body, level=None, *args, epoch_ms=100, seed=None):
+def run_logged(tmp_path, body, level=None, *args, epoch_ms=100):
     log = tmp_path / 'run.log'
     extra = ['--log', log] + (['--log-level', level] if level else [])
-    p = run_replay(write_profile(tmp_path / 'p.txt', body, epoch_ms=epoch_ms, seed=seed),
+    p = run_replay(write_profile(tmp_path / 'p.txt', body, epoch_ms=epoch_ms),
                    *extra, *args)
     assert p.returncode == 0, p.stderr
     return parse_log(log), p
@@ -46,12 +46,12 @@ def test_bad_level(tmp_path):
 
 
 def test_events_level(tmp_path):
-    log, p = run_logged(tmp_path, small(), seed=7)
+    log, p = run_logged(tmp_path, small())
     kinds = [t for t, _ in log]
     assert kinds[0] == 'start' and kinds[-1] == 'end'
     assert 'tick' not in kinds and 'touch' not in kinds
     start = log[0][1]
-    assert start == {'seed': '7', 'regions': '1', 'events': '1', 'epochs': '2',
+    assert start == {'regions': '1', 'events': '1', 'epochs': '2',
                      'end_ms': '200', 'level': 'events'}
     reg = lines(log, 'region')
     assert len(reg) == 1 and reg[0]['id'] == '0' and reg[0]['pages'] == str(MB // PAGE)

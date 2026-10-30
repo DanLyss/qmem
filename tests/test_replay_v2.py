@@ -50,16 +50,6 @@ def test_counter_is_accepted(tmp_path):
     assert 'counter' not in p.stderr
 
 
-def test_meta_seed(tmp_path):
-    head, acc = whole(4 * MB, 20, 0.5)
-    body = head + epochs(0, 300, 100, acc)
-    a = run_replay(write_profile(tmp_path / 'a.txt', body, seed=7))
-    b = run_replay(write_profile(tmp_path / 'b.txt', body, seed=8))
-    c = run_replay(write_profile(tmp_path / 'c.txt', body, seed=8), '--seed', '7')
-    assert summary(a.stderr)['checksum'] != summary(b.stderr)['checksum']
-    assert summary(a.stderr)['checksum'] == summary(c.stderr)['checksum']
-
-
 def test_other_meta_is_ignored(tmp_path):
     head, acc = whole(4 * MB, 10)
     body = ['meta source=rec1 builder=2 intensity=passthrough'] + head + \

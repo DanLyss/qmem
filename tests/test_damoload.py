@@ -33,7 +33,7 @@ def test_read_gt(tmp_path):
 
 def test_read_replay_log(tmp_path):
     p = tmp_path / 'run.log'
-    p.write_text('start seed=1 regions=1 events=1 epochs=1 end_ms=10 level=touches\n'
+    p.write_text('start regions=1 events=1 epochs=1 end_ms=10 level=touches\n'
                  'region id=0 pages=4 base=0x7f0000000000\n'
                  'touch t_ns=5 region=0 page=1 op=w\ntouch t_ns=6 region=0 page=2 op=skip\n'
                  'touch t_ns=7 region=0 page=3 op=r\nend planned=3 done=2 skipped=1 populated=0 '

@@ -13,10 +13,8 @@ PAGE = 4096
 MB = 1 << 20
 
 
-def write_profile(path, body, epoch_ms=100, seed=None):
+def write_profile(path, body, epoch_ms=100):
     meta = 'meta epoch_ms=%d' % epoch_ms
-    if seed is not None:
-        meta += ' seed=%d' % seed
     path.write_text('\n'.join(['qmem-profile 2', meta] + body) + '\n')
     return path
 
@@ -95,17 +93,6 @@ def test_rate_is_per_page(tmp_path):
                    '--stats', stats)
     assert p.returncode == 0, p.stderr
     assert all(r[1] == 2 * pages // 10 for r in stats_rows(stats))
-
-
-def test_same_seed_same_sequence(tmp_path):
-    size = 4 * MB
-    head, acc = whole(size, 20, 0.5)
-    prof = write_profile(tmp_path / 'p.txt', head + epochs(0, 300, 100, acc), seed=7)
-    a, b = run_replay(prof), run_replay(prof)
-    c = run_replay(prof, '--seed', '8')
-    assert a.returncode == b.returncode == c.returncode == 0
-    assert summary(a.stderr)['checksum'] == summary(b.stderr)['checksum']
-    assert summary(a.stderr)['checksum'] != summary(c.stderr)['checksum']
 
 
 def test_unmap_frees_memory(tmp_path):

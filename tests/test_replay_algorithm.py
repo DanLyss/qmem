@@ -159,23 +159,21 @@ def test_roundrobin_walks_in_a_circle_and_continues(tmp_path):
         assert y - off == (x - off + 1) % pages
 
 
-def start_pages(tmp_path, seed, name):
+def start_pages(tmp_path, name):
     body = [region(0, 4 * MB), ev('map', 0, 0, 0, 4 * MB)] + \
         epochs(0, 100, 100, [access(0, 0, 2 * MB, 5), access(0, 2 * MB, 2 * MB, 5)])
     d = tmp_path / name
     d.mkdir()
-    log, _ = run_logged(d, body, 'touches', seed=seed)
+    log, _ = run_logged(d, body, 'touches')
     first = {}
     for _, _, p, _ in touches(log):
         first.setdefault(p >= 512, p)
     return first[False], first[True]
 
 
-def test_roundrobin_start_depends_on_seed(tmp_path):
-    a, b, c = start_pages(tmp_path, 1, 'a'), start_pages(tmp_path, 1, 'b'), \
-        start_pages(tmp_path, 2, 'c')
-    assert a == b
-    assert a != c
+def test_roundrobin_starts_at_a_random_page(tmp_path):
+    # two ranges of 512 pages: the same start pair twice is a 1 in 512^2 chance
+    assert start_pages(tmp_path, 'a') != start_pages(tmp_path, 'b')
 
 
 def test_random_pages_are_uniform_in_range(tmp_path):

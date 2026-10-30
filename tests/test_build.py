@@ -103,7 +103,7 @@ def test_header_and_meta(profile):
     prof, _ = profile
     assert prof['version'] == '2'
     meta = prof['meta']
-    assert meta['epoch_ms'] == '100' and meta['seed'] == '42'
+    assert meta['epoch_ms'] == '100' and 'seed' not in meta
     # which estimators made the profile
     assert meta['intensity'] == 'passthrough'
     assert meta['write'] == 'all'
@@ -214,12 +214,12 @@ def test_write_all(tmp_path):
 # ------------------------------------------------------------------ options
 
 
-def test_epoch_ms_and_seed_options(record, tmp_path):
+def test_epoch_ms_option(record, tmp_path):
     out = tmp_path / 'p.txt'
-    p = run_build(record, '-o', out, '--epoch-ms', '200', '--seed', '9')
+    p = run_build(record, '-o', out, '--epoch-ms', '200')
     assert p.returncode == 0, p.stderr
     prof = parse(out)
-    assert prof['meta']['epoch_ms'] == '200' and prof['meta']['seed'] == '9'
+    assert prof['meta']['epoch_ms'] == '200'
     assert sorted(prof['epochs']) == list(range(1000, 3500, 200))
     assert set(prof['epochs'].values()) == {200}
 
