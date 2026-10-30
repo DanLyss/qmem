@@ -102,19 +102,19 @@ static void prepare(void)
 	memory_prepare();
 }
 
-static uint64_t start_boottime_ns;
+/* 1 ms ticks spread an epoch's touches over the epoch. They must be
+ * shorter than DAMON's sampling interval (5 ms by default): with
+ * 10 ms ticks the touches came in a burst and half of DAMON's samples
+ * fell into the pause, so replay looked half as hot. */
+static const uint64_t tick_ms = 1;
 
-static void replay(uint64_t *wall_ns)
+static uint64_t start_ns, start_boottime_ns;
+static uint32_t next_event, next_epoch;
+static int cur = -1, cur_ended;		/* the current epoch, -1 before the first */
+
+/* The length of the run and the planned touches of each epoch. */
+static void plan(void)
 {
-	/* 1 ms ticks spread an epoch's touches over the epoch. They must be
-	 * shorter than DAMON's sampling interval (5 ms by default): with
-	 * 10 ms ticks the touches came in a burst and half of DAMON's samples
-	 * fell into the pause, so replay looked half as hot. */
-	uint64_t tick_ms = 1;
-	uint64_t start;
-	uint32_t ei = 0, pi = 0;
-	int cur = -1, cur_ended = 0;
-
 	if (n_events)
 		end_ms = events[n_events - 1].t_ms;
 	for (uint32_t i = 0; i < n_epochs; i++) {
@@ -124,80 +124,107 @@ static void replay(uint64_t *wall_ns)
 			epochs[i].planned += (uint64_t)(accesses[j].rate * epochs[i].dur_ms / 1000.0 + 1e-9);
 		planned += epochs[i].planned;
 	}
+}
 
-	start = now_ns();
-	log_start(start);
-	{
-		struct timespec ts;
+static int epoch_over(uint64_t t)
+{
+	return t >= epochs[cur].t_ms + epochs[cur].dur_ms;
+}
 
-		clock_gettime(CLOCK_BOOTTIME, &ts);
-		start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+static void end_epoch(uint64_t t)
+{
+	if (cur >= 0 && !cur_ended && epoch_over(t)) {
+		log_epoch(cur, 0, t);
+		cur_ended = 1;
 	}
+}
+
+/* Map, unmap and populate events due by tick t. */
+static void exec_events(uint64_t t)
+{
+	while (next_event < n_events && events[next_event].t_ms <= t) {
+		uint64_t n = memory_apply(&events[next_event]);
+
+		log_event(&events[next_event++], t, n);
+	}
+}
+
+/* Epochs due by tick t; a range goes on with the fraction of a touch and the
+ * generator state of the same range in the previous epoch: short epochs at
+ * low rates would lose them. */
+static void start_epochs(uint64_t t)
+{
+	while (next_epoch < n_epochs && epochs[next_epoch].t_ms <= t) {
+		if (cur >= 0 && !cur_ended)
+			log_epoch(cur, 0, t);
+		cur = next_epoch++;
+		cur_ended = 0;
+		log_epoch(cur, 1, t);
+		for (uint32_t j = epochs[cur].first; j < epochs[cur].first + epochs[cur].n; j++) {
+			struct access *a = &accesses[j];
+			const struct access *prev = a->prev >= 0 ? &accesses[a->prev] : NULL;
+
+			a->carry = prev ? prev->carry : 0;
+			a->gen->epoch(a, prev);
+		}
+	}
+}
+
+static void note_lag(double lag_ms)
+{
+	if (lag_ms > epochs[cur].max_lag_ms)
+		epochs[cur].max_lag_ms = lag_ms;
+	if (lag_ms > max_lag_ms)
+		max_lag_ms = lag_ms;
+}
+
+/* Tick t did not fit: drop the missed ticks instead of queueing them.
+ * Returns the tick to go on from. */
+static uint64_t drop_late_ticks(uint64_t t)
+{
+	uint64_t now_ms = (now_ns() - start_ns) / 1000000ULL;
+	uint64_t next = now_ms / tick_ms * tick_ms, skip;
+
+	lagged_ticks++;
+	if (next <= t + tick_ms) {
+		log_drop(t, 0);
+		return t;
+	}
+	skip = (next - t) / tick_ms - 1;
+	lagged_ticks += skip;
+	log_drop(t, skip);
+	return next - tick_ms;
+}
+
+static void replay(uint64_t *wall_ns)
+{
+	struct timespec ts;
+
+	plan();
+	start_ns = now_ns();
+	log_start(start_ns);
+	clock_gettime(CLOCK_BOOTTIME, &ts);
+	start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
-		uint64_t due = start + t * 1000000ULL;
+		uint64_t due = start_ns + t * 1000000ULL;
 		double lag_ms;
 
 		sleep_until(due);
 		lag_ms = (now_ns() - due) / 1e6;
-		if (cur >= 0 && !cur_ended && t >= epochs[cur].t_ms + epochs[cur].dur_ms) {
-			log_epoch(cur, 0, t);
-			cur_ended = 1;
-		}
-		while (ei < n_events && events[ei].t_ms <= t) {
-			uint64_t n = memory_apply(&events[ei]);
-
-			log_event(&events[ei++], t, n);
-		}
-		while (pi < n_epochs && epochs[pi].t_ms <= t) {
-			if (cur >= 0 && !cur_ended)
-				log_epoch(cur, 0, t);
-			cur = pi++;
-			cur_ended = 0;
-			log_epoch(cur, 1, t);
-			for (uint32_t j = epochs[cur].first;
-			     j < epochs[cur].first + epochs[cur].n; j++) {
-				struct access *a = &accesses[j];
-
-				const struct access *prev =
-					a->prev >= 0 ? &accesses[a->prev] : NULL;
-
-				/* the same range goes on with its fraction of a
-				 * touch: short epochs at low rates would lose it */
-				a->carry = prev ? prev->carry : 0;
-				a->gen->epoch(a, prev);
-			}
-		}
-		if (cur < 0 || t >= epochs[cur].t_ms + epochs[cur].dur_ms)
+		end_epoch(t);
+		exec_events(t);
+		start_epochs(t);
+		if (cur < 0 || epoch_over(t))
 			continue;
-		if (lag_ms > epochs[cur].max_lag_ms)
-			epochs[cur].max_lag_ms = lag_ms;
-		if (lag_ms > max_lag_ms)
-			max_lag_ms = lag_ms;
-		if (!exec_tick(cur, t, tick_ms, due + tick_ms * 1000000ULL)) {
-			/* behind schedule: drop the missed ticks instead of queueing */
-			uint64_t now_ms = (now_ns() - start) / 1000000ULL;
-			uint64_t next = now_ms / tick_ms * tick_ms, skip = 0;
-
-			lagged_ticks++;
-			if (next > t + tick_ms) {
-				skip = (next - t) / tick_ms - 1;
-				lagged_ticks += skip;
-				log_drop(t, skip);
-				t = next - tick_ms;
-			} else {
-				log_drop(t, 0);
-			}
-		}
+		note_lag(lag_ms);
+		if (!exec_tick(cur, t, tick_ms, due + tick_ms * 1000000ULL))
+			t = drop_late_ticks(t);
 	}
 	if (cur >= 0 && !cur_ended)
 		log_epoch(cur, 0, end_ms);
-	while (ei < n_events) {
-		uint64_t n = memory_apply(&events[ei]);
-
-		log_event(&events[ei++], end_ms, n);
-	}
-	sleep_until(start + end_ms * 1000000ULL);
-	*wall_ns = now_ns() - start;
+	exec_events(end_ms);	/* the ones at end_ms itself */
+	sleep_until(start_ns + end_ms * 1000000ULL);
+	*wall_ns = now_ns() - start_ns;
 }
 
 /* Peak RSS of this process in kB. ru_maxrss would also count the process
