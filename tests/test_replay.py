@@ -286,6 +286,38 @@ def test_layout_file(tmp_path):
     assert all(b % PAGE == 0 for b in bases) and bases[0] != bases[1]
 
 
+def layout_bases(path):
+    return [int(l.split()[2], 16) for l in path.read_text().splitlines()[2:]]
+
+
+FREE = 0x200000000000           # far from the heap, the libraries and the stack
+
+
+def test_region_goes_to_its_base(tmp_path):
+    body = [region(0, 4 * MB, 'base=0x%x' % FREE), region(1, 2 * MB),
+            ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
+        epochs(0, 200, 100, [access(0, 0, 4 * MB, 1)])
+    layout = tmp_path / 'layout.txt'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
+    assert p.returncode == 0, p.stderr
+    assert 'reserved elsewhere' not in p.stderr
+    assert layout_bases(layout)[0] == FREE
+
+
+def test_taken_base_warns_and_goes_anywhere(tmp_path):
+    body = [region(0, 4 * MB, 'base=0x%x' % FREE), region(1, 2 * MB, 'base=0x%x' % FREE),
+            ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
+        epochs(0, 200, 100, [access(1, 0, 2 * MB, 1)])
+    layout = tmp_path / 'layout.txt'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
+    assert p.returncode == 0, p.stderr
+    assert p.stderr.count('reserved elsewhere') == 1
+    bases = layout_bases(layout)
+    assert bases[0] == FREE and bases[1] != FREE and bases[1] % PAGE == 0
+    s = summary(p.stderr)
+    assert int(s['done']) == int(s['planned']) > 0      # the moved region still works
+
+
 def test_regions_stay_separate_mappings(tmp_path):
     """Regions are separate mappings in the original; adjacent reservations
     must not let the kernel merge them into one VMA."""
