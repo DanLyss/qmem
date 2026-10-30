@@ -257,6 +257,13 @@ static void write_stats(const char *path)
 	fclose(f);
 }
 
+static void usage(const char *prog)
+{
+	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
+		" [--log <file> [--log-level events|ticks|touches]]\n", prog);
+	exit(2);
+}
+
 int main(int argc, char **argv)
 {
 	const char *path = NULL, *stats = NULL, *log_path = NULL;
@@ -272,7 +279,7 @@ int main(int argc, char **argv)
 
 			seed_arg = strtoull(argv[++i], &end, 10);
 			if (*end)
-				goto usage;
+				usage(argv[0]);
 			seed_set = 1;
 		} else if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
 			stats = argv[++i];
@@ -281,16 +288,16 @@ int main(int argc, char **argv)
 		} else if (!strcmp(argv[i], "--log-level") && i + 1 < argc) {
 			level = log_parse_level(argv[++i]);
 			if (level < 0)
-				goto usage;
+				usage(argv[0]);
 			level_set = 1;
 		} else if (argv[i][0] == '-' || path) {
-			goto usage;
+			usage(argv[0]);
 		} else {
 			path = argv[i];
 		}
 	}
 	if (!path || (level_set && !log_path))
-		goto usage;
+		usage(argv[0]);
 	if (log_path)
 		log_level = level;
 
@@ -316,9 +323,4 @@ int main(int argc, char **argv)
 		(ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) / 1e6,
 		wall_ns / 1e9, checksum);
 	return 0;
-
-usage:
-	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
-		" [--log <file> [--log-level events|ticks|touches]]\n", argv[0]);
-	return 2;
 }
