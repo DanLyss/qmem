@@ -15,6 +15,7 @@
 
 struct region {
 	uint64_t size, npages;
+	uint64_t orig_base;	/* base= in the profile (the original's address), or 0 */
 	uint8_t *base;		/* reserved before the replay starts */
 	uint8_t *mapped;	/* bitmap: page is mapped */
 	uint8_t *touched;	/* bitmap: page was touched since it was mapped */

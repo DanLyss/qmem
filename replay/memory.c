@@ -4,6 +4,7 @@
  * anonymous memory (kind=anon); the loader refuses kind=file.
  */
 #define _GNU_SOURCE
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
@@ -42,14 +43,31 @@ void memory_prepare(void)
 	for (uint32_t r = 0; r < n_regions; r++) {
 		struct region *g = &regions[r];
 		size_t bytes = (g->npages + 7) / 8;
+		size_t len = (g->npages + 1) * page;
 
 		g->mapped = calloc(bytes, 1);
 		g->touched = calloc(bytes, 1);
 		/* one more page than needed stays PROT_NONE forever: regions are
 		 * separate mappings in the original, and two reservations side
 		 * by side would let the kernel merge their mapped parts */
-		g->base = mmap(NULL, (g->npages + 1) * page, PROT_NONE,
-			       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+		g->base = MAP_FAILED;
+		if (g->orig_base) {
+			/* where it was in the original (huge page alignment, VMA
+			 * layout, DAMON addresses), if that place is free here */
+			g->base = mmap((void *)g->orig_base, len, PROT_NONE,
+				       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE |
+				       MAP_FIXED_NOREPLACE, -1, 0);
+			if (g->base != MAP_FAILED && g->base != (uint8_t *)g->orig_base) {
+				munmap(g->base, len);	/* a kernel that took it as a hint */
+				g->base = MAP_FAILED;
+			}
+			if (g->base == MAP_FAILED)
+				fprintf(stderr, "qmem-replay: region %" PRIu32 ": 0x%" PRIx64
+					" is not free, reserved elsewhere\n", r, g->orig_base);
+		}
+		if (g->base == MAP_FAILED)
+			g->base = mmap(NULL, len, PROT_NONE,
+				       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 		if (!g->mapped || !g->touched || g->base == MAP_FAILED) {
 			perror("prepare");
 			exit(1);

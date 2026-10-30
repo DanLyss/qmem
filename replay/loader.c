@@ -85,11 +85,14 @@ static double real(const char *s)
 	return v;
 }
 
-static void check_base(const char *s)
+static uint64_t base_of(const char *s)
 {
-	if (s && (strncmp(s, "0x", 2) || !s[2] ||
-		  s[2 + strspn(s + 2, "0123456789abcdefABCDEF")]))
+	if (!s)
+		return 0;
+	if (strncmp(s, "0x", 2) || !s[2] ||
+	    s[2 + strspn(s + 2, "0123456789abcdefABCDEF")])
 		bad("bad region base '%s'", s);	/* ext */
+	return strtoull(s + 2, NULL, 16);
 }
 
 static void check_range(uint32_t r, uint64_t off, uint64_t len, int aligned)
@@ -158,11 +161,9 @@ static void add_region(uint64_t id, uint64_t size, const char *base)
 		bad("regions must be numbered 0, 1, ... in order");	/* ext */
 	if (size == 0)
 		bad("empty region");	/* ext */
-	/* the base in the original record, for verify only */
-	check_base(base);
 	regions = grow(regions, n_regions, sizeof(*regions));
 	regions[n_regions++] = (struct region){
-		.size = size, .npages = (size + page - 1) / page };
+		.size = size, .npages = (size + page - 1) / page, .orig_base = base_of(base) };
 }
 
 static void add_event(int kind, uint64_t t, uint64_t r, uint64_t off, uint64_t len)
