@@ -1,5 +1,5 @@
 """qmem-replay: core, timing and stats, populate,
-layout. The compatibility rules and the stubs are in test_replay_v2.py.
+region addresses. The compatibility rules and the stubs are in test_replay_v2.py.
 """
 import re
 import subprocess
@@ -280,31 +280,12 @@ def test_populate_makes_memory_resident(tmp_path):
     assert int(s['planned']) == 0
 
 
-# ---------------------------------------------------------------- layout
+# ---------------------------------------------------------------- addresses
 
 
-def test_layout_file(tmp_path):
-    body = [region(0, 4 * MB, 'base=0x7f0000000000'), region(1, 2 * MB),
-            ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
-        epochs(0, 300, 100, [access(0, 0, 4 * MB, 1)])
-    layout = tmp_path / 'layout.txt'
-    before = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
-    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
-    after = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
-    assert p.returncode == 0, p.stderr
-    lines = layout.read_text().splitlines()
-    assert lines[0] == 'qmem-replay-layout 1'
-    start = int(lines[1].split()[1])
-    assert lines[1].startswith('start_boottime_ns ') and before <= start <= after
-    regions = [l.split() for l in lines[2:]]
-    assert [(r[0], r[1], r[3]) for r in regions] == [
-        ('region', '0', str(4 * MB)), ('region', '1', str(2 * MB))]
-    bases = [int(r[2], 16) for r in regions]
-    assert all(b % PAGE == 0 for b in bases) and bases[0] != bases[1]
-
-
-def layout_bases(path):
-    return [int(l.split()[2], 16) for l in path.read_text().splitlines()[2:]]
+def log_bases(path):
+    return [int(re.search(r'base=0x([0-9a-f]+)', l)[1], 16)
+            for l in path.read_text().splitlines() if l.startswith('region ')]
 
 
 FREE = 0x200000000000           # far from the heap, the libraries and the stack
@@ -314,22 +295,22 @@ def test_region_goes_to_its_base(tmp_path):
     body = [region(0, 4 * MB, 'base=0x%x' % FREE), region(1, 2 * MB),
             ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
         epochs(0, 200, 100, [access(0, 0, 4 * MB, 1)])
-    layout = tmp_path / 'layout.txt'
-    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
+    log = tmp_path / 'log.txt'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--log', log)
     assert p.returncode == 0, p.stderr
     assert 'reserved elsewhere' not in p.stderr
-    assert layout_bases(layout)[0] == FREE
+    assert log_bases(log)[0] == FREE
 
 
 def test_taken_base_warns_and_goes_anywhere(tmp_path):
     body = [region(0, 4 * MB, 'base=0x%x' % FREE), region(1, 2 * MB, 'base=0x%x' % FREE),
             ev('map', 0, 0, 0, 4 * MB), ev('map', 0, 1, 0, 2 * MB)] + \
         epochs(0, 200, 100, [access(1, 0, 2 * MB, 1)])
-    layout = tmp_path / 'layout.txt'
-    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--layout', layout)
+    log = tmp_path / 'log.txt'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--log', log)
     assert p.returncode == 0, p.stderr
     assert p.stderr.count('reserved elsewhere') == 1
-    bases = layout_bases(layout)
+    bases = log_bases(log)
     assert bases[0] == FREE and bases[1] != FREE and bases[1] % PAGE == 0
     s = summary(p.stderr)
     assert int(s['done']) == int(s['planned']) > 0      # the moved region still works

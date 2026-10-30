@@ -6,7 +6,7 @@
  * Work that does not fit into its tick is dropped, not queued, so the
  * replay never drifts. The other parts are listed in profile.h.
  *
- * usage: qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
+ * usage: qmem-replay <profile> [--seed N] [--stats <file>]
  *                    [--log <file> [--log-level events|ticks|touches]]
  */
 #define _GNU_SOURCE
@@ -108,7 +108,7 @@ static void prepare(void)
  * fell into the pause, so replay looked half as hot. */
 static const uint64_t tick_ms = 1;
 
-static uint64_t start_ns, start_boottime_ns;
+static uint64_t start_ns;
 static uint32_t next_event, next_epoch;
 static int cur = -1, cur_ended;		/* the current epoch, -1 before the first */
 
@@ -200,13 +200,9 @@ static uint64_t drop_late_ticks(uint64_t t)
 
 static void replay(uint64_t *wall_ns)
 {
-	struct timespec ts;
-
 	plan();
 	start_ns = now_ns();
 	log_start(start_ns);
-	clock_gettime(CLOCK_BOOTTIME, &ts);
-	start_boottime_ns = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 	for (uint64_t t = 0; t < end_ms; t += tick_ms) {
 		uint64_t due = start_ns + t * 1000000ULL;
 		double lag_ms;
@@ -246,24 +242,6 @@ static long peak_rss_kb(void)
 	return kb;
 }
 
-/* Where the regions are in this run and when profile time 0 was, for
- * verify to map the replay's DAMON addresses and times. */
-static void write_layout(const char *path)
-{
-	FILE *f = fopen(path, "w");
-
-	if (!f) {
-		perror(path);
-		exit(1);
-	}
-	fprintf(f, "qmem-replay-layout 1\nstart_boottime_ns %" PRIu64 "\n",
-		start_boottime_ns);
-	for (uint32_t r = 0; r < n_regions; r++)
-		fprintf(f, "region %" PRIu32 " 0x%lx %" PRIu64 "\n", r,
-			(unsigned long)regions[r].base, regions[r].size);
-	fclose(f);
-}
-
 static void write_stats(const char *path)
 {
 	FILE *f = fopen(path, "w");
@@ -281,7 +259,7 @@ static void write_stats(const char *path)
 
 int main(int argc, char **argv)
 {
-	const char *path = NULL, *stats = NULL, *layout = NULL, *log_path = NULL;
+	const char *path = NULL, *stats = NULL, *log_path = NULL;
 	int level = LOG_EVENTS;
 	int seed_set = 0, level_set = 0;
 	uint64_t seed_arg = 0, wall_ns;
@@ -298,8 +276,6 @@ int main(int argc, char **argv)
 			seed_set = 1;
 		} else if (!strcmp(argv[i], "--stats") && i + 1 < argc) {
 			stats = argv[++i];
-		} else if (!strcmp(argv[i], "--layout") && i + 1 < argc) {
-			layout = argv[++i];
 		} else if (!strcmp(argv[i], "--log") && i + 1 < argc) {
 			log_path = argv[++i];
 		} else if (!strcmp(argv[i], "--log-level") && i + 1 < argc) {
@@ -325,8 +301,6 @@ int main(int argc, char **argv)
 	replay(&wall_ns);
 	if (stats)
 		write_stats(stats);
-	if (layout)
-		write_layout(layout);
 	if (log_path)
 		log_write(log_path, end_ms, lagged_ticks);
 
@@ -344,7 +318,7 @@ int main(int argc, char **argv)
 	return 0;
 
 usage:
-	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>] [--layout <file>]"
+	fprintf(stderr, "usage: %s <profile> [--seed N] [--stats <file>]"
 		" [--log <file> [--log-level events|ticks|touches]]\n", argv[0]);
 	return 2;
 }

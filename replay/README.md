@@ -14,7 +14,7 @@
 | `generators.c`, `gen_roundrobin.c`, `gen_random.c` | generators | Какая страница участка следующая |
 | `exec.c` | executors | Касания одного тика; один поток |
 | `log.c` | — | Лог шагов (`--log`), формат: [docs/formats/replay_log.md](../docs/formats/replay_log.md) |
-| `replay.c` | scheduler | Тики, события, смена эпох, статистика, `--stats`, `--layout`, сводка |
+| `replay.c` | scheduler | Тики, события, смена эпох, статистика, `--stats`, сводка |
 
 Сборка: `make`.
 
@@ -52,7 +52,7 @@ struct generator_ops {
 ## Как пользоваться
 
 ```sh
-replay/qmem-replay profile.txt [--seed N] [--stats stats.csv] [--layout layout.txt]
+replay/qmem-replay profile.txt [--seed N] [--stats stats.csv]
                    [--log run.log [--log-level events|ticks|touches]]
 ```
 
@@ -62,7 +62,7 @@ Root не нужен. В конце в stderr печатается сводка:
 
 | Файл | Что проверяет |
 | --- | --- |
-| `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, populate, `--layout`, отдельные VMA |
+| `tests/test_replay.py` | profile v2: память, `rate` на страницу, `dur` эпохи, seed, unmap и частичный map, ошибки, тайминг и `--stats`, перегрузка, populate, адреса регионов (`base=`), отдельные VMA |
 | `tests/test_replay_v2.py` | Правила совместимости и заглушки |
 | `tests/test_skeleton_e2e.py` | record → build → replay целиком (с настоящим DAMON — под root) |
 | `tests/test_replay_log.py` | Лог шагов `--log`: строки и уровни |

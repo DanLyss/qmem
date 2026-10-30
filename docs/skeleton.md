@@ -228,10 +228,10 @@ struct generator_ops {
 ### 5.3 Командная строка
 
 ```
-qmem-replay <profile> [--seed N] [--stats <file>] [--layout <file>]
+qmem-replay <profile> [--seed N] [--stats <file>]
 ```
 
-Без изменений: `--stats` — план и сделанное по эпохам, `--layout` — где регионы в этом запуске.
+`--stats` — план и сделанное по эпохам.
 
 ## 6. Структура репозитория после перехода
 
