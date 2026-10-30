@@ -246,6 +246,23 @@ def test_overload_does_not_drift(tmp_path):
     assert int(s['lagged_ticks']) > 0
 
 
+def test_lag_counts_a_tick_that_overran(tmp_path):
+    """A populate keeps tick 50 busy for many ticks; the ticks after the drop
+    start on time, so only the overrun itself can show the lag."""
+    big = 128 * MB
+    body = [region(0, big), region(1, 2 * PAGE), ev('map', 0, 0, 0, big),
+            ev('map', 0, 1, 0, 2 * PAGE), ev('populate', 50, 0, 0, big),
+            'epoch t=0 dur=500', access(1, 0, 2 * PAGE, 5000000)]
+    stats = tmp_path / 's.csv'
+    p = run_replay(write_profile(tmp_path / 'p.txt', body), '--stats', stats)
+    assert p.returncode == 0, p.stderr
+    s = summary(p.stderr)
+    lagged = int(s['lagged_ticks'])
+    assert lagged > 10, s                   # the populate did overrun
+    assert float(s['max_lag_ms']) >= lagged - 2
+    assert stats_rows(stats)[0][3] >= lagged - 2
+
+
 # ---------------------------------------------------------------- populate
 
 
