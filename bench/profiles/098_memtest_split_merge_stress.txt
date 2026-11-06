@@ -1,0 +1,11 @@
+qmem-profile 2
+meta source=memtest:46_split_merge_stress builder=memtest2profile
+meta epoch_ms=10
+
+region id=0 size=65536 kind=anon base=0x0
+map t=0 region=0 off=0 len=65536
+populate t=0 region=0 off=0 len=65536
+
+epoch t=0 dur=2000
+access region=0 off=0 len=16384 rate=36.25 write=1 pattern=random
+access region=0 off=16384 len=49152 rate=6.25 write=1 pattern=random

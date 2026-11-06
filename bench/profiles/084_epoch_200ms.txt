@@ -1,0 +1,24 @@
+qmem-profile 2
+meta epoch_ms=200
+region id=0 size=4194304
+map t=0 region=0 off=0 len=4194304
+epoch t=0
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=200
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=400
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=600
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=800
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=1000
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=1200
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=1400
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=1600
+access region=0 off=0 len=4194304 rate=0.5
+epoch t=1800
+access region=0 off=0 len=4194304 rate=0.5

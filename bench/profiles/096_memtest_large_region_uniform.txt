@@ -1,0 +1,10 @@
+qmem-profile 2
+meta source=memtest:27_large_region_uniform builder=memtest2profile
+meta epoch_ms=10
+
+region id=0 size=204800 kind=anon base=0x0
+map t=0 region=0 off=0 len=204800
+populate t=0 region=0 off=0 len=204800
+
+epoch t=0 dur=2000
+access region=0 off=0 len=204800 rate=2 write=1 pattern=random

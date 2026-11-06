@@ -1,0 +1,19 @@
+qmem-profile 2
+meta source=memtest:17_zipf_steep builder=memtest2profile
+meta epoch_ms=10
+
+region id=0 size=40960 kind=anon base=0x0
+map t=0 region=0 off=0 len=40960
+populate t=0 region=0 off=0 len=40960
+
+epoch t=0 dur=2000
+access region=0 off=0 len=4096 rate=96.788697 write=1 pattern=random
+access region=0 off=4096 len=4096 rate=24.197174 write=1 pattern=random
+access region=0 off=8192 len=4096 rate=10.7543 write=1 pattern=random
+access region=0 off=12288 len=4096 rate=6.049294 write=1 pattern=random
+access region=0 off=16384 len=4096 rate=3.871548 write=1 pattern=random
+access region=0 off=20480 len=4096 rate=2.688575 write=1 pattern=random
+access region=0 off=24576 len=4096 rate=1.97528 write=1 pattern=random
+access region=0 off=28672 len=4096 rate=1.512323 write=1 pattern=random
+access region=0 off=32768 len=4096 rate=1.194922 write=1 pattern=random
+access region=0 off=36864 len=4096 rate=0.967887 write=1 pattern=random
