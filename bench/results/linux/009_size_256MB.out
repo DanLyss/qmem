@@ -1,2 +1,0 @@
-replay: epochs=20 planned=655360 done=655360 skipped=0 populated=32768 lagged_ticks=0 max_lag_ms=52.1 minflt=65630 majflt=2 maxrss_kb=263928 cpu_s=0.21 wall_s=2.00 checksum=ba51caf8143b0000
-exit=0
