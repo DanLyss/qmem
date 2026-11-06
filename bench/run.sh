@@ -37,7 +37,7 @@ for p in "$PROFILES"/*.txt; do
 	: > "$OUT/$name.rss"
 	# stop at the zombie too: kill -0 would go on until wait
 	while [ -r "/proc/$pid/status" ] && ! grep -q '^State:.*Z' "/proc/$pid/status" 2>/dev/null; do
-		kb=$(grep '^VmRSS:' "/proc/$pid/status" 2>/dev/null | tr -s ' \t' ' ' | cut -d' ' -f2)
+		kb=$(grep '^VmRSS:' "/proc/$pid/status" 2>/dev/null | sed -n 's/.* \([0-9][0-9]*\) kB/\1/p')
 		[ -n "$kb" ] && echo "$n $kb" >> "$OUT/$name.rss"
 		n=$((n + 1))
 		sleep 0.1

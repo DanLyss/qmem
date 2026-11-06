@@ -21,7 +21,7 @@
 
 Разобрано около 90% (~1965 из ~2195; replay за время разбора стал короче: 1188 → 1177 строк). Вне схемы: `tools/` (~620), `workloads/` (357), `Makefile` (36), тесты (~2400).
 
-Разбор replay идёт по плану [REPLAY_STUDY.md](REPLAY_STUDY.md). Пауза с 2026-11-06: replay портируется на телефон, руководство для этого — [docs/replay_guide.md](docs/replay_guide.md).
+Разбор replay остановлен на `log.c` (2026-11-06): дальше был порт на телефон — [docs/replay_guide.md](docs/replay_guide.md), сравнение Linux ↔ телефон — [docs/phone_vs_linux.md](docs/phone_vs_linux.md).
 
 ## Что попросили поменять — сделано
 
@@ -45,7 +45,10 @@
 | 2026-10-30 | `60eeee7` | replay: убран `--layout` (его читал только удалённый verify); тесты `base=` читают адреса из лога |
 | 2026-10-30 | `4a5d749` | replay: `usage()` вместо `goto usage` |
 | 2026-10-30 | `14a11c7`, `704183a` | seed убран отовсюду (replay, builder, memtest2profile, damoload_check, документы): генераторы стартуют со случайного состояния в каждом прогоне, прогоны не повторяются |
-| 2026-11-06 | — | [docs/replay_guide.md](docs/replay_guide.md): сборка и проверка replay на новой машине (Android: Termux, NDK) |
+| 2026-11-06 | `54f95c2` | [docs/replay_guide.md](docs/replay_guide.md): сборка и проверка replay на новой машине |
+| 2026-11-06 | — | Replay собран и прогнан на телефоне (HarmonyOS, aarch64, OHOS clang + musl) без правок кода: [Makefile.phone](Makefile.phone), [docs/phone_port_report.md](docs/phone_port_report.md) |
+| 2026-11-06 | — | 100 профилей на Linux и телефоне ([bench/](bench/README.md)), сравнение — [docs/phone_vs_linux.md](docs/phone_vs_linux.md): профиль и память совпадают, page faults считаются по-разному, ошибка дедлайна видна на обеих |
+| 2026-11-06 | — | Удалены: старая запись `out/`, старый `profile.txt` в корне, `examples/damoload_run/`, план разбора `REPLAY_STUDY.md` |
 
 ## Что обсудили и решили оставить
 

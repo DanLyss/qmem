@@ -1,0 +1,28 @@
+TOOLCHAIN_DIR = /opt/native/llvm/
+SYSROOT_DIR   = /opt/native/sysroot
+
+CC            := $(TOOLCHAIN_DIR)/bin/aarch64-unknown-linux-ohos-clang
+CFLAGS        = -std=c11 -O2 -Wall -Wextra --target=aarch64-unknown-linux-ohos --sysroot=$(SYSROOT_DIR)
+LDFLAGS       = --target=aarch64-unknown-linux-ohos --sysroot=$(SYSROOT_DIR)
+
+BUILD  = build
+TARGET = $(BUILD)/qmem-replay
+
+SRCS   = $(wildcard replay/*.c)
+OBJS   = $(SRCS:replay/%.c=$(BUILD)/%.o)
+
+all: $(BUILD) $(TARGET)
+
+$(BUILD):
+	mkdir -p $(BUILD)
+
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS)
+
+$(BUILD)/%.o: replay/%.c replay/profile.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all clean
